@@ -96,7 +96,7 @@ SQLite ledger tests do not prove PostgreSQL locking. Verify concurrent workers a
 Existing drawing/comment/DXF tests protect chat compatibility. The route manifest covers new API permissions.
 
 
-## Local review coverage and navigation
+### Local review coverage and navigation
 
 The chat reviewer uses the VISION model flow, not the selected chat model. Drawing results record the actual vision model.
 Native text-line indexing uses pdfplumber and reports its explicit limits; the first-80-word restriction is removed.
@@ -111,3 +111,13 @@ The reviewer publishes per-comment progress. Unclear results are not cached as c
 Read-only PDF/page navigation is independent of workspace saving and inference. The SDK handles scroll coordinates,
 rotation and crop transforms. A transient page-relative ring lasts two seconds after visibility confirmation.
 The ring has no annotation ID, persistence command or export representation. Repeated requests restart its lifetime.
+
+
+### Chat presentation
+
+Chat uses `web/src/lib/chat-workspace/ChatWorkspace.tsx` with react-resizable-panels for the document/conversation split.
+Container width selects a two-pane layout or Conversation/Document controls. Both panels stay mounted during resizing.
+Layout widths are a local preference, not engineering document state. A finding focus request opens the document pane on compact layouts.
+Review rows have status/search filters and expandable evidence; revision actions remain visible when collapsed.
+PDF tools use an explicit annotation mode and action/zoom popovers. EmbedPDF remains responsible for rendering and geometry.
+Chat-specific surfaces and borders are scoped; admin and plugin management do not use the chat styling.

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { RootLayout, RootLayoutRightPanelSlotContext } from "@opal/layouts";
-import { cn, markdown } from "@opal/utils";
+import { cn } from "@opal/utils";
 import { INTERACTIVE_SELECTOR, noProp } from "@/lib/utils";
 import { useAppBackground } from "@/providers/AppBackgroundProvider";
 import { useTheme } from "next-themes";
@@ -63,7 +63,7 @@ import {
 } from "@opal/icons";
 import { useIsSearchModeAvailable, useSettings } from "@/lib/settings/hooks";
 import type { AppMode } from "@/providers/QueryControllerProvider";
-import { useAppDocumentTitle, useCustomFooterContent } from "@/lib/app/hooks";
+import { useAppDocumentTitle } from "@/lib/app/hooks";
 import { useAppPosition } from "@/lib/position/hooks";
 import { useQueryController } from "@/providers/QueryControllerProvider";
 import { useTierAtLeast } from "@/lib/tiers/hooks";
@@ -579,56 +579,6 @@ function Header() {
 }
 
 // ---------------------------------------------------------------------------
-// Footer
-// ---------------------------------------------------------------------------
-
-function Footer() {
-  const appPosition = useAppPosition();
-  const customFooterContent = useCustomFooterContent();
-
-  return (
-    <RootLayout.Footer>
-      <div
-        className={cn(
-          // Wrapping a long disclaimer needs both halves. `[&>*]:min-w-0`
-          // lets the text shrink, since a flex item's min-width is `auto`
-          // and otherwise holds it at its min-content width. `wordWrap` on
-          // the Text below then lets an unbroken run split, which ordinary
-          // wrapping will not do — it only breaks at whitespace, so a
-          // pasted URL or one long token would still overflow.
-          "relative w-full flex flex-row justify-center items-center gap-2 px-2 sm:px-4 mt-auto [&>*]:min-w-0",
-          // # Note (from @raunakab):
-          //
-          // The conditional rendering of vertical padding based on the current page is intentional.
-          // The `AppInputBar` has `shadow-box-01` applied, which extends ~14px below it.
-          // Because the content area in `AppChrome` uses `overflow-auto`, the shadow would be
-          // clipped at the container boundary — causing a visible rendering artefact.
-          //
-          // To fix this, `AppPage.tsx` uses animated spacer divs around `AppInputBar` to
-          // give the shadow breathing room. However, that extra space adds visible gap
-          // between the input and the Footer. To compensate, we remove the Footer's top
-          // padding when `appPosition.isChat()`.
-          //
-          // There is a corresponding note inside `AppInputBar.tsx` and `AppPage.tsx`
-          // explaining this. Please refer to those notes as well.
-          appPosition.isChat() ? "pb-2" : "py-2"
-        )}
-      >
-        <Text
-          font="secondary-action"
-          color="text-03"
-          as="p"
-          wordWrap="wrap-anywhere"
-          textPosition="text-center"
-        >
-          {markdown(customFooterContent)}
-        </Text>
-      </div>
-    </RootLayout.Footer>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // AppChrome
 // ---------------------------------------------------------------------------
 
@@ -748,7 +698,6 @@ export default function AppChrome({ children }: AppChromeProps) {
             {/* Header */}
             <Header />
             <RootLayout.MainContent>{children}</RootLayout.MainContent>
-            <Footer />
           </div>
           {rightPanel}
         </div>

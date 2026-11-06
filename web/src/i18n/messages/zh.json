@@ -13932,6 +13932,24 @@
     "readiness": {
       "stopFailed": "无法停止回复。请重试。",
       "checkFailed": "无法确认回复是否已完成。请再次检查后再发送消息。"
+    },
+    "workspace": {
+      "conversation": "对话",
+      "document": "文档",
+      "workspace": "图纸工作区",
+      "resetLayout": "重置布局",
+      "resizePanels": "调整文档和对话大小",
+      "reviewSummary": "审查摘要",
+      "all": "全部 ({count})",
+      "attention": "需要处理 ({count})",
+      "unclear": "不确定 ({count})",
+      "addressed": "已处理 ({count})",
+      "searchFindings": "搜索发现的问题",
+      "noMatchingFindings": "没有匹配的问题",
+      "findingDetails": "问题 {number} 的详情",
+      "reviewDetails": "审查详情",
+      "annotate": "批注",
+      "moreActions": "更多操作"
     }
   },
   "common": {

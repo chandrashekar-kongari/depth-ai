@@ -13932,6 +13932,24 @@
     "readiness": {
       "stopFailed": "Could not stop the response. Try again.",
       "checkFailed": "Could not confirm that the response finished. Check again before sending another message."
+    },
+    "workspace": {
+      "conversation": "Conversation",
+      "document": "Document",
+      "workspace": "Drawing workspace",
+      "resetLayout": "Reset layout",
+      "resizePanels": "Resize document and conversation",
+      "reviewSummary": "Review summary",
+      "all": "All ({count})",
+      "attention": "Needs attention ({count})",
+      "unclear": "Unclear ({count})",
+      "addressed": "Addressed ({count})",
+      "searchFindings": "Search findings",
+      "noMatchingFindings": "No matching findings",
+      "findingDetails": "Details for finding {number}",
+      "reviewDetails": "Review details",
+      "annotate": "Annotate",
+      "moreActions": "More actions"
     }
   },
   "common": {

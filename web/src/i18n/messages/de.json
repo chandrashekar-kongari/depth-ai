@@ -13932,6 +13932,24 @@
     "readiness": {
       "stopFailed": "Die Antwort konnte nicht gestoppt werden. Versuche es erneut.",
       "checkFailed": "Das Ende der Antwort konnte nicht bestätigt werden. Prüfe erneut, bevor du eine weitere Nachricht sendest."
+    },
+    "workspace": {
+      "conversation": "Unterhaltung",
+      "document": "Dokument",
+      "workspace": "Zeichnungsarbeitsbereich",
+      "resetLayout": "Layout zurücksetzen",
+      "resizePanels": "Dokument und Unterhaltung vergrößern oder verkleinern",
+      "reviewSummary": "Prüfübersicht",
+      "all": "Alle ({count})",
+      "attention": "Handlungsbedarf ({count})",
+      "unclear": "Unklar ({count})",
+      "addressed": "Bearbeitet ({count})",
+      "searchFindings": "Ergebnisse durchsuchen",
+      "noMatchingFindings": "Keine passenden Ergebnisse",
+      "findingDetails": "Details zu Ergebnis {number}",
+      "reviewDetails": "Prüfdetails",
+      "annotate": "Kommentieren",
+      "moreActions": "Weitere Aktionen"
     }
   },
   "common": {

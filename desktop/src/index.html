@@ -394,8 +394,17 @@
           }
         }
 
-        updateTheme(darkModeQuery);
-        darkModeQuery.addEventListener("change", updateTheme);
+        let preference = "light";
+        try {
+          preference = localStorage.getItem("theme") || "light";
+        } catch {}
+        updateTheme({
+          matches:
+            preference === "dark" ||
+            (preference === "system" && darkModeQuery.matches),
+        });
+        if (preference === "system")
+          darkModeQuery.addEventListener("change", updateTheme);
       }
 
       function showPanel() {

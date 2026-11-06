@@ -247,7 +247,7 @@ const ChatUI = React.memo(
             Multi-model responses use full width while normal messages stay centered. */}
         <div
           className={cn(
-            "flex flex-col w-full h-full pt-4 pb-8 gap-12",
+            "flex flex-col w-full h-full pt-4 pb-6 gap-8",
             !fullWidthChat && "md:pe-1"
           )}
         >
@@ -274,7 +274,7 @@ const ChatUI = React.memo(
                 <WindowedRow
                   id={messageReactComponentKey}
                   key={messageReactComponentKey}
-                  className="flex flex-col gap-12 w-full"
+                  className="flex flex-col gap-6 w-full"
                   pinned={pinned}
                   initiallyMounted={initiallyMounted}
                   heightCache={rowHeightCache}

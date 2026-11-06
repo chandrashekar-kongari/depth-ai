@@ -13932,6 +13932,24 @@
     "readiness": {
       "stopFailed": "응답을 중지하지 못했습니다. 다시 시도하세요.",
       "checkFailed": "응답이 완료되었는지 확인하지 못했습니다. 다른 메시지를 보내기 전에 다시 확인하세요."
+    },
+    "workspace": {
+      "conversation": "대화",
+      "document": "문서",
+      "workspace": "도면 작업 공간",
+      "resetLayout": "레이아웃 초기화",
+      "resizePanels": "문서와 대화 크기 조정",
+      "reviewSummary": "검토 요약",
+      "all": "전체 ({count})",
+      "attention": "조치 필요 ({count})",
+      "unclear": "불확실 ({count})",
+      "addressed": "처리됨 ({count})",
+      "searchFindings": "발견 사항 검색",
+      "noMatchingFindings": "일치하는 발견 사항 없음",
+      "findingDetails": "발견 사항 {number}의 세부 정보",
+      "reviewDetails": "검토 세부 정보",
+      "annotate": "주석",
+      "moreActions": "추가 작업"
     }
   },
   "common": {

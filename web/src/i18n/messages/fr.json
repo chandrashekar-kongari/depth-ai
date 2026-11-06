@@ -13932,6 +13932,24 @@
     "readiness": {
       "stopFailed": "Impossible d’arrêter la réponse. Réessayez.",
       "checkFailed": "Impossible de confirmer la fin de la réponse. Vérifiez à nouveau avant d’envoyer un autre message."
+    },
+    "workspace": {
+      "conversation": "Conversation",
+      "document": "Document",
+      "workspace": "Espace de dessin",
+      "resetLayout": "Réinitialiser la disposition",
+      "resizePanels": "Redimensionner le document et la conversation",
+      "reviewSummary": "Résumé de la vérification",
+      "all": "Tous ({count})",
+      "attention": "À traiter ({count})",
+      "unclear": "Incertain ({count})",
+      "addressed": "Traités ({count})",
+      "searchFindings": "Rechercher des observations",
+      "noMatchingFindings": "Aucune observation correspondante",
+      "findingDetails": "Détails de l’observation {number}",
+      "reviewDetails": "Détails de la vérification",
+      "annotate": "Annoter",
+      "moreActions": "Autres actions"
     }
   },
   "common": {

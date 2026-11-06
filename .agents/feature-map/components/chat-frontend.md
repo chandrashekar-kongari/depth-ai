@@ -441,3 +441,12 @@ up its own branding.
 - By hand: force a tool call, edit, switch back, stop mid-answer, and reload.
   Citations resolve, the branch holds, and the partial answer stays. Queue a
   message during an answer: it sends only after the input returns to idle.
+
+
+### Chat workspace presentation
+
+`web/src/lib/chat-workspace/ChatWorkspace.tsx` owns responsive presentation and local pane-width preferences.
+It uses react-resizable-panels and retains both pane trees when switching compact views. It consumes finding focus requests,
+without owning PDF coordinates, chat settlement or annotation persistence. `web/src/lib/chat-workspace/styles.css` scopes the chat surface treatment.
+The model selector is composed into AppInputBar through its modelControls slot. The input footer can wrap without a fixed height.
+Light is the default theme; saved account/browser theme choices still apply. Review titles use full-contrast text and neutral borders.

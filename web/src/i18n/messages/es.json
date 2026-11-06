@@ -13932,6 +13932,24 @@
     "readiness": {
       "stopFailed": "No se pudo detener la respuesta. Inténtalo de nuevo.",
       "checkFailed": "No se pudo confirmar que la respuesta haya terminado. Comprueba de nuevo antes de enviar otro mensaje."
+    },
+    "workspace": {
+      "conversation": "Conversación",
+      "document": "Documento",
+      "workspace": "Espacio de dibujo",
+      "resetLayout": "Restablecer diseño",
+      "resizePanels": "Cambiar tamaño del documento y la conversación",
+      "reviewSummary": "Resumen de revisión",
+      "all": "Todos ({count})",
+      "attention": "Requieren atención ({count})",
+      "unclear": "Sin aclarar ({count})",
+      "addressed": "Resueltos ({count})",
+      "searchFindings": "Buscar hallazgos",
+      "noMatchingFindings": "No hay hallazgos coincidentes",
+      "findingDetails": "Detalles del hallazgo {number}",
+      "reviewDetails": "Detalles de revisión",
+      "annotate": "Anotar",
+      "moreActions": "Más acciones"
     }
   },
   "common": {

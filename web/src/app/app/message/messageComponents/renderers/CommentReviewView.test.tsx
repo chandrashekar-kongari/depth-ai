@@ -94,3 +94,34 @@ it("gives each finding two revision buttons and creates a fresh navigation reque
     JSON.parse(screen.getByLabelText("Navigation target").textContent ?? "null")
   ).toMatchObject({ issueId: "E1", documentId: "revised", page: 2 });
 });
+
+it("filters results without changing coverage or losing evidence and revision navigation", async () => {
+  const user = setupUser();
+  render(<CommentReviewView review={review} part="queue" />);
+  expect(screen.queryByText(/H7 exists/)).not.toBeInTheDocument();
+  await user.click(
+    screen.getByRole("button", { name: "Details for finding 1" })
+  );
+  expect(screen.getByText(/H7 exists/)).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Needs attention (1)" }));
+  expect(screen.queryByText("Bore tolerance")).not.toBeInTheDocument();
+  expect(screen.getByText("Missing datum")).toBeVisible();
+  expect(screen.getByText("2 findings · 0 need review")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Addressed (1)" }));
+  expect(screen.getByText("Bore tolerance")).toBeVisible();
+  expect(screen.queryByText("Missing datum")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Show in revised" })).toBeEnabled();
+});
+
+it("searches evidence while retaining the original finding number", async () => {
+  const user = setupUser();
+  render(<CommentReviewView review={review} part="queue" />);
+  await user.type(
+    screen.getByRole("textbox", { name: "Search findings" }),
+    "H7"
+  );
+  expect(
+    screen.getByRole("button", { name: "Details for finding 1" })
+  ).toBeVisible();
+  expect(screen.queryByText("Missing datum")).not.toBeInTheDocument();
+});

@@ -2,8 +2,14 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Button, Card, Text } from "@opal/components";
+import { Button, Card, InputTypeIn, Tag, Text } from "@opal/components";
 import { Section } from "@opal/layouts";
+import {
+  SvgChevronDown,
+  SvgChevronUp,
+  SvgCheckCircle,
+  SvgAlertCircle,
+} from "@opal/icons";
 import type { LinkedIssue, ReviewFocusRequest } from "@/lib/pdf-review/types";
 import { PdfReviewWorkspace } from "@/lib/pdf-review/PdfReviewWorkspace";
 import type {
@@ -204,159 +210,309 @@ function CommentQueue({
     setLocalSelectedId(comment.id);
   }
 
+  const ui = useTranslations("chat.workspace");
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const comments = review.comments ?? [];
+  const extra = review.extra_issues ?? [];
+  const search = query.trim().toLocaleLowerCase();
+  const matches = (text: string) => text.toLocaleLowerCase().includes(search);
+  const attention =
+    comments.filter(
+      (item) => item.verdict === "open" || item.verdict === "solved_incorrect"
+    ).length + extra.length;
+  const unclear = comments.filter((item) => item.verdict === "unclear").length;
+  const addressed = comments.filter(
+    (item) => item.verdict === "solved_correct"
+  ).length;
+  const filtered = comments.filter(
+    (item) =>
+      (filter === "all" ||
+        (filter === "attention" &&
+          (item.verdict === "open" || item.verdict === "solved_incorrect")) ||
+        (filter === "unclear" && item.verdict === "unclear") ||
+        (filter === "addressed" && item.verdict === "solved_correct")) &&
+      matches(
+        [item.text, item.request, item.evidence, item.remaining].join(" ")
+      )
+  );
+  const filteredExtra =
+    filter === "all" || filter === "attention"
+      ? extra.filter((item) => matches(item.title + " " + item.detail))
+      : [];
+
   return (
     <Section
       flexDirection="column"
       alignItems="stretch"
       justifyContent="start"
-      gap={2}
+      gap={3}
       width="full"
+      className="depth-review-queue"
     >
-      {review.vision_model ? (
+      <Section
+        flexDirection="row"
+        justifyContent="between"
+        height="fit"
+        gap={2}
+      >
+        <Text font="main-ui-action" color="text-05">
+          {ui("reviewSummary")}
+        </Text>
         <Text font="secondary-body" color="text-03">
-          {pdfT("visionModel", { model: review.vision_model })}
+          {pdfT("reviewCoverage", {
+            total: comments.length + extra.length,
+            unclear,
+          })}
+        </Text>
+      </Section>
+      <Section
+        flexDirection="row"
+        justifyContent="start"
+        wrap
+        height="fit"
+        gap={1}
+      >
+        {(
+          [
+            ["all", comments.length + extra.length],
+            ["attention", attention],
+            ["unclear", unclear],
+            ["addressed", addressed],
+          ] as const
+        ).map(([value, count]) => (
+          <Button
+            key={value}
+            size="sm"
+            prominence={filter === value ? "secondary" : "tertiary"}
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+          >
+            {ui(value, { count })}
+          </Button>
+        ))}
+      </Section>
+      <InputTypeIn
+        searchIcon
+        value={query}
+        aria-label={ui("searchFindings")}
+        placeholder={ui("searchFindings")}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      {filtered.length === 0 && filteredExtra.length === 0 ? (
+        <Text font="secondary-body" color="text-03">
+          {comments.length === 0 && extra.length === 0
+            ? t("noComments.text")
+            : ui("noMatchingFindings")}
         </Text>
       ) : null}
-      <Text font="secondary-body" color="text-03">
-        {pdfT("reviewCoverage", {
-          total: (review.comments ?? []).length,
-          unclear: (review.comments ?? []).filter(
-            (item) => item.verdict === "unclear"
-          ).length,
-        })}
-      </Text>
-      {(review.comments ?? []).length === 0 ? (
-        <Text font="secondary-body" color="text-03">
-          {t("noComments.text")}
-        </Text>
-      ) : null}
-      {(review.comments ?? []).map((comment, index) => (
-        <Card
-          key={comment.id}
-          border="solid"
-          padding={3}
-          borderColor={
-            comment.verdict === "solved_correct"
-              ? "success"
-              : comment.verdict === "unclear"
-                ? "warning"
-                : "error"
-          }
-          data-issue-id={comment.id}
-          aria-current={selectedId === comment.id ? "true" : undefined}
-          onPointerEnter={() => onHover(comment.id)}
-          onPointerLeave={() => onHover(null)}
-          onFocus={() => onHover(comment.id)}
-          onBlur={() => onHover(null)}
-        >
-          <Section
-            height="fit"
-            justifyContent="start"
-            alignItems="stretch"
-            gap={2}
+      {filtered.map((comment) => {
+        const number = comments.indexOf(comment) + 1;
+        const title =
+          comment.text.split(/\n|Required change:/i)[0]?.trim() || comment.text;
+        const open = expanded[comment.id] ?? false;
+        return (
+          <Card
+            key={comment.id}
+            border="solid"
+            padding={3}
+            rounding={2}
+            color={
+              selectedId === comment.id ? "background-tint-01" : "transparent"
+            }
+            data-issue-id={comment.id}
+            aria-current={selectedId === comment.id ? "true" : undefined}
+            onPointerEnter={() => onHover(comment.id)}
+            onPointerLeave={() => onHover(null)}
+            onFocus={() => onHover(comment.id)}
+            onBlur={() => onHover(null)}
           >
             <Section
-              flexDirection="row"
-              justifyContent="between"
               height="fit"
-              gap={2}
-            >
-              <Text font="secondary-body" color="text-02">
-                {pdfT("findingNumber", { number: index + 1 })}
-              </Text>
-              <Text font="secondary-body" color="text-03">
-                {verdictLabel(comment.verdict, t)}
-              </Text>
-            </Section>
-            <Button
-              width="full"
-              size="sm"
-              prominence="tertiary"
-              aria-pressed={selectedId === comment.id}
-              onClick={() => selectComment(comment)}
-            >
-              {comment.text}
-            </Button>
-            <Text font="secondary-body" color="text-03">
-              {t("request.text", { request: comment.request })}
-            </Text>
-            <Text font="secondary-body" color="text-03">
-              {t("evidence.text", { evidence: comment.evidence })}
-            </Text>
-            {!comment.box ||
-            comment.page_level ||
-            !comment.revised_box ||
-            comment.revised_page_level ? (
-              <Text font="secondary-body" color="text-03">
-                {pdfT("locationUnconfirmed")}
-              </Text>
-            ) : null}
-            {comment.review_attempts ? (
-              <Text font="secondary-body" color="text-03">
-                {pdfT("reviewPasses", { count: comment.review_attempts })}
-              </Text>
-            ) : null}
-            {comment.remaining ? (
-              <Text font="secondary-body" color="text-03">
-                {t("remaining.text", { remaining: comment.remaining })}
-              </Text>
-            ) : null}
-            <Section
-              flexDirection="row"
+              alignItems="stretch"
               justifyContent="start"
-              height="fit"
               gap={2}
-              wrap
             >
-              <Button
-                size="sm"
-                prominence="secondary"
-                disabled={!review.commented_sheet_file_id}
-                onClick={() => {
-                  if (review.commented_sheet_file_id)
-                    onShow(
-                      comment,
-                      review.commented_sheet_file_id,
-                      comment.page
-                    );
-                }}
+              <Section
+                flexDirection="row"
+                height="fit"
+                justifyContent="between"
+                gap={2}
               >
-                {pdfT("showOriginal")}
-              </Button>
-              <Button
-                size="sm"
-                prominence="secondary"
-                disabled={!review.revised_sheet_file_id}
-                onClick={() => {
-                  if (review.revised_sheet_file_id)
-                    onShow(
-                      comment,
-                      review.revised_sheet_file_id,
-                      comment.revised_page ?? comment.page
-                    );
-                }}
+                <Text font="secondary-body" color="text-03">
+                  {pdfT("findingNumber", { number })}
+                </Text>
+                <Tag
+                  size="md"
+                  icon={
+                    comment.verdict === "solved_correct"
+                      ? SvgCheckCircle
+                      : SvgAlertCircle
+                  }
+                  color={
+                    comment.verdict === "solved_correct"
+                      ? "green"
+                      : comment.verdict === "unclear"
+                        ? "amber"
+                        : "red"
+                  }
+                  title={verdictLabel(comment.verdict, t)}
+                />
+              </Section>
+              <Section
+                flexDirection="row"
+                height="fit"
+                justifyContent="between"
+                gap={2}
               >
-                {pdfT("showRevised")}
-              </Button>
+                <Text
+                  font="main-ui-action"
+                  color="text-05"
+                  wordWrap="wrap-anywhere"
+                >
+                  {title}
+                </Text>
+                <Button
+                  size="sm"
+                  prominence="tertiary"
+                  icon={open ? SvgChevronUp : SvgChevronDown}
+                  aria-label={ui("findingDetails", { number })}
+                  aria-expanded={open}
+                  onClick={() => {
+                    selectComment(comment);
+                    setExpanded((previous) => ({
+                      ...previous,
+                      [comment.id]: !open,
+                    }));
+                  }}
+                />
+              </Section>
+              <Section
+                flexDirection="row"
+                justifyContent="start"
+                height="fit"
+                gap={1}
+                wrap
+              >
+                <Button
+                  size="sm"
+                  prominence="tertiary"
+                  disabled={!review.commented_sheet_file_id}
+                  onClick={() => {
+                    if (review.commented_sheet_file_id)
+                      onShow(
+                        comment,
+                        review.commented_sheet_file_id,
+                        comment.page
+                      );
+                  }}
+                >
+                  {pdfT("showOriginal")}
+                </Button>
+                <Button
+                  size="sm"
+                  prominence="tertiary"
+                  disabled={!review.revised_sheet_file_id}
+                  onClick={() => {
+                    if (review.revised_sheet_file_id)
+                      onShow(
+                        comment,
+                        review.revised_sheet_file_id,
+                        comment.revised_page ?? comment.page
+                      );
+                  }}
+                >
+                  {pdfT("showRevised")}
+                </Button>
+              </Section>
+              {open ? (
+                <Section
+                  height="fit"
+                  alignItems="stretch"
+                  justifyContent="start"
+                  gap={2}
+                  padding={2}
+                  className="border-t border-border-01"
+                >
+                  <Text
+                    font="secondary-body"
+                    color="text-04"
+                    wordWrap="wrap-anywhere"
+                  >
+                    {t("request.text", { request: comment.request })}
+                  </Text>
+                  <Text
+                    font="secondary-body"
+                    color="text-03"
+                    wordWrap="wrap-anywhere"
+                  >
+                    {t("evidence.text", { evidence: comment.evidence })}
+                  </Text>
+                  {comment.remaining ? (
+                    <Text
+                      font="secondary-body"
+                      color="text-04"
+                      wordWrap="wrap-anywhere"
+                    >
+                      {t("remaining.text", { remaining: comment.remaining })}
+                    </Text>
+                  ) : null}
+                  {!comment.box ||
+                  comment.page_level ||
+                  !comment.revised_box ||
+                  comment.revised_page_level ? (
+                    <Text font="secondary-body" color="text-03">
+                      {pdfT("locationUnconfirmed")}
+                    </Text>
+                  ) : null}
+                  {comment.review_attempts ? (
+                    <Text font="secondary-body" color="text-03">
+                      {pdfT("reviewPasses", { count: comment.review_attempts })}
+                    </Text>
+                  ) : null}
+                  {title !== comment.text ? (
+                    <Text
+                      font="secondary-body"
+                      color="text-03"
+                      wordWrap="wrap-anywhere"
+                    >
+                      {comment.text}
+                    </Text>
+                  ) : null}
+                </Section>
+              ) : null}
             </Section>
-          </Section>
-        </Card>
-      ))}
-      {(review.extra_issues ?? []).length > 0 ? (
-        <Text font="secondary-body" color="text-02">
+          </Card>
+        );
+      })}
+      {filteredExtra.length > 0 ? (
+        <Text font="secondary-body" color="text-04">
           {t("otherIssues.text")}
         </Text>
       ) : null}
-      {(review.extra_issues ?? []).map((issue, index) => (
+      {filteredExtra.map((issue) => (
         <ExtraIssueRow
           key={issue.id}
           issue={issue}
-          number={(review.comments ?? []).length + index + 1}
+          number={comments.length + extra.indexOf(issue) + 1}
           originalId={review.commented_sheet_file_id}
           revisedId={review.revised_sheet_file_id}
           onShow={onShow}
         />
       ))}
+      {review.vision_model ? (
+        <details className="depth-review-details">
+          <summary>
+            <Text as="span" font="secondary-body" color="text-03">
+              {ui("reviewDetails")}
+            </Text>
+          </summary>
+          <Text font="secondary-body" color="text-03">
+            {pdfT("visionModel", { model: review.vision_model })}
+          </Text>
+        </details>
+      ) : null}
     </Section>
   );
 }
@@ -377,7 +533,7 @@ function ExtraIssueRow({
   const t = useTranslations("chat.messages.commentReview");
   const pdfT = useTranslations("chat.messages.pdfWorkspace");
   return (
-    <Card border="solid" padding={3} borderColor="error">
+    <Card border="solid" padding={3} rounding={2} color="transparent">
       <Section
         flexDirection="column"
         alignItems="stretch"
@@ -388,7 +544,7 @@ function ExtraIssueRow({
         <Text font="secondary-body" color="text-03">
           {pdfT("findingNumber", { number })}
         </Text>
-        <Text font="secondary-body" color="text-02">
+        <Text font="secondary-body" color="text-04">
           {issue.title}
         </Text>
         <Text font="secondary-body" color="text-03">

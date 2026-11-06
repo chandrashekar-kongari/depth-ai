@@ -13932,6 +13932,24 @@
     "readiness": {
       "stopFailed": "Não foi possível parar a resposta. Tente novamente.",
       "checkFailed": "Não foi possível confirmar o fim da resposta. Verifique novamente antes de enviar outra mensagem."
+    },
+    "workspace": {
+      "conversation": "Conversa",
+      "document": "Documento",
+      "workspace": "Espaço de desenho",
+      "resetLayout": "Redefinir layout",
+      "resizePanels": "Redimensionar documento e conversa",
+      "reviewSummary": "Resumo da revisão",
+      "all": "Todos ({count})",
+      "attention": "Precisam de atenção ({count})",
+      "unclear": "Incerto ({count})",
+      "addressed": "Resolvidos ({count})",
+      "searchFindings": "Buscar ocorrências",
+      "noMatchingFindings": "Nenhuma ocorrência correspondente",
+      "findingDetails": "Detalhes da ocorrência {number}",
+      "reviewDetails": "Detalhes da revisão",
+      "annotate": "Anotar",
+      "moreActions": "Mais ações"
     }
   },
   "common": {

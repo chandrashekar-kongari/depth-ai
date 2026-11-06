@@ -81,7 +81,7 @@ import { type ProjectFile, useProjectsContext } from "@/lib/projects/providers";
 import { useActiveProject, useProjects } from "@/lib/projects/hooks";
 import { getProjectTokenCount } from "@/lib/projects/svc";
 import { cn } from "@opal/utils";
-import { LARGE_BREAKPOINT_PX } from "@/lib/constants";
+import { ChatWorkspace } from "@/lib/chat-workspace/ChatWorkspace";
 import { DrawingSheetMarks } from "@/app/app/message/messageComponents/renderers/DrawingSheetMarks";
 import { latestSheetFocus } from "@/app/app/message/messageComponents/renderers/commentReviewDelta";
 import { CommentReviewView } from "@/app/app/message/messageComponents/renderers/CommentReviewView";
@@ -166,11 +166,7 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
   const t = useTranslations("chat.app");
   const router = useRouter();
   const appPosition = useAppPosition();
-  const { isMobile, width } = useScreenSize();
-  const [wideLayout, setWideLayout] = useState(false);
-  useEffect(() => {
-    setWideLayout(width >= LARGE_BREAKPOINT_PX);
-  }, [width]);
+  const { isMobile } = useScreenSize();
 
   useToastFromQuery({
     oauth_connected: {
@@ -851,15 +847,9 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
   const hasAgentStarterMessages =
     (activeAgent?.starter_messages?.length ?? 0) > 0;
   const showDrawingReview =
-    appPosition.isChat() &&
-    drawingReview !== null &&
-    wideLayout &&
-    pendingPdfs.length === 0;
+    appPosition.isChat() && drawingReview !== null && pendingPdfs.length === 0;
   const showCommentReview =
-    appPosition.isChat() &&
-    commentReview !== null &&
-    wideLayout &&
-    pendingPdfs.length === 0;
+    appPosition.isChat() && commentReview !== null && pendingPdfs.length === 0;
   const showAttachmentPdfs =
     attachmentPdfs.length > 0 && !showDrawingReview && !showCommentReview;
   const showSheetPanel =
@@ -968,63 +958,61 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
               : drawingReview.findings.map((finding) => finding.id).join(",")
         }
       >
-        <Section
-          flexDirection={showAttachmentPdfs && !wideLayout ? "column" : "row"}
-          alignItems="stretch"
-          justifyContent="start"
-          gap={0}
-          width="full"
-          height="full"
-          className="overflow-hidden"
+        <ChatWorkspace
+          document={
+            showSheetPanel ? (
+              <>
+                {showAttachmentPdfs ? (
+                  <Section
+                    height="full"
+                    justifyContent="start"
+                    alignItems="stretch"
+                    gap={0}
+                    className={cn(
+                      "min-h-0 min-w-0 overflow-hidden border-e border-border-01",
+                      "flex-1"
+                    )}
+                  >
+                    <PdfReviewWorkspace
+                      key={attachmentKey}
+                      fill
+                      pageNumber={attachmentPage}
+                      onPageChange={setAttachmentPage}
+                      documents={attachmentPdfs.slice(0, 2).map((file) => ({
+                        id: file.id,
+                        filename: file.name,
+                        label: file.name,
+                        url: `/api/chat/file/${encodeURIComponent(file.id)}`,
+                      }))}
+                    />
+                  </Section>
+                ) : null}
+                {showDrawingReview && drawingReview !== null ? (
+                  <div className="h-full min-h-0 min-w-0 overflow-hidden">
+                    <DrawingSheetMarks
+                      part="sheet"
+                      fill
+                      sheetFileId={drawingReview.sheet_file_id}
+                      sheetFilename={drawingReview.sheet_filename}
+                      pageCount={drawingReview.page_count}
+                      findings={drawingReview.findings}
+                    />
+                  </div>
+                ) : null}
+                {showCommentReview && commentReview !== null ? (
+                  <div className="h-full min-h-0 min-w-0 overflow-hidden">
+                    <CommentReviewView
+                      part="sheets"
+                      fill
+                      review={commentReview}
+                    />
+                  </div>
+                ) : null}
+              </>
+            ) : null
+          }
         >
-          {showAttachmentPdfs ? (
-            <Section
-              height={wideLayout ? "full" : 26}
-              justifyContent="start"
-              alignItems="stretch"
-              gap={0}
-              className={cn(
-                "min-h-0 min-w-0 overflow-hidden border-e border-border-01",
-                wideLayout ? "flex-1" : "shrink-0"
-              )}
-            >
-              <PdfReviewWorkspace
-                key={attachmentKey}
-                fill
-                pageNumber={attachmentPage}
-                onPageChange={setAttachmentPage}
-                documents={attachmentPdfs.slice(0, 2).map((file) => ({
-                  id: file.id,
-                  filename: file.name,
-                  label: file.name,
-                  url: `/api/chat/file/${encodeURIComponent(file.id)}`,
-                }))}
-              />
-            </Section>
-          ) : null}
-          {showDrawingReview && drawingReview !== null ? (
-            <div className="h-full min-h-0 min-w-0 flex-1 overflow-hidden border-r border-border-01">
-              <DrawingSheetMarks
-                part="sheet"
-                fill
-                sheetFileId={drawingReview.sheet_file_id}
-                sheetFilename={drawingReview.sheet_filename}
-                pageCount={drawingReview.page_count}
-                findings={drawingReview.findings}
-              />
-            </div>
-          ) : null}
-          {showCommentReview && commentReview !== null ? (
-            <div className="h-full min-h-0 min-w-0 flex-1 overflow-hidden border-r border-border-01">
-              <CommentReviewView part="sheets" fill review={commentReview} />
-            </div>
-          ) : null}
-          <div
-            className={cn(
-              "h-full min-h-0 min-w-0 overflow-hidden",
-              showSheetPanel ? "w-[32rem] max-w-[40%] shrink-0" : "w-full"
-            )}
-          >
+          <div className="depth-conversation h-full min-h-0 min-w-0 w-full overflow-hidden">
             {/* noPaste: the input bar already uploads pasted files itself. Without
             it react-dropzone handles the same paste again and attaches the
             image twice. */}
@@ -1221,22 +1209,6 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
                             agent={activeAgent}
                             isDefaultAgent={isPlainChat}
                           />
-                          {!isSearch &&
-                            !(
-                              state.phase === "idle" &&
-                              state.appMode === "search"
-                            ) &&
-                            activeAgent &&
-                            llmManager.hasAnyProvider && (
-                              <MultiModelSelector
-                                selectedModels={multiModel.selectedModels}
-                                onAdd={multiModel.addModel}
-                                onRemove={multiModel.removeModel}
-                                onReplace={multiModel.replaceModel}
-                                temperatureManager={llmManager}
-                                reasoningManager={llmManager}
-                              />
-                            )}
                         </Section>
                         <Spacer rem={1.5} />
                       </Fade>
@@ -1315,19 +1287,22 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
                               isSearch ? "h-[14px]" : "h-0"
                             )}
                           />
-                          {appPosition.isChat() && activeAgent && (
-                            <div className="pb-1">
-                              <MultiModelSelector
-                                selectedModels={multiModel.selectedModels}
-                                onAdd={multiModel.addModel}
-                                onRemove={multiModel.removeModel}
-                                onReplace={multiModel.replaceModel}
-                                temperatureManager={llmManager}
-                                reasoningManager={llmManager}
-                              />
-                            </div>
-                          )}
                           <AppInputBar
+                            modelControls={
+                              !isSearch &&
+                              activeAgent &&
+                              llmManager.hasAnyProvider ? (
+                                <MultiModelSelector
+                                  compact
+                                  selectedModels={multiModel.selectedModels}
+                                  onAdd={multiModel.addModel}
+                                  onRemove={multiModel.removeModel}
+                                  onReplace={multiModel.replaceModel}
+                                  temperatureManager={llmManager}
+                                  reasoningManager={llmManager}
+                                />
+                              ) : undefined
+                            }
                             toolConfiguration={toolConfiguration}
                             memberPlugins={memberPlugins.plugins}
                             ref={chatInputBarRef}
@@ -1420,7 +1395,7 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
               )}
             </Dropzone>
           </div>
-        </Section>
+        </ChatWorkspace>
       </DrawingReviewLayoutProvider>
     </>
   );

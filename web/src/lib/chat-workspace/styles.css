@@ -1,0 +1,105 @@
+/* Chat-only composition; admin and plugin management retain their own surfaces. */
+body:has([data-depth-chat-workspace]) {
+  --sidebar-width-expanded: 14.5rem;
+  --sidebar-width-folded: 3.5rem;
+  --chrome-header-height: 3rem;
+}
+body:has([data-depth-chat-workspace]) .opal-sidebar-root__column {
+  background: var(--background-tint-01);
+  border-inline-end: 1px solid var(--border-01);
+}
+body:has([data-depth-chat-workspace]) .opal-sidebar-header {
+  gap: 0.75rem;
+}
+.depth-workspace-separator {
+  width: 5px;
+  flex-shrink: 0;
+  background: var(--border-01);
+  transition: background 120ms ease;
+}
+.depth-workspace-separator:hover,
+.depth-workspace-separator:focus-visible {
+  background: var(--action-selection-05);
+  outline: 2px solid var(--action-selection-05);
+  outline-offset: -2px;
+}
+.depth-conversation {
+  container-type: inline-size;
+}
+.depth-chat-composer {
+  box-shadow: none;
+}
+.depth-review-queue {
+  overflow-wrap: anywhere;
+}
+.depth-review-queue [aria-current="true"] {
+  border-color: var(--border-03);
+}
+.depth-review-details > summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+.depth-review-details > summary:focus-visible {
+  outline: 2px solid var(--action-selection-05);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .depth-workspace-separator {
+    transition: none;
+  }
+}
+
+body:has([data-depth-chat-workspace]) .opal-root-layout__header {
+  border-block-end: 1px solid var(--border-01);
+  background: var(--background-neutral-01);
+}
+body:has([data-depth-chat-workspace]) .opal-root-layout__footer {
+  font-size: 0.75rem;
+}
+
+.depth-review-queue .opal-card {
+  border-color: var(--border-01);
+}
+.depth-review-queue .opal-card[aria-current="true"] {
+  border-color: var(--border-03);
+}
+.depth-review-queue .opal-card:focus-within {
+  border-color: var(--action-selection-05);
+}
+.depth-chat-composer {
+  padding: 0.25rem;
+}
+.depth-composer-controls {
+  flex-shrink: 0;
+}
+.depth-composer-controls > :last-child {
+  max-width: 100%;
+}
+
+/* A drawing already provides its own toolbar. Keep the mobile navigation header. */
+body:has(
+    [data-depth-chat-workspace][data-document-open="true"][data-compact="false"]
+  )
+  .opal-root-layout__header {
+  display: none;
+}
+
+/* Keep voice and send actions visible while model choices use the remaining space. */
+.depth-composer-models {
+  padding: 0;
+}
+.depth-composer-models .opal-select-content {
+  min-width: 0;
+}
+.depth-composer-controls:not([inert]) {
+  min-height: 2.25rem;
+}
+
+.depth-composer-models .opal-select-content {
+  max-width: 10rem;
+}
+.depth-composer-models .opal-select-content > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

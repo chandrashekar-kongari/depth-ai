@@ -65,7 +65,7 @@ import {
   Text,
 } from "@opal/components";
 import { useQueryController } from "@/providers/QueryControllerProvider";
-import { Section } from "@/layouts/general-layouts";
+import { Section } from "@opal/layouts";
 import { useIncognito } from "@/providers/IncognitoProvider";
 import MicrophoneButton from "@/sections/input/MicrophoneButton";
 import Waveform from "@/components/voice/Waveform";
@@ -88,6 +88,7 @@ export interface AppInputBarHandle {
 
 export interface AppInputBarProps {
   initialMessage?: string;
+  modelControls?: React.ReactNode;
   stopGenerating: () => void;
   onSubmit: (message: string) => void;
   llmManager: LlmManager;
@@ -118,6 +119,7 @@ export interface AppInputBarProps {
 const AppInputBar = React.memo(
   ({
     initialMessage = "",
+    modelControls,
     stopGenerating,
     onSubmit,
     chatState,
@@ -616,15 +618,15 @@ const AppInputBar = React.memo(
       <div
         {...(isSearchMode ? { inert: true } : {})}
         className={cn(
-          "flex justify-between items-center w-full",
+          "depth-composer-controls flex justify-between items-center gap-1 w-full",
           isSearchMode
             ? "opacity-0 p-0 h-0 overflow-hidden pointer-events-none"
-            : "opacity-100 p-1 h-11 pointer-events-auto",
+            : "opacity-100 p-1 min-h-11 h-auto pointer-events-auto",
           "transition-all duration-150"
         )}
       >
         {/* Bottom left controls */}
-        <div className="flex flex-row items-center">
+        <div className="flex shrink-0 flex-row items-center">
           {/* (+) button - always visible */}
           <FilePickerPopover
             onFileClick={handleFileClick}
@@ -649,6 +651,7 @@ const AppInputBar = React.memo(
             trigger={(open) => (
               <Button
                 disabled={disabled}
+                size="sm"
                 icon={SvgPaperclip}
                 tooltip={t("appInputBar.attachFilesButton.tooltip")}
                 interaction={open ? "hover" : "rest"}
@@ -700,6 +703,7 @@ const AppInputBar = React.memo(
                 <SelectButton
                   disabled={disabled || isMultiModelActive}
                   variant="select-light"
+                  size="sm"
                   icon={SvgHourglass}
                   onClick={toggleDeepResearch}
                   state={deepResearchEnabled ? "selected" : "empty"}
@@ -749,7 +753,8 @@ const AppInputBar = React.memo(
         </div>
 
         {/* Bottom right controls */}
-        <div className="flex flex-row items-center gap-1">
+        <div className="flex flex-1 flex-row justify-end items-center gap-1 min-w-0">
+          {modelControls}
           {showMicButton &&
             (sttEnabled ? (
               <MicrophoneButton
@@ -878,7 +883,7 @@ const AppInputBar = React.memo(
             ref={containerRef}
             id="depth-chat-input"
             className={cn(
-              "relative w-full flex flex-col shadow-box-01 bg-background-neutral-00 rounded-16"
+              "depth-chat-composer relative w-full flex flex-col border border-border-02 bg-background-neutral-00 rounded-12 transition-colors focus-within:border-border-03"
               // # Note (from @raunakab):
               //
               // `shadow-box-01` extends ~14px below the element (2px offset + 12px blur).
@@ -976,7 +981,7 @@ const AppInputBar = React.memo(
                       onInput={handleContentEditableInput}
                       onCompositionStart={handleCompositionStart}
                       onCompositionEnd={handleCompositionEnd}
-                      className="p-[2px] w-full h-full outline-hidden bg-transparent whitespace-pre-wrap wrap-break-word overflow-y-auto"
+                      className="p-[2px] w-full h-full font-main-ui-body outline-hidden bg-transparent whitespace-pre-wrap wrap-break-word overflow-y-auto"
                       tabIndex={disabled ? -1 : 0}
                       style={{
                         scrollbarWidth: "thin",

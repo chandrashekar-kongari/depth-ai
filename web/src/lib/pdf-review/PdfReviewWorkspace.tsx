@@ -37,12 +37,21 @@ import { useExportCapability } from "@embedpdf/plugin-export/react";
 import { usePrintCapability } from "@embedpdf/plugin-print/react";
 import { LockModeType } from "@embedpdf/plugin-annotation";
 import type { PdfAnnotationObject } from "@embedpdf/models";
-import { Button, InputSingleSelect, InputTypeIn, Text } from "@opal/components";
+import {
+  Button,
+  InputSingleSelect,
+  InputTypeIn,
+  Popover,
+  Text,
+} from "@opal/components";
 import { Section } from "@opal/layouts";
 import {
   SvgChevronLeft,
   SvgChevronRight,
   SvgDownload,
+  SvgEdit,
+  SvgSearch,
+  SvgMoreHorizontal,
   SvgFitWidth,
   SvgTrash,
   SvgZoomIn,
@@ -129,6 +138,9 @@ function Workspace({
   fill = false,
 }: PdfReviewWorkspaceProps) {
   const t = useTranslations("chat.messages.pdfWorkspace");
+  const ui = useTranslations("chat.workspace");
+  const [annotationMode, setAnnotationMode] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const reviewT = useTranslations("chat.messages.commentReview");
   const { pluginsReady } = useRegistry();
   const { activeDocumentId } = useActiveDocument();
@@ -592,7 +604,10 @@ function Workspace({
       gap={0}
       justifyContent="start"
       alignItems="stretch"
-      className="min-h-0 overflow-hidden rounded-12 border border-border-01 bg-background-neutral-01"
+      className={cn(
+        "min-h-0 overflow-hidden bg-background-neutral-01",
+        !fill && "rounded-12 border border-border-01"
+      )}
     >
       <Section
         flexDirection="row"
@@ -601,7 +616,7 @@ function Workspace({
         gap={2}
         wrap
         justifyContent="between"
-        className="shrink-0 border-b border-border-01"
+        className="depth-pdf-toolbar shrink-0 border-b border-border-01"
       >
         <Section flexDirection="row" width="fit" height="fit" gap={1}>
           {documents.map((document) => (
@@ -611,212 +626,313 @@ function Workspace({
               disabled={!!pending}
               prominence={document.id === id ? "secondary" : "tertiary"}
               aria-pressed={document.id === id}
+              tooltip={document.filename}
               onClick={() => switchDocument(document.id)}
             >
               {document.label}
             </Button>
           ))}
         </Section>
-        <Section flexDirection="row" width="fit" height="fit" gap={1}>
+        <Section flexDirection="row" width="fit" height="fit" gap={1} wrap>
           <Button
             size="sm"
-            disabled={!editable || !!pending}
-            onClick={() =>
-              void printer
-                ?.forDocument(id)
-                .print()
-                .toPromise()
-                .catch(() => setExportFailed(true))
-            }
-          >
-            {t("print")}
-          </Button>
+            prominence="tertiary"
+            icon={SvgChevronLeft}
+            aria-label={t("previous")}
+            tooltip={t("previous")}
+            disabled={currentPage <= 1}
+            onClick={() => scroll?.scrollToPreviousPage()}
+          />
+          <Section width={3} height="fit">
+            <InputTypeIn
+              type="number"
+              aria-label={t("page")}
+              value={String(currentPage)}
+              min={1}
+              max={total}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                if (value >= 1 && value <= total) {
+                  scroll?.scrollToPage({ pageNumber: value });
+                  syncPage.current(value);
+                }
+              }}
+            />
+          </Section>
+          <Text font="secondary-body" color="text-03">
+            {t("ofPages", { total })}
+          </Text>
           <Button
             size="sm"
-            icon={SvgDownload}
-            disabled={!editable || !!pending}
-            onClick={download}
-          >
-            {t(exporting ? "exporting" : "export")}
-          </Button>
-        </Section>
-      </Section>
-      <Section
-        flexDirection="row"
-        height="fit"
-        padding={2}
-        gap={1}
-        wrap
-        justifyContent="start"
-        className="shrink-0 border-b border-border-01"
-      >
-        <Button
-          size="sm"
-          icon={SvgChevronLeft}
-          aria-label={t("previous")}
-          disabled={currentPage <= 1}
-          onClick={() => scroll?.scrollToPreviousPage()}
-        />
-        <Section width={3.5} height="fit">
-          <InputTypeIn
-            type="number"
-            aria-label={t("page")}
-            value={String(currentPage)}
-            min={1}
-            max={total}
-            onChange={(event) => {
-              const value = Number(event.target.value);
-              if (value >= 1 && value <= total) {
-                scroll?.scrollToPage({ pageNumber: value });
-                syncPage.current(value);
+            prominence="tertiary"
+            icon={SvgChevronRight}
+            aria-label={t("next")}
+            tooltip={t("next")}
+            disabled={currentPage >= total}
+            onClick={() => scroll?.scrollToNextPage()}
+          />
+          <Popover>
+            <Popover.Trigger asChild>
+              <Button size="sm" prominence="tertiary">
+                {t("zoom", {
+                  percent: Math.round(zoomState.currentZoomLevel * 100),
+                })}
+              </Button>
+            </Popover.Trigger>
+            <Popover.Content align="end">
+              <Section
+                height="fit"
+                width="fit"
+                alignItems="stretch"
+                gap={1}
+                padding={1}
+              >
+                <Section flexDirection="row" height="fit" gap={2}>
+                  <Button
+                    size="sm"
+                    prominence="tertiary"
+                    icon={SvgZoomOut}
+                    aria-label={t("zoomOut")}
+                    onClick={() => zoom?.zoomOut()}
+                  />
+                  <Button
+                    size="sm"
+                    prominence="tertiary"
+                    icon={SvgZoomIn}
+                    aria-label={t("zoomIn")}
+                    onClick={() => zoom?.zoomIn()}
+                  />
+                </Section>
+                <Button
+                  size="sm"
+                  prominence="tertiary"
+                  icon={SvgFitWidth}
+                  onClick={() => zoom?.requestZoom(ZoomMode.FitWidth)}
+                >
+                  {t("fitWidth")}
+                </Button>
+                <Button
+                  size="sm"
+                  prominence="tertiary"
+                  onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}
+                >
+                  {t("fitPage")}
+                </Button>
+              </Section>
+            </Popover.Content>
+          </Popover>
+          <Button
+            size="sm"
+            prominence={annotationMode ? "secondary" : "tertiary"}
+            icon={SvgEdit}
+            aria-pressed={annotationMode}
+            onClick={() => {
+              setAnnotationMode(!annotationMode);
+              if (annotationMode) {
+                correctionIssue.current = null;
+                setCorrecting(false);
+                annotation?.setActiveTool(null);
               }
             }}
-          />
-        </Section>
-        <Text font="secondary-body" color="text-03">
-          {t("ofPages", { total })}
-        </Text>
-        <Button
-          size="sm"
-          icon={SvgChevronRight}
-          aria-label={t("next")}
-          disabled={currentPage >= total}
-          onClick={() => scroll?.scrollToNextPage()}
-        />
-        <Button
-          size="sm"
-          icon={SvgZoomOut}
-          aria-label={t("zoomOut")}
-          onClick={() => zoom?.zoomOut()}
-        />
-        <Text font="secondary-body" color="text-02">
-          {t("zoom", { percent: Math.round(zoomState.currentZoomLevel * 100) })}
-        </Text>
-        <Button
-          size="sm"
-          icon={SvgZoomIn}
-          aria-label={t("zoomIn")}
-          onClick={() => zoom?.zoomIn()}
-        />
-        <Button
-          size="sm"
-          icon={SvgFitWidth}
-          onClick={() => zoom?.requestZoom(ZoomMode.FitWidth)}
-        >
-          {t("fitWidth")}
-        </Button>
-        <Button size="sm" onClick={() => zoom?.requestZoom(ZoomMode.FitPage)}>
-          {t("fitPage")}
-        </Button>
-        <Button size="sm" onClick={() => rotate?.rotateForward()}>
-          {t("rotate")}
-        </Button>
-        <Button
-          size="sm"
-          aria-pressed={isPanning}
-          onClick={() => {
-            annotation?.setActiveTool(null);
-            pan?.togglePan();
-          }}
-        >
-          {t("pan")}
-        </Button>
-      </Section>
-      <Section
-        flexDirection="row"
-        height="fit"
-        padding={2}
-        gap={2}
-        wrap
-        justifyContent="start"
-        className="shrink-0 border-b border-border-01"
-      >
-        <Section width={10} height="fit">
-          <InputSingleSelect
-            placeholder={t("tools")}
-            defaultOption="select"
-            value={tool}
-            onValueChange={(value) => {
-              correctionIssue.current = null;
-              setCorrecting(false);
-              pan?.disablePan();
-              annotation?.setActiveTool(value === "select" ? null : value);
-            }}
-            options={[
-              { value: "select", title: t("select") },
-              { value: "highlight", title: t("highlight") },
-              { value: "ink", title: t("ink") },
-              { value: "inkHighlighter", title: t("inkHighlighter") },
-              { value: "square", title: t("rectangle") },
-              { value: "circle", title: t("ellipse") },
-              { value: "lineArrow", title: t("arrow") },
-              { value: "freeText", title: t("freeText") },
-              { value: "freeTextCallout", title: t("callout") },
-              { value: "textComment", title: t("note") },
-              { value: "underline", title: t("underline") },
-              { value: "strikeout", title: t("strikeout") },
-            ]}
-          />
-        </Section>
-        <Button
-          size="sm"
-          disabled={!editable || !!pending || !snapshot?.can_undo}
-          onClick={() => submit({ action: "undo" })}
-        >
-          {t("undo")}
-        </Button>
-        <Button
-          size="sm"
-          disabled={!editable || !!pending || !snapshot?.can_redo}
-          onClick={() => submit({ action: "redo" })}
-        >
-          {t("redo")}
-        </Button>
-        <Button
-          size="sm"
-          icon={SvgTrash}
-          aria-label={t("delete")}
-          disabled={!editable || !selected}
-          onClick={() => {
-            if (selected)
-              annotation?.deleteAnnotation(selected.pageIndex, selected.id);
-          }}
-        />
-        <Section width={12} height="fit">
-          <InputTypeIn
-            searchIcon
+          >
+            {ui("annotate")}
+          </Button>
+          <Button
+            size="sm"
+            prominence={searchOpen ? "secondary" : "tertiary"}
+            icon={SvgSearch}
             aria-label={t("search")}
-            placeholder={t("search")}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                search?.startSearch();
-                void search?.searchAllPages(query);
-              }
+            tooltip={t("search")}
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen(!searchOpen)}
+          />
+          <Popover>
+            <Popover.Trigger asChild>
+              <Button
+                size="sm"
+                prominence="tertiary"
+                icon={SvgMoreHorizontal}
+                aria-label={ui("moreActions")}
+                tooltip={ui("moreActions")}
+              />
+            </Popover.Trigger>
+            <Popover.Content align="end">
+              <Section
+                height="fit"
+                width="fit"
+                alignItems="stretch"
+                gap={1}
+                padding={1}
+              >
+                <Button
+                  size="sm"
+                  prominence="tertiary"
+                  onClick={() => rotate?.rotateForward()}
+                >
+                  {t("rotate")}
+                </Button>
+                <Button
+                  size="sm"
+                  prominence={isPanning ? "secondary" : "tertiary"}
+                  aria-pressed={isPanning}
+                  onClick={() => {
+                    annotation?.setActiveTool(null);
+                    pan?.togglePan();
+                  }}
+                >
+                  {t("pan")}
+                </Button>
+                <Button
+                  size="sm"
+                  prominence="tertiary"
+                  disabled={!editable || !!pending}
+                  onClick={() =>
+                    void printer
+                      ?.forDocument(id)
+                      .print()
+                      .toPromise()
+                      .catch(() => setExportFailed(true))
+                  }
+                >
+                  {t("print")}
+                </Button>
+                <Button
+                  size="sm"
+                  prominence="tertiary"
+                  icon={SvgDownload}
+                  disabled={!editable || !!pending || exporting}
+                  onClick={download}
+                >
+                  {t(exporting ? "exporting" : "export")}
+                </Button>
+                {locations.data?.some(
+                  (item) => item.status === "located_text"
+                ) ? (
+                  <Section width={60} height="fit" padding={2}>
+                    <Text font="secondary-body" color="text-03">
+                      {t("textLocationNotice")}
+                    </Text>
+                  </Section>
+                ) : null}
+              </Section>
+            </Popover.Content>
+          </Popover>
+        </Section>
+      </Section>
+      {annotationMode ? (
+        <Section
+          flexDirection="row"
+          height="fit"
+          padding={2}
+          gap={2}
+          wrap
+          justifyContent="start"
+          className="shrink-0 border-b border-border-01"
+        >
+          <Section width={10} height="fit">
+            <InputSingleSelect
+              placeholder={t("tools")}
+              defaultOption="select"
+              value={tool}
+              onValueChange={(value) => {
+                correctionIssue.current = null;
+                setCorrecting(false);
+                pan?.disablePan();
+                annotation?.setActiveTool(value === "select" ? null : value);
+              }}
+              options={[
+                { value: "select", title: t("select") },
+                { value: "highlight", title: t("highlight") },
+                { value: "ink", title: t("ink") },
+                { value: "inkHighlighter", title: t("inkHighlighter") },
+                { value: "square", title: t("rectangle") },
+                { value: "circle", title: t("ellipse") },
+                { value: "lineArrow", title: t("arrow") },
+                { value: "freeText", title: t("freeText") },
+                { value: "freeTextCallout", title: t("callout") },
+                { value: "textComment", title: t("note") },
+                { value: "underline", title: t("underline") },
+                { value: "strikeout", title: t("strikeout") },
+              ]}
+            />
+          </Section>
+          <Button
+            size="sm"
+            prominence="tertiary"
+            disabled={!editable || !!pending || !snapshot?.can_undo}
+            onClick={() => submit({ action: "undo" })}
+          >
+            {t("undo")}
+          </Button>
+          <Button
+            size="sm"
+            prominence="tertiary"
+            disabled={!editable || !!pending || !snapshot?.can_redo}
+            onClick={() => submit({ action: "redo" })}
+          >
+            {t("redo")}
+          </Button>
+          <Button
+            size="sm"
+            icon={SvgTrash}
+            aria-label={t("delete")}
+            disabled={!editable || !selected}
+            onClick={() => {
+              if (selected)
+                annotation?.deleteAnnotation(selected.pageIndex, selected.id);
             }}
           />
         </Section>
-        <Button
-          size="sm"
-          disabled={!searchState.total}
-          onClick={() => search?.nextResult()}
+      ) : null}
+      {searchOpen ? (
+        <Section
+          flexDirection="row"
+          height="fit"
+          padding={2}
+          gap={2}
+          justifyContent="start"
+          className="shrink-0 border-b border-border-01"
         >
-          {t("matches", { count: searchState.total })}
-        </Button>
-      </Section>
+          <Section width={12} height="fit">
+            <InputTypeIn
+              searchIcon
+              aria-label={t("search")}
+              placeholder={t("search")}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  search?.startSearch();
+                  void search?.searchAllPages(query);
+                }
+              }}
+            />
+          </Section>
+          <Button
+            size="sm"
+            disabled={!searchState.total}
+            onClick={() => search?.nextResult()}
+          >
+            {t("matches", { count: searchState.total })}
+          </Button>
+        </Section>
+      ) : null}
       {locations.error ? (
         <Text font="secondary-body" color="text-03">
           {t("textLocationError")}
         </Text>
-      ) : locations.data?.some((item) => item.status === "located_text") ? (
-        <Text font="secondary-body" color="text-03">
-          {t("textLocationNotice")}
-        </Text>
       ) : null}
       {selectedIssueId ? (
-        <Section flexDirection="row" height="fit" gap={2} padding={2}>
+        <Section
+          flexDirection="row"
+          justifyContent="start"
+          height="fit"
+          gap={1}
+          padding={2}
+          className="shrink-0 border-b border-border-01"
+        >
           <Button
+            prominence="tertiary"
             size="sm"
             disabled={!editable || !!pending}
             onClick={() => {
@@ -824,6 +940,7 @@ function Workspace({
               if (!issue) return;
               correctionIssue.current = issue;
               setCorrecting(true);
+              setAnnotationMode(true);
               pan?.disablePan();
               annotation?.deselectAnnotation();
               annotation?.setActiveTool("square");
@@ -832,6 +949,7 @@ function Workspace({
             {t("correctLocation")}
           </Button>
           <Button
+            prominence="tertiary"
             size="sm"
             disabled={
               !issues.some(

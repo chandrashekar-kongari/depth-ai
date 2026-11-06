@@ -6,6 +6,11 @@ import { useChatSessionStore } from "@/app/app/stores/useChatSessionStore";
 import type { BackendMessage, Message } from "@/app/app/types";
 import type { Packet } from "@/app/app/services/streamingModels";
 
+jest.mock(
+  "@/app/app/message/messageComponents/renderers/DrawingSheetMarks",
+  () => ({ DrawingSheetMarks: () => null })
+);
+
 jest.mock("@/app/app/message/HumanMessage", () => ({
   __esModule: true,
   default: () => null,

@@ -36,6 +36,7 @@ export interface SelectedModel {
 
 export interface MultiModelSelectorProps {
   selectedModels: SelectedModel[];
+  compact?: boolean;
   onAdd: (model: SelectedModel) => void;
   onRemove: (index: number) => void;
   onReplace: (index: number, model: SelectedModel) => void;
@@ -52,6 +53,7 @@ interface PopoverAnchor {
 
 export default function MultiModelSelector({
   selectedModels,
+  compact = false,
   onAdd,
   onRemove,
   onReplace,
@@ -239,7 +241,8 @@ export default function MultiModelSelector({
           data-testid="model-selector"
           aria-disabled={noModelsToSelect || undefined}
           className={cn(
-            "flex items-center justify-end gap-1 p-1",
+            "flex items-center justify-end gap-1",
+            compact ? "depth-composer-models min-w-0 flex-1" : "p-1",
             noModelsToSelect &&
               "cursor-not-allowed select-none opacity-50 [&>*]:pointer-events-none"
           )}
@@ -259,14 +262,19 @@ export default function MultiModelSelector({
 
           {selectedModels.length > 0 && (
             <>
-              {canAdd && (
+              {canAdd && !compact && (
                 <Divider
                   orientation="vertical"
                   paddingParallel={2}
                   paddingPerpendicular={2}
                 />
               )}
-              <div className="flex items-center shrink-0">
+              <div
+                className={cn(
+                  "flex items-center",
+                  compact ? "min-w-0 overflow-x-auto" : "shrink-0"
+                )}
+              >
                 {selectedModels.map((model, index) => {
                   const isAutoModel: boolean =
                     routingEnabled &&
@@ -292,7 +300,10 @@ export default function MultiModelSelector({
                         rightIcon={isMultiModel ? SvgX : undefined}
                         state="empty"
                         variant="select-input"
-                        size="lg"
+                        size={compact ? "sm" : "lg"}
+                        tooltip={
+                          isAutoModel ? t("autoItem.label") : model.displayName
+                        }
                         onClick={(e: React.MouseEvent<HTMLElement>) => {
                           if (isRemoveIcon(e.currentTarget, e.target)) {
                             removeModel(index);

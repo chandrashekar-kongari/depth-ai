@@ -13932,6 +13932,24 @@
     "readiness": {
       "stopFailed": "تعذر إيقاف الرد. حاول مرة أخرى.",
       "checkFailed": "تعذر التأكد من انتهاء الرد. تحقق مجددًا قبل إرسال رسالة أخرى."
+    },
+    "workspace": {
+      "conversation": "المحادثة",
+      "document": "المستند",
+      "workspace": "مساحة الرسم",
+      "resetLayout": "إعادة تعيين التخطيط",
+      "resizePanels": "تغيير حجم المستند والمحادثة",
+      "reviewSummary": "ملخص المراجعة",
+      "all": "الكل ({count})",
+      "attention": "تحتاج إلى معالجة ({count})",
+      "unclear": "غير واضح ({count})",
+      "addressed": "تمت المعالجة ({count})",
+      "searchFindings": "البحث في الملاحظات",
+      "noMatchingFindings": "لا توجد ملاحظات مطابقة",
+      "findingDetails": "تفاصيل الملاحظة {number}",
+      "reviewDetails": "تفاصيل المراجعة",
+      "annotate": "إضافة تعليق",
+      "moreActions": "إجراءات أخرى"
     }
   },
   "common": {

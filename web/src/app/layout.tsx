@@ -160,7 +160,7 @@ export default async function Layout({ children }: LayoutProps) {
             <DirectionProvider dir={dir}>
               <ThemeProvider
                 attribute="class"
-                defaultTheme="system"
+                defaultTheme="light"
                 enableSystem
                 disableTransitionOnChange
               >

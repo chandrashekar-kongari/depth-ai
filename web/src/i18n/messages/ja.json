@@ -13932,6 +13932,24 @@
     "readiness": {
       "stopFailed": "応答を停止できませんでした。もう一度お試しください。",
       "checkFailed": "応答の完了を確認できませんでした。次のメッセージを送信する前に、もう一度確認してください。"
+    },
+    "workspace": {
+      "conversation": "会話",
+      "document": "ドキュメント",
+      "workspace": "図面ワークスペース",
+      "resetLayout": "レイアウトをリセット",
+      "resizePanels": "ドキュメントと会話のサイズを変更",
+      "reviewSummary": "レビューの概要",
+      "all": "すべて ({count})",
+      "attention": "要対応 ({count})",
+      "unclear": "不明 ({count})",
+      "addressed": "対応済み ({count})",
+      "searchFindings": "指摘事項を検索",
+      "noMatchingFindings": "一致する指摘事項がありません",
+      "findingDetails": "指摘事項 {number} の詳細",
+      "reviewDetails": "レビューの詳細",
+      "annotate": "注釈",
+      "moreActions": "その他の操作"
     }
   },
   "common": {
