@@ -206,7 +206,7 @@ jobs:
             cat "${RUNNER_TEMP}/coverage/report.md" >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "name=coverage-$(echo "${MODULE#./}" | tr '/' '-')" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
           name: ${{ steps.report.outputs.name }}

@@ -558,7 +558,7 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: docker-all-logs-${{ matrix.edition }}-${{ matrix.test-dir.name }}
           path: ${{ github.workspace }}/docker-compose.log
@@ -567,7 +567,7 @@ jobs:
       # that hits timeout-minutes counts as cancelled, not failed.
       - name: Upload worker logs on failure
         if: failure() || cancelled()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: worker-logs-${{ matrix.edition }}-${{ matrix.test-dir.name }}
           path: ${{ github.workspace }}/backend/log/*.log
@@ -678,7 +678,7 @@ jobs:
 
       - name: Upload logs (onyx-lite)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: docker-all-logs-onyx-lite
           path: ${{ github.workspace }}/docker-compose-onyx-lite.log
@@ -798,7 +798,7 @@ jobs:
 
       - name: Upload logs (multi-tenant)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: docker-all-logs-multitenant
           path: ${{ github.workspace }}/docker-compose-multitenant.log
@@ -807,7 +807,7 @@ jobs:
       # that hits timeout-minutes counts as cancelled, not failed.
       - name: Upload worker logs on failure (multi-tenant)
         if: failure() || cancelled()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: worker-logs-multitenant
           path: ${{ github.workspace }}/backend/log/*.log
