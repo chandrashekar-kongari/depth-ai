@@ -157,7 +157,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: runs-on/action@4e5f72399b6b17f2e79c511c1b38a315a64d22dc # ratchet:runs-on/action@v1
+      - uses: runs-on/action@284bff869d4a825f778ac7c38e50f1e31ef198fd # ratchet:runs-on/action@v1
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v6
@@ -220,7 +220,7 @@ jobs:
         auth: [bootstrap, api-key]
 
     steps:
-      - uses: runs-on/action@4e5f72399b6b17f2e79c511c1b38a315a64d22dc # ratchet:runs-on/action@v1
+      - uses: runs-on/action@284bff869d4a825f778ac7c38e50f1e31ef198fd # ratchet:runs-on/action@v1
 
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v6
