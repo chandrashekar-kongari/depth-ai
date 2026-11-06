@@ -31,7 +31,7 @@ jobs:
       - "run-id=${{ github.run_id }}-mcp-routing"
     timeout-minutes: 10
     steps:
-      - uses: runs-on/action@4e5f72399b6b17f2e79c511c1b38a315a64d22dc
+      - uses: runs-on/action@284bff869d4a825f778ac7c38e50f1e31ef198fd
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
@@ -72,7 +72,7 @@ jobs:
       MCP_NATIVE_CLIENTS_REQUIRED: "true"
       DISABLE_TELEMETRY: "true"
     steps:
-      - uses: runs-on/action@4e5f72399b6b17f2e79c511c1b38a315a64d22dc
+      - uses: runs-on/action@284bff869d4a825f778ac7c38e50f1e31ef198fd
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
@@ -130,7 +130,7 @@ jobs:
       ONYX_BACKEND_IMAGE: onyx-mcp-ci-backend:ci
       MCP_CANARY_PORT: "18080"
     steps:
-      - uses: runs-on/action@4e5f72399b6b17f2e79c511c1b38a315a64d22dc
+      - uses: runs-on/action@284bff869d4a825f778ac7c38e50f1e31ef198fd
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
