@@ -1,0 +1,240 @@
+"""Tests for generic Celery task lifecycle Prometheus metrics."""
+
+import time
+from collections.abc import Iterator
+from unittest.mock import MagicMock
+
+import pytest
+
+from onyx.background.celery.apps.app_base import on_before_task_publish
+from onyx.server.metrics.celery_task_metrics import (
+    TASK_COMPLETED,
+    TASK_DURATION,
+    TASK_QUEUE_WAIT,
+    TASK_REJECTED,
+    TASK_RETRIED,
+    TASK_REVOKED,
+    TASK_STARTED,
+    TASKS_ACTIVE,
+    _task_start_times,
+    on_celery_task_postrun,
+    on_celery_task_prerun,
+)
+
+_TASK_METRICS = (
+    TASK_STARTED,
+    TASK_COMPLETED,
+    TASK_DURATION,
+    TASKS_ACTIVE,
+    TASK_RETRIED,
+    TASK_REVOKED,
+    TASK_REJECTED,
+    TASK_QUEUE_WAIT,
+)
+
+
+def _clear_metric_state() -> None:
+    _task_start_times.clear()
+    for metric in _TASK_METRICS:
+        metric.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_metrics() -> Iterator[None]:
+    """Clear metric state between tests."""
+    _clear_metric_state()
+    yield
+    _clear_metric_state()
+
+
+def _make_task(
+    name: str = "test_task",
+    queue: str = "test_queue",
+    enqueued_at: float | None = None,
+) -> MagicMock:
+    task = MagicMock()
+    task.name = name
+    task.request = MagicMock()
+    task.request.delivery_info = {"routing_key": queue}
+    task.request.headers = (
+        {"enqueued_at": enqueued_at} if enqueued_at is not None else {}
+    )
+    return task
+
+
+class TestCeleryTaskPrerun:
+    def test_increments_started_and_active(self) -> None:
+        task = _make_task()
+        before_started = TASK_STARTED.labels(
+            task_name="test_task", queue="test_queue"
+        )._value.get()
+        before_active = TASKS_ACTIVE.labels(
+            task_name="test_task", queue="test_queue"
+        )._value.get()
+
+        on_celery_task_prerun("task-1", task)
+
+        after_started = TASK_STARTED.labels(
+            task_name="test_task", queue="test_queue"
+        )._value.get()
+        after_active = TASKS_ACTIVE.labels(
+            task_name="test_task", queue="test_queue"
+        )._value.get()
+
+        assert after_started == before_started + 1
+        assert after_active == before_active + 1
+
+    def test_exports_both_completion_outcomes_at_zero(self) -> None:
+        task = _make_task(name="never_completed_task")
+
+        on_celery_task_prerun("task-outcomes", task)
+
+        exported = {
+            sample.labels["outcome"]: sample.value
+            for metric in TASK_COMPLETED.collect()
+            for sample in metric.samples
+            if sample.name == "onyx_celery_task_completed_total"
+            and sample.labels["task_name"] == "never_completed_task"
+        }
+        assert exported == {"success": 0.0, "failure": 0.0}
+
+    def test_records_start_time(self) -> None:
+        task = _make_task()
+        on_celery_task_prerun("task-1", task)
+        assert "task-1" in _task_start_times
+
+    def test_noop_when_task_is_none(self) -> None:
+        on_celery_task_prerun("task-1", None)
+        assert "task-1" not in _task_start_times
+
+    def test_noop_when_task_id_is_none(self) -> None:
+        task = _make_task()
+        on_celery_task_prerun(None, task)
+        # Should not crash
+
+    def test_handles_missing_delivery_info(self) -> None:
+        task = _make_task()
+        task.request.delivery_info = None
+        on_celery_task_prerun("task-1", task)
+        assert "task-1" in _task_start_times
+
+    def test_observes_queue_wait_when_enqueued_at_present(self) -> None:
+        enqueued_at = time.time() - 30  # simulates 30s wait
+        task = _make_task(enqueued_at=enqueued_at)
+
+        before = TASK_QUEUE_WAIT.labels(
+            task_name="test_task", queue="test_queue"
+        )._sum.get()
+
+        on_celery_task_prerun("task-1", task)
+
+        after = TASK_QUEUE_WAIT.labels(
+            task_name="test_task", queue="test_queue"
+        )._sum.get()
+        assert after >= before + 30
+
+    def test_skips_queue_wait_when_enqueued_at_missing(self) -> None:
+        task = _make_task()  # no enqueued_at in headers
+
+        before = TASK_QUEUE_WAIT.labels(
+            task_name="test_task", queue="test_queue"
+        )._sum.get()
+
+        on_celery_task_prerun("task-2", task)
+
+        after = TASK_QUEUE_WAIT.labels(
+            task_name="test_task", queue="test_queue"
+        )._sum.get()
+        assert after == before
+
+
+class TestCeleryTaskPostrun:
+    def test_increments_completed_success(self) -> None:
+        task = _make_task()
+        on_celery_task_prerun("task-1", task)
+
+        before = TASK_COMPLETED.labels(
+            task_name="test_task", queue="test_queue", outcome="success"
+        )._value.get()
+
+        on_celery_task_postrun("task-1", task, "SUCCESS")
+
+        after = TASK_COMPLETED.labels(
+            task_name="test_task", queue="test_queue", outcome="success"
+        )._value.get()
+        assert after == before + 1
+
+    def test_increments_completed_failure(self) -> None:
+        task = _make_task()
+        on_celery_task_prerun("task-1", task)
+
+        before = TASK_COMPLETED.labels(
+            task_name="test_task", queue="test_queue", outcome="failure"
+        )._value.get()
+
+        on_celery_task_postrun("task-1", task, "FAILURE")
+
+        after = TASK_COMPLETED.labels(
+            task_name="test_task", queue="test_queue", outcome="failure"
+        )._value.get()
+        assert after == before + 1
+
+    def test_decrements_active(self) -> None:
+        task = _make_task()
+        on_celery_task_prerun("task-1", task)
+
+        active_before = TASKS_ACTIVE.labels(
+            task_name="test_task", queue="test_queue"
+        )._value.get()
+
+        on_celery_task_postrun("task-1", task, "SUCCESS")
+
+        active_after = TASKS_ACTIVE.labels(
+            task_name="test_task", queue="test_queue"
+        )._value.get()
+        assert active_after == active_before - 1
+
+    def test_observes_duration(self) -> None:
+        task = _make_task()
+        on_celery_task_prerun("task-1", task)
+
+        before_count = TASK_DURATION.labels(
+            task_name="test_task", queue="test_queue"
+        )._sum.get()
+
+        on_celery_task_postrun("task-1", task, "SUCCESS")
+
+        after_count = TASK_DURATION.labels(
+            task_name="test_task", queue="test_queue"
+        )._sum.get()
+        # Duration should have increased (at least slightly)
+        assert after_count > before_count
+
+    def test_cleans_up_start_time(self) -> None:
+        task = _make_task()
+        on_celery_task_prerun("task-1", task)
+        assert "task-1" in _task_start_times
+
+        on_celery_task_postrun("task-1", task, "SUCCESS")
+        assert "task-1" not in _task_start_times
+
+    def test_noop_when_task_is_none(self) -> None:
+        on_celery_task_postrun("task-1", None, "SUCCESS")
+
+    def test_handles_missing_start_time(self) -> None:
+        """Postrun without prerun should not crash."""
+        task = _make_task()
+        on_celery_task_postrun("task-1", task, "SUCCESS")
+        # Should not raise
+
+
+class TestBeforeTaskPublish:
+    def test_stamps_enqueued_at_into_headers(self) -> None:
+        before = time.time()
+        headers: dict = {}
+        on_before_task_publish(headers=headers)
+        assert "enqueued_at" in headers
+        assert headers["enqueued_at"] >= before
+
+    def test_noop_when_headers_is_none(self) -> None:
+        on_before_task_publish(headers=None)  # should not raise

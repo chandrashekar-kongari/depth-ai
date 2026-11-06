@@ -1,0 +1,1446 @@
+"use client";
+
+import { useCallback, useEffect, useMemo } from "react";
+import { useSWRConfig } from "swr";
+
+import {
+  Artifact,
+  ArtifactType,
+  BuildMessageAttachment,
+  type CompletedInteractiveTurn,
+} from "@/app/craft/types/streamingTypes";
+
+import {
+  createTurn,
+  fetchActiveTurn,
+  fetchTurnEventStream,
+  interruptMessageStream,
+  processSSEStream,
+  fetchSession,
+  fetchScheduledRunEventStream,
+  fetchScheduledRunContext,
+  RateLimitedError,
+} from "@/app/craft/services/apiServices";
+import { CRAFT_GATEWAY_PROVIDER } from "@/app/craft/onboarding/constants";
+import type { BuildLlmSelection } from "@/app/craft/onboarding/constants";
+import { SWR_KEYS } from "@/lib/swr-keys";
+import { isAuthStatusError, isNotFoundError } from "@/lib/fetcher";
+
+import {
+  useBuildSessionStore,
+  type BuildSessionData,
+} from "@/app/craft/hooks/useBuildSessionStore";
+import { StreamItem, ToolCallState } from "@/app/craft/types/displayTypes";
+
+import { genId } from "@/app/craft/utils/streamItemHelpers";
+import { parsePacket } from "@/app/craft/utils/parsePacket";
+import {
+  classifySubagentEvent,
+  toolCallStateFromProgress,
+  toolCallStateFromStart,
+  subagentNameFromTask,
+  subagentNameFromToolCall,
+  cleanTaskOutput,
+} from "@/app/craft/utils/subagentRouting";
+
+const STREAM_RECONNECT_INTERVAL_MS = 1000;
+const stopRequests = new Map<string, Promise<void>>();
+
+/** Coalesce live discovery; committed turn settlement owns the final inventory read. */
+function createOutputRefreshQueue(refresh: () => Promise<void>) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: boolean = false;
+  let cancelled: boolean = false;
+  let running: Promise<void> | null = null;
+
+  function clearTimer() {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  }
+
+  async function drain(): Promise<void> {
+    while (pending && !cancelled) {
+      pending = false;
+      await refresh();
+    }
+  }
+
+  function flush(): Promise<void> {
+    clearTimer();
+    running ??= drain().finally(() => {
+      running = null;
+    });
+    return running;
+  }
+
+  function schedule() {
+    if (cancelled) return;
+    pending = true;
+    timer ??= setTimeout(() => {
+      timer = null;
+      void flush();
+    }, 400);
+  }
+
+  function cancel() {
+    cancelled = true;
+    pending = false;
+    clearTimer();
+  }
+
+  return { schedule, cancel };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function promptFromToolCall(toolCall: ToolCallState): string {
+  const prompt = toolCall.command || toolCall.description || "";
+  return prompt.replace(/^Spawning subagent:\s*/, "").trim();
+}
+
+function findParentTaskToolCall(
+  session: BuildSessionData,
+  subagentSessionId: string
+): ToolCallState | null {
+  const streamItems = [
+    ...session.messages.flatMap((message) => {
+      const items = message.message_metadata?.streamItems;
+      return Array.isArray(items) ? (items as StreamItem[]) : [];
+    }),
+    ...session.streamItems,
+  ];
+  const currentParent =
+    session.subagents.get(subagentSessionId)?.parentToolCallId ?? "";
+  if (currentParent) {
+    const parentItem = streamItems.find(
+      (item) => item.type === "tool_call" && item.toolCall.id === currentParent
+    );
+    return parentItem?.type === "tool_call" ? parentItem.toolCall : null;
+  }
+
+  const linkedParentIds = new Set(
+    Array.from(session.subagents.values())
+      .map((subagent) => subagent.parentToolCallId)
+      .filter(Boolean)
+  );
+  for (const item of [...streamItems].reverse()) {
+    if (item.type !== "tool_call") continue;
+    if (item.toolCall.kind !== "task" && item.toolCall.toolName !== "task") {
+      continue;
+    }
+    if (linkedParentIds.has(item.toolCall.id)) continue;
+    return item.toolCall;
+  }
+
+  return null;
+}
+
+/**
+ * Hook for handling message streaming in build sessions.
+ *
+ * Uses a simple FIFO approach:
+ * - Stream items are appended in chronological order as packets arrive
+ * - Text/thinking chunks are merged when consecutive
+ * - Tool calls are interleaved with text in the exact order they arrive
+ */
+export function useBuildStreaming({
+  isEnabled = true,
+}: { isEnabled?: boolean } = {}) {
+  const { mutate: globalMutate } = useSWRConfig();
+  const appendMessageToSession = useBuildSessionStore(
+    (state) => state.appendMessageToSession
+  );
+  const addArtifactToSession = useBuildSessionStore(
+    (state) => state.addArtifactToSession
+  );
+  const setAbortController = useBuildSessionStore(
+    (state) => state.setAbortController
+  );
+  const updateSessionData = useBuildSessionStore(
+    (state) => state.updateSessionData
+  );
+
+  // Stream item actions
+  const appendStreamItem = useBuildSessionStore(
+    (state) => state.appendStreamItem
+  );
+  const updateLastStreamingText = useBuildSessionStore(
+    (state) => state.updateLastStreamingText
+  );
+  const updateLastStreamingThinking = useBuildSessionStore(
+    (state) => state.updateLastStreamingThinking
+  );
+  const updateToolCallStreamItem = useBuildSessionStore(
+    (state) => state.updateToolCallStreamItem
+  );
+  const cancelLatestInFlightToolCallStreamItem = useBuildSessionStore(
+    (state) => state.cancelLatestInFlightToolCallStreamItem
+  );
+  const upsertTodoListStreamItem = useBuildSessionStore(
+    (state) => state.upsertTodoListStreamItem
+  );
+  const clearStreamItems = useBuildSessionStore(
+    (state) => state.clearStreamItems
+  );
+  const triggerWebappRefresh = useBuildSessionStore(
+    (state) => state.triggerWebappRefresh
+  );
+  const triggerFilesRefresh = useBuildSessionStore(
+    (state) => state.triggerFilesRefresh
+  );
+
+  const requestStop = useCallback(
+    (
+      sessionId: string,
+      instanceId: string,
+      generation: number
+    ): Promise<void> => {
+      const key = `${instanceId}:${generation}`;
+      const pending = stopRequests.get(key);
+      if (pending) return pending;
+      const ownsRequest = (): boolean => {
+        const current = useBuildSessionStore.getState().sessions.get(sessionId);
+        return (
+          current?.instanceId === instanceId &&
+          current.turnGeneration === generation
+        );
+      };
+      if (!ownsRequest()) return Promise.resolve();
+      updateSessionData(sessionId, {
+        isInterrupting: true,
+        wasInterrupted: true,
+      });
+      const turnId = useBuildSessionStore
+        .getState()
+        .sessions.get(sessionId)?.activeTurnId;
+      const request = interruptMessageStream(sessionId, turnId ?? undefined)
+        .then((interrupted) => {
+          // An untargeted no-op must retain intent until creation is accepted.
+          if (turnId && !interrupted && ownsRequest())
+            updateSessionData(sessionId, { wasInterrupted: false });
+        })
+        .catch((error: unknown) => {
+          console.error("[Streaming] Failed to interrupt:", error);
+          if (ownsRequest()) {
+            const current = useBuildSessionStore
+              .getState()
+              .sessions.get(sessionId);
+            if (current?.activeTurnId)
+              updateSessionData(sessionId, { wasInterrupted: false });
+          }
+        })
+        .finally(() => {
+          if (stopRequests.get(key) !== request) return;
+          stopRequests.delete(key);
+          if (ownsRequest())
+            updateSessionData(sessionId, { isInterrupting: false });
+        });
+      stopRequests.set(key, request);
+      return request;
+    },
+    [updateSessionData]
+  );
+
+  // Subagent routing actions
+  const recordSubagentToolCall = useBuildSessionStore(
+    (state) => state.recordSubagentToolCall
+  );
+  const seedSubagentMeta = useBuildSessionStore(
+    (state) => state.seedSubagentMeta
+  );
+  const markSubagentComplete = useBuildSessionStore(
+    (state) => state.markSubagentComplete
+  );
+  const appendSubagentResponseChunk = useBuildSessionStore(
+    (state) => state.appendSubagentResponseChunk
+  );
+  const appendSubagentThinkingChunk = useBuildSessionStore(
+    (state) => state.appendSubagentThinkingChunk
+  );
+
+  const handleCompletedFileChange = useCallback(
+    (sid: string, filePath: string) => {
+      const isWebFile =
+        filePath.includes("/web/") || filePath.startsWith("web/");
+      const isOutputFile =
+        filePath.includes("/outputs/") || filePath.startsWith("outputs/");
+
+      if (isWebFile) triggerWebappRefresh(sid);
+      if (isOutputFile) {
+        triggerFilesRefresh(sid);
+      }
+    },
+    [triggerWebappRefresh, triggerFilesRefresh]
+  );
+
+  const createStreamPacketProcessor = useCallback(
+    (
+      sessionId: string,
+      options: {
+        signal: AbortSignal;
+        onPromptResponse?: () => void;
+        onTerminalError: () => void;
+        onTurnCompleted?: (turn: CompletedInteractiveTurn) => void;
+        expectedTurnId?: string;
+      }
+    ) => {
+      let accumulatedText = "";
+      let accumulatedThinking = "";
+      let lastItemType: "text" | "thinking" | "tool" | null = null;
+      const currentItems =
+        useBuildSessionStore.getState().sessions.get(sessionId)?.streamItems ??
+        [];
+      const outputSession = useBuildSessionStore
+        .getState()
+        .sessions.get(sessionId);
+      const outputTurnGeneration = outputSession?.turnGeneration;
+      const outputRefresh = createOutputRefreshQueue(async () => {
+        const store = useBuildSessionStore.getState();
+        const current = store.sessions.get(sessionId);
+        if (current?.turnGeneration !== outputTurnGeneration) return;
+        if (
+          current?.activeTurnId &&
+          options?.expectedTurnId &&
+          current.activeTurnId !== options.expectedTurnId
+        )
+          return;
+        await store.refreshOutputInventory(sessionId);
+      });
+      let needsTurnCompletionFileRefresh = currentItems.some(
+        (item) =>
+          item.type === "tool_call" &&
+          item.toolCall.kind === "execute" &&
+          item.toolCall.status === "completed"
+      );
+      const lastCurrentItem = currentItems[currentItems.length - 1];
+      if (lastCurrentItem?.type === "text") {
+        accumulatedText = lastCurrentItem.content;
+        lastItemType = "text";
+        if (!lastCurrentItem.isStreaming) {
+          useBuildSessionStore
+            .getState()
+            .updateStreamItem(sessionId, lastCurrentItem.id, {
+              isStreaming: true,
+            });
+        }
+      } else if (lastCurrentItem?.type === "thinking") {
+        accumulatedThinking = lastCurrentItem.content;
+        lastItemType = "thinking";
+        if (!lastCurrentItem.isStreaming) {
+          useBuildSessionStore
+            .getState()
+            .updateStreamItem(sessionId, lastCurrentItem.id, {
+              isStreaming: true,
+            });
+        }
+      }
+
+      const finalizeStreaming = () => {
+        const session = useBuildSessionStore.getState().sessions.get(sessionId);
+        if (!session) return;
+
+        const items = session.streamItems;
+        const lastItem = items[items.length - 1];
+        if (lastItem) {
+          if (lastItem.type === "text" && lastItem.isStreaming) {
+            useBuildSessionStore
+              .getState()
+              .updateStreamItem(sessionId, lastItem.id, { isStreaming: false });
+          } else if (lastItem.type === "thinking" && lastItem.isStreaming) {
+            useBuildSessionStore
+              .getState()
+              .updateStreamItem(sessionId, lastItem.id, { isStreaming: false });
+          }
+        }
+      };
+
+      const appendErrorItem = (message: string) => {
+        const content = message || "Turn failed.";
+        const session = useBuildSessionStore.getState().sessions.get(sessionId);
+        const lastItem = session?.streamItems[session.streamItems.length - 1];
+
+        finalizeStreaming();
+        if (lastItem?.type === "error" && lastItem.content === content) {
+          return;
+        }
+
+        appendStreamItem(sessionId, {
+          type: "error",
+          id: genId("error"),
+          content,
+        });
+      };
+
+      const seedFromParentTask = (subagentSessionId: string): string => {
+        const session = useBuildSessionStore.getState().sessions.get(sessionId);
+        const parentToolCall = session
+          ? findParentTaskToolCall(session, subagentSessionId)
+          : null;
+        const existing = session?.subagents.get(subagentSessionId);
+        const parentToolCallId =
+          parentToolCall?.id ?? existing?.parentToolCallId ?? "";
+
+        if (parentToolCallId || parentToolCall) {
+          seedSubagentMeta(
+            sessionId,
+            subagentSessionId,
+            parentToolCallId,
+            parentToolCall?.subagentType ?? null,
+            parentToolCall ? subagentNameFromToolCall(parentToolCall) : "",
+            parentToolCall ? promptFromToolCall(parentToolCall) : ""
+          );
+        }
+
+        return parentToolCallId;
+      };
+
+      // Raw SSE frame straight off the wire; parsePacket is the decoder.
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters
+      const processPacket = (rawPacket: unknown) => {
+        if (options.signal.aborted) return;
+        const current = useBuildSessionStore.getState().sessions.get(sessionId);
+        if (
+          current?.instanceId !== outputSession?.instanceId ||
+          current?.turnGeneration !== outputTurnGeneration
+        )
+          return;
+        const parsed = parsePacket(rawPacket);
+        if (options?.expectedTurnId && parsed.type !== "approval_requested") {
+          const currentTurnId = useBuildSessionStore
+            .getState()
+            .sessions.get(sessionId)?.activeTurnId;
+          if (currentTurnId !== options.expectedTurnId) {
+            return;
+          }
+        }
+
+        switch (parsed.type) {
+          case "text_chunk": {
+            if (!parsed.text && parsed.part?.snapshotText === undefined) break;
+
+            if (parsed.parentSessionId !== null && parsed.sessionId !== null) {
+              finalizeStreaming();
+              accumulatedText = "";
+              accumulatedThinking = "";
+              lastItemType = null;
+              seedFromParentTask(parsed.sessionId);
+              appendSubagentResponseChunk(
+                sessionId,
+                parsed.sessionId,
+                parsed.text,
+                parsed.part
+              );
+              break;
+            }
+
+            if (parsed.part) {
+              const store = useBuildSessionStore.getState();
+              const items = store.sessions.get(sessionId)?.streamItems ?? [];
+              const existing = items.find(
+                (item) =>
+                  item.type === "text" && item.partId === parsed.part?.partId
+              );
+              if (existing?.type === "text") {
+                store.updateStreamItem(sessionId, existing.id, {
+                  content:
+                    parsed.part.snapshotText ?? existing.content + parsed.text,
+                });
+              } else {
+                finalizeStreaming();
+                store.appendStreamItem(sessionId, {
+                  type: "text",
+                  id: genId("text"),
+                  partId: parsed.part.partId,
+                  content: parsed.part.snapshotText ?? parsed.text,
+                  isStreaming: true,
+                });
+              }
+              lastItemType = null;
+              break;
+            }
+
+            accumulatedText += parsed.text;
+
+            if (lastItemType === "text") {
+              updateLastStreamingText(sessionId, accumulatedText);
+            } else {
+              finalizeStreaming();
+              accumulatedText = parsed.text;
+              const item: StreamItem = {
+                type: "text",
+                id: genId("text"),
+                content: parsed.text,
+                isStreaming: true,
+              };
+              appendStreamItem(sessionId, item);
+              lastItemType = "text";
+            }
+            break;
+          }
+
+          case "thinking_chunk": {
+            if (!parsed.text && parsed.part?.snapshotText === undefined) break;
+
+            if (parsed.parentSessionId !== null && parsed.sessionId !== null) {
+              finalizeStreaming();
+              accumulatedText = "";
+              accumulatedThinking = "";
+              lastItemType = null;
+              seedFromParentTask(parsed.sessionId);
+              appendSubagentThinkingChunk(
+                sessionId,
+                parsed.sessionId,
+                parsed.text,
+                parsed.part
+              );
+              break;
+            }
+
+            if (parsed.part) {
+              const store = useBuildSessionStore.getState();
+              const items = store.sessions.get(sessionId)?.streamItems ?? [];
+              const existing = items.find(
+                (item) =>
+                  item.type === "thinking" &&
+                  item.partId === parsed.part?.partId
+              );
+              if (existing?.type === "thinking") {
+                store.updateStreamItem(sessionId, existing.id, {
+                  content:
+                    parsed.part.snapshotText ?? existing.content + parsed.text,
+                });
+              } else {
+                finalizeStreaming();
+                store.appendStreamItem(sessionId, {
+                  type: "thinking",
+                  id: genId("thinking"),
+                  partId: parsed.part.partId,
+                  content: parsed.part.snapshotText ?? parsed.text,
+                  isStreaming: true,
+                });
+              }
+              lastItemType = null;
+              break;
+            }
+
+            accumulatedThinking += parsed.text;
+
+            if (lastItemType === "thinking") {
+              updateLastStreamingThinking(sessionId, accumulatedThinking);
+            } else {
+              finalizeStreaming();
+              accumulatedThinking = parsed.text;
+              const item: StreamItem = {
+                type: "thinking",
+                id: genId("thinking"),
+                content: parsed.text,
+                isStreaming: true,
+              };
+              appendStreamItem(sessionId, item);
+              lastItemType = "thinking";
+            }
+            break;
+          }
+
+          case "subagent_started": {
+            if (!parsed.subagentSessionId) break;
+            seedFromParentTask(parsed.subagentSessionId);
+            break;
+          }
+
+          case "tool_call_start": {
+            finalizeStreaming();
+            accumulatedText = "";
+            accumulatedThinking = "";
+
+            // Child (subagent-internal) start: do not add to main transcript.
+            // Record it in the subagent stream immediately so in-progress
+            // tools show before their first progress packet arrives.
+            if (parsed.parentSessionId !== null && parsed.sessionId !== null) {
+              const parentToolCallId = seedFromParentTask(parsed.sessionId);
+              recordSubagentToolCall(
+                sessionId,
+                parsed.sessionId,
+                parentToolCallId,
+                toolCallStateFromStart(parsed),
+                parsed.subagentType,
+                ""
+              );
+              lastItemType = "tool";
+              break;
+            }
+
+            const isInterrupting = useBuildSessionStore
+              .getState()
+              .sessions.get(sessionId)?.isInterrupting;
+            const startedToolCall = {
+              ...toolCallStateFromStart(parsed),
+              status: isInterrupting ? "cancelled" : "pending",
+            } satisfies ToolCallState;
+
+            // Parent `task` start packets can carry the spawned child session
+            // before any progress packet arrives. Seed immediately so the task
+            // row has a click target while the subagent is still running.
+            if (parsed.subagentSessionId !== null) {
+              seedSubagentMeta(
+                sessionId,
+                parsed.subagentSessionId,
+                parsed.toolCallId,
+                parsed.subagentType,
+                subagentNameFromToolCall(startedToolCall),
+                promptFromToolCall(startedToolCall)
+              );
+            }
+
+            // Skip tool_call_start for TodoWrite; pill is created on progress.
+            if (parsed.isTodo) {
+              lastItemType = "tool";
+              break;
+            }
+
+            appendStreamItem(sessionId, {
+              type: "tool_call",
+              id: parsed.toolCallId,
+              toolCall: startedToolCall,
+            });
+            lastItemType = "tool";
+            break;
+          }
+
+          case "tool_call_progress": {
+            if (
+              parsed.status === "completed" &&
+              (parsed.kind === "execute" || parsed.kind === "edit")
+            ) {
+              outputRefresh.schedule();
+            }
+            if (parsed.status === "completed" && parsed.kind === "execute") {
+              needsTurnCompletionFileRefresh = true;
+            }
+            if (
+              parsed.status === "completed" &&
+              parsed.kind === "edit" &&
+              parsed.filePath
+            ) {
+              handleCompletedFileChange(sessionId, parsed.filePath);
+            }
+
+            const subagentClass = classifySubagentEvent(parsed);
+
+            // Child (subagent-internal) event: route to the subagent's own
+            // tool-call list, not the main transcript.
+            if (subagentClass.kind === "child") {
+              const parentToolCallId = seedFromParentTask(
+                subagentClass.subagentSessionId
+              );
+              recordSubagentToolCall(
+                sessionId,
+                subagentClass.subagentSessionId,
+                parentToolCallId,
+                toolCallStateFromProgress(parsed),
+                null,
+                ""
+              );
+              break;
+            }
+
+            // Parent `task` event: keep the transcript task card and seed/update
+            // the subagent meta and completion state.
+            if (subagentClass.kind === "parentTask") {
+              seedSubagentMeta(
+                sessionId,
+                subagentClass.subagentSessionId,
+                parsed.toolCallId,
+                parsed.subagentType,
+                subagentNameFromTask(parsed),
+                parsed.command
+              );
+              if (parsed.status === "completed") {
+                markSubagentComplete(
+                  sessionId,
+                  subagentClass.subagentSessionId,
+                  "done",
+                  cleanTaskOutput(parsed.taskOutput)
+                );
+              } else if (
+                parsed.status === "failed" ||
+                parsed.status === "cancelled"
+              ) {
+                markSubagentComplete(
+                  sessionId,
+                  subagentClass.subagentSessionId,
+                  "failed",
+                  cleanTaskOutput(parsed.taskOutput)
+                );
+              }
+            }
+
+            if (
+              subagentClass.kind === "normal" &&
+              (parsed.kind === "task" || parsed.toolName === "task")
+            ) {
+              const session = useBuildSessionStore
+                .getState()
+                .sessions.get(sessionId);
+              const subagent = Array.from(
+                session?.subagents.values() ?? []
+              ).find((candidate) => {
+                return candidate.parentToolCallId === parsed.toolCallId;
+              });
+              if (subagent) {
+                seedSubagentMeta(
+                  sessionId,
+                  subagent.sessionId,
+                  parsed.toolCallId,
+                  parsed.subagentType,
+                  subagentNameFromTask(parsed),
+                  parsed.command
+                );
+              }
+            }
+
+            if (parsed.isTodo) {
+              upsertTodoListStreamItem(sessionId, parsed.toolCallId, {
+                id: parsed.toolCallId,
+                todos: parsed.todos,
+                isOpen: true,
+              });
+              break;
+            }
+
+            const status =
+              useBuildSessionStore.getState().sessions.get(sessionId)
+                ?.isInterrupting &&
+              (parsed.status === "pending" || parsed.status === "in_progress")
+                ? "cancelled"
+                : parsed.status;
+
+            updateToolCallStreamItem(sessionId, parsed.toolCallId, {
+              status,
+              title: parsed.title,
+              description: parsed.description,
+              command: parsed.command,
+              rawOutput: parsed.rawOutput,
+              toolName: parsed.toolName,
+              subagentType: parsed.subagentType ?? undefined,
+              skillName: parsed.skillName ?? undefined,
+              taskOutput: parsed.taskOutput ?? undefined,
+              ...(parsed.kind === "edit" && {
+                isNewFile: parsed.isNewFile,
+                oldContent: parsed.oldContent,
+                newContent: parsed.newContent,
+              }),
+            });
+
+            break;
+          }
+
+          case "artifact_created": {
+            const newArtifact: Artifact = {
+              id: parsed.artifact.id,
+              session_id: sessionId,
+              type: parsed.artifact.type as ArtifactType,
+              name: parsed.artifact.name,
+              path: parsed.artifact.path,
+              preview_url: parsed.artifact.preview_url || null,
+              created_at: new Date(),
+              updated_at: new Date(),
+            };
+            addArtifactToSession(sessionId, newArtifact);
+            outputRefresh.schedule();
+
+            const isWebapp =
+              newArtifact.type === "nextjs_app" ||
+              newArtifact.type === "web_app";
+            if (isWebapp) {
+              fetchSession(sessionId)
+                .then((sessionData) => {
+                  if (sessionData.nextjs_port) {
+                    const webappUrl = `http://localhost:${sessionData.nextjs_port}`;
+                    updateSessionData(sessionId, { webappUrl });
+                  }
+                })
+                .catch((err) =>
+                  console.error("Failed to fetch session for webapp URL:", err)
+                );
+            }
+            break;
+          }
+
+          case "turn_completed":
+          case "prompt_response": {
+            if (parsed.type === "turn_completed") {
+              if (
+                parsed.turn.session_id !== sessionId ||
+                parsed.turn.turn_id !== options.expectedTurnId
+              )
+                break;
+              if (parsed.turn.status === "FAILED")
+                appendErrorItem(parsed.turn.error_detail ?? "");
+            }
+            outputRefresh.cancel();
+            if (needsTurnCompletionFileRefresh) {
+              // Shell commands and scripts can mutate the workspace without
+              // emitting structured file paths. Reconcile once when the turn ends.
+              triggerFilesRefresh(sessionId);
+            }
+            finalizeStreaming();
+            const isInterrupting = useBuildSessionStore
+              .getState()
+              .sessions.get(sessionId)?.isInterrupting;
+            if (isInterrupting) {
+              cancelLatestInFlightToolCallStreamItem(sessionId);
+            }
+
+            const session = useBuildSessionStore
+              .getState()
+              .sessions.get(sessionId);
+
+            if (session && session.streamItems.length > 0) {
+              // Connect cards are transient interaction prompts, not transcript
+              // content — drop them from the persisted message.
+              const savedStreamItems = session.streamItems
+                .filter((item) => item.type !== "connect_app_request")
+                .map((item) =>
+                  item.type === "text" || item.type === "thinking"
+                    ? { ...item, isStreaming: false }
+                    : item
+                );
+              const textContent = session.streamItems
+                .filter((item) => item.type === "text")
+                .map((item) => item.content)
+                .join("");
+
+              appendMessageToSession(sessionId, {
+                id: genId("agent-msg"),
+                type: "assistant",
+                content: textContent,
+                timestamp: new Date(),
+                turn_index:
+                  parsed.type === "turn_completed"
+                    ? parsed.turn.turn_index
+                    : (session.activeTurnIndex ?? undefined),
+                message_metadata: {
+                  streamItems: savedStreamItems,
+                },
+              });
+            }
+
+            updateSessionData(sessionId, { streamItems: [] });
+            if (parsed.type === "turn_completed")
+              options.onTurnCompleted?.(parsed.turn);
+            else options.onPromptResponse?.();
+            break;
+          }
+
+          case "approval_requested": {
+            void globalMutate(SWR_KEYS.buildSessionApprovals(sessionId));
+            break;
+          }
+
+          case "connect_app_request": {
+            // The `connect_app` tool is parked server-side; render the card
+            // inline so resolving it can unblock the tool.
+            if (!parsed.requestId) break;
+            if (
+              useBuildSessionStore
+                .getState()
+                .sessions.get(sessionId)
+                ?.streamItems.some((item) => item.id === parsed.requestId)
+            )
+              break;
+            appendStreamItem(sessionId, {
+              type: "connect_app_request",
+              id: parsed.requestId,
+              requestId: parsed.requestId,
+              externalAppId: parsed.externalAppId,
+              reason: parsed.reason,
+            });
+            break;
+          }
+
+          case "context_usage": {
+            updateSessionData(sessionId, {
+              contextUsage: {
+                usedTokens: parsed.usedTokens,
+              },
+            });
+            break;
+          }
+
+          case "compaction": {
+            appendStreamItem(sessionId, {
+              type: "compaction",
+              id: genId("compaction"),
+              summary: parsed.summary,
+            });
+            break;
+          }
+
+          case "error": {
+            // The observer resumes after the pending Stop and reads its outcome.
+            if (
+              useBuildSessionStore.getState().sessions.get(sessionId)
+                ?.isInterrupting
+            ) {
+              break;
+            }
+            outputRefresh.cancel();
+            appendErrorItem(parsed.message);
+            options.onTerminalError();
+            break;
+          }
+
+          default:
+            break;
+        }
+      };
+      return {
+        processPacket,
+        cancelOutputs: outputRefresh.cancel,
+      };
+    },
+    [
+      updateSessionData,
+      appendStreamItem,
+      updateLastStreamingText,
+      updateLastStreamingThinking,
+      updateToolCallStreamItem,
+      cancelLatestInFlightToolCallStreamItem,
+      upsertTodoListStreamItem,
+      addArtifactToSession,
+      appendMessageToSession,
+      handleCompletedFileChange,
+      triggerFilesRefresh,
+      globalMutate,
+      recordSubagentToolCall,
+      seedSubagentMeta,
+      markSubagentComplete,
+      appendSubagentResponseChunk,
+      appendSubagentThinkingChunk,
+    ]
+  );
+
+  /**
+   * Attach to a background turn's live event stream.
+   */
+  const streamTurnEvents = useCallback(
+    async (
+      sessionId: string,
+      turnId: string,
+      signal: AbortSignal,
+      onSettled?: () => void
+    ): Promise<void> => {
+      const existingSession = useBuildSessionStore
+        .getState()
+        .sessions.get(sessionId);
+      if (
+        existingSession?.activeTurnId === turnId &&
+        existingSession.activeTurnLocalOwner &&
+        existingSession.abortController.signal !== signal
+      ) {
+        return;
+      }
+
+      updateSessionData(sessionId, {
+        status: "running",
+        isInterrupting:
+          existingSession?.activeTurnId === turnId
+            ? existingSession.isInterrupting
+            : false,
+        activeTurnId: turnId,
+        ...(existingSession?.activeTurnId !== turnId && {
+          outputSelectionLocked: false,
+          wasInterrupted: false,
+        }),
+      });
+      if (existingSession?.activeTurnId !== turnId) {
+        clearStreamItems(sessionId);
+      }
+
+      const ownsAttachment = (): boolean => {
+        const current = useBuildSessionStore.getState().sessions.get(sessionId);
+        return (
+          !signal.aborted &&
+          current?.instanceId === existingSession?.instanceId &&
+          current?.turnGeneration === existingSession?.turnGeneration &&
+          current?.activeTurnId === turnId
+        );
+      };
+      let settledFromTerminalPacket = false;
+      const settleFromTerminalPacket = (
+        completion?: CompletedInteractiveTurn
+      ): void => {
+        settledFromTerminalPacket = true;
+        const current = useBuildSessionStore.getState().sessions.get(sessionId);
+        if (current && !current.isInterrupting)
+          void useBuildSessionStore
+            .getState()
+            .beginTurnSettlement(
+              sessionId,
+              { kind: "interactive", turnId },
+              existingSession?.turnGeneration ?? 0,
+              completion
+            );
+        onSettled?.();
+      };
+      const processor = createStreamPacketProcessor(sessionId, {
+        signal,
+        expectedTurnId: turnId,
+        onPromptResponse: settleFromTerminalPacket,
+        onTerminalError: settleFromTerminalPacket,
+        onTurnCompleted: settleFromTerminalPacket,
+      });
+
+      try {
+        while (ownsAttachment()) {
+          if (
+            useBuildSessionStore.getState().sessions.get(sessionId)
+              ?.isInterrupting
+          )
+            return;
+          try {
+            const response = await fetchTurnEventStream(
+              sessionId,
+              turnId,
+              signal
+            );
+            if (!ownsAttachment()) return;
+            if (response)
+              await processSSEStream(response, processor.processPacket);
+          } catch (error) {
+            if (
+              signal.aborted ||
+              (error instanceof Error && error.name === "AbortError")
+            )
+              return;
+            if (isAuthStatusError(error) || isNotFoundError(error)) throw error;
+            console.warn("[Streaming] Turn attach stream error:", error);
+          }
+          const current = useBuildSessionStore
+            .getState()
+            .sessions.get(sessionId);
+          if (
+            !ownsAttachment() ||
+            settledFromTerminalPacket ||
+            current?.error ||
+            current?.isInterrupting
+          )
+            return;
+          let active: Awaited<ReturnType<typeof fetchActiveTurn>>;
+          try {
+            active = await fetchActiveTurn(sessionId);
+          } catch (error) {
+            if (!ownsAttachment()) return;
+            if (isAuthStatusError(error) || isNotFoundError(error)) throw error;
+            console.warn("[Streaming] Failed to check attached turn:", error);
+            await sleep(STREAM_RECONNECT_INTERVAL_MS);
+            continue;
+          }
+          const owned = useBuildSessionStore.getState().sessions.get(sessionId);
+          if (!ownsAttachment() || !owned || owned.isInterrupting) return;
+          if (!active || active.turn_id !== turnId) {
+            void useBuildSessionStore
+              .getState()
+              .beginTurnSettlement(
+                sessionId,
+                { kind: "interactive", turnId },
+                owned.turnGeneration
+              );
+            return;
+          }
+          await sleep(STREAM_RECONNECT_INTERVAL_MS);
+        }
+      } catch (error) {
+        if (ownsAttachment())
+          updateSessionData(sessionId, {
+            status: "failed",
+            loadError: error instanceof Error ? error.message : String(error),
+            activeTurnId: null,
+            activeTurnIndex: null,
+            activeTurnLocalOwner: false,
+          });
+      } finally {
+        processor.cancelOutputs();
+        if (ownsAttachment()) {
+          if (!settledFromTerminalPacket) {
+            onSettled?.();
+          }
+        }
+      }
+    },
+    [updateSessionData, clearStreamItems, createStreamPacketProcessor]
+  );
+
+  /**
+   * Start an interactive backend turn, then attach to its event stream.
+   * Populates streamItems in FIFO order as packets arrive.
+   */
+  const streamMessage = useCallback(
+    async (
+      sessionId: string,
+      content: string,
+      model?: BuildLlmSelection | null,
+      attachments: BuildMessageAttachment[] = [],
+      queuedMessageId?: number
+    ): Promise<void> => {
+      const currentState = useBuildSessionStore.getState();
+      const existingSession = currentState.sessions.get(sessionId);
+      const skillsStaleRevision = existingSession?.skillsStaleRevision;
+
+      if (existingSession?.abortController) {
+        existingSession.abortController.abort();
+      }
+
+      const generation = (existingSession?.turnGeneration ?? 0) + 1;
+      const ownsTurn = (acceptedTurnId?: string) => {
+        const current = useBuildSessionStore.getState().sessions.get(sessionId);
+        return (
+          !controller.signal.aborted &&
+          current?.instanceId === existingSession?.instanceId &&
+          current?.turnGeneration === generation &&
+          (acceptedTurnId === undefined ||
+            current.activeTurnId === acceptedTurnId)
+        );
+      };
+      const controller = new AbortController();
+      setAbortController(sessionId, controller);
+
+      updateSessionData(sessionId, {
+        status: "running",
+        error: null,
+        isInterrupting: false,
+        wasInterrupted: false,
+        outputSelectionLocked: false,
+        turnGeneration: generation,
+        turnSettlement: null,
+        activeTurnId: null,
+        activeTurnIndex: null,
+        activeTurnLocalOwner: true,
+      });
+      clearStreamItems(sessionId);
+
+      try {
+        const turn = await createTurn(
+          sessionId,
+          content,
+          queuedMessageId === undefined
+            ? crypto.randomUUID()
+            : `queue:${existingSession?.instanceId}:${queuedMessageId}`,
+          controller.signal,
+          model,
+          attachments
+        );
+        // The accepted turn guarantees that the first message is persisted.
+        // Naming belongs to the store and survives navigation or unmount.
+        if (turn.turn_index === 0) {
+          void useBuildSessionStore.getState().nameBuildSession(sessionId);
+        }
+        if (!ownsTurn()) return;
+        if (queuedMessageId !== undefined) {
+          appendMessageToSession(sessionId, {
+            id: genId("user-msg"),
+            type: "user",
+            content,
+            attachments,
+            timestamp: new Date(),
+            turn_index: turn.turn_index,
+          });
+          const queued =
+            useBuildSessionStore.getState().sessions.get(sessionId)
+              ?.queuedMessages ?? [];
+          updateSessionData(sessionId, {
+            queuedMessages: queued.filter(
+              (message) => message.id !== queuedMessageId
+            ),
+          });
+        }
+        const currentSession = useBuildSessionStore
+          .getState()
+          .sessions.get(sessionId);
+        updateSessionData(sessionId, {
+          activeTurnId: turn.turn_id,
+          activeTurnIndex: turn.turn_index,
+          activeTurnLocalOwner: true,
+          ...(model && {
+            agentProvider: CRAFT_GATEWAY_PROVIDER,
+            agentModel: `${model.providerId}/${model.modelName}`,
+          }),
+          ...(currentSession?.skillsStaleRevision === skillsStaleRevision && {
+            skillsStale: false,
+          }),
+        });
+
+        if (currentSession?.wasInterrupted) {
+          const pendingStop = stopRequests.get(
+            `${currentSession.instanceId}:${generation}`
+          );
+          if (pendingStop) await pendingStop;
+          if (!ownsTurn(turn.turn_id)) return;
+          await requestStop(sessionId, currentSession.instanceId, generation);
+        }
+        if (!ownsTurn(turn.turn_id)) return;
+        await streamTurnEvents(sessionId, turn.turn_id, controller.signal);
+      } catch (err) {
+        // A session-wide Stop must finish before another turn can start.
+        const pendingStop = stopRequests.get(
+          `${existingSession?.instanceId}:${generation}`
+        );
+        if (pendingStop) await pendingStop;
+        if (!ownsTurn()) return;
+        if (queuedMessageId !== undefined) {
+          const current = useBuildSessionStore
+            .getState()
+            .sessions.get(sessionId);
+          if (current)
+            updateSessionData(sessionId, {
+              queuedMessages: current.queuedMessages.map((message) =>
+                message.id === queuedMessageId
+                  ? { ...message, phase: "failed" }
+                  : message
+              ),
+            });
+        }
+        if ((err as Error).name === "AbortError") {
+          updateSessionData(sessionId, { isInterrupting: false });
+        } else if (err instanceof RateLimitedError) {
+          // Usage-budget 429: recoverable once the budget resets, so keep the
+          // session active and surface the same rate-limit banner as chat.
+          // `error` stays set so queued messages don't auto-send into the limit.
+          appendStreamItem(sessionId, {
+            type: "error",
+            id: genId("error"),
+            content: err.message,
+            rateLimit: err.details,
+          });
+          updateSessionData(sessionId, {
+            status: "active",
+            error: err.message,
+            isInterrupting: false,
+            activeTurnId: null,
+            activeTurnIndex: null,
+            activeTurnLocalOwner: false,
+          });
+        } else {
+          console.error("[Streaming] Stream error:", err);
+          updateSessionData(sessionId, {
+            status: "failed",
+            error: (err as Error).message,
+            isInterrupting: false,
+            activeTurnId: null,
+            activeTurnIndex: null,
+            activeTurnLocalOwner: false,
+          });
+        }
+      } finally {
+        // Only reset if this turn still owns the controller; clobbering a newer
+        // turn's controller trips its streamTurnEvents duplicate-watcher guard
+        // (signal mismatch) and hangs the FE while the backend completes.
+        const session = useBuildSessionStore.getState().sessions.get(sessionId);
+        if (session?.abortController === controller) {
+          updateSessionData(sessionId, {
+            abortController: new AbortController(),
+            activeTurnLocalOwner: false,
+          });
+        }
+      }
+    },
+    [
+      setAbortController,
+      updateSessionData,
+      appendStreamItem,
+      appendMessageToSession,
+      clearStreamItems,
+      streamTurnEvents,
+      requestStop,
+    ]
+  );
+
+  const retryQueuedMessage = useCallback(
+    async (sessionId: string): Promise<void> => {
+      const session = useBuildSessionStore.getState().sessions.get(sessionId);
+      const message = session?.queuedMessages[0];
+      if (
+        !message ||
+        message.phase !== "failed" ||
+        !session.error ||
+        session.activeTurnId !== null ||
+        (session.status !== "active" && session.status !== "failed")
+      )
+        return;
+      updateSessionData(sessionId, {
+        queuedMessages: session.queuedMessages.map((item) =>
+          item.id === message.id ? { ...item, phase: "starting" } : item
+        ),
+      });
+      await streamMessage(
+        sessionId,
+        message.text,
+        message.model,
+        message.attachments,
+        message.id
+      );
+    },
+    [streamMessage, updateSessionData]
+  );
+
+  useEffect(() => {
+    if (!isEnabled) return;
+    const dispatch = () => {
+      const state = useBuildSessionStore.getState();
+      for (const sessionId of state.sessions.keys()) {
+        const message = state.claimQueuedMessage(sessionId);
+        if (message)
+          void streamMessage(
+            sessionId,
+            message.text,
+            message.model,
+            message.attachments,
+            message.id
+          );
+      }
+    };
+    const unsubscribe = useBuildSessionStore.subscribe(dispatch);
+    dispatch();
+    return unsubscribe;
+  }, [isEnabled, streamMessage]);
+
+  /**
+   * Interrupt the in-flight turn for a session. The open SSE stream terminates
+   * normally so partial output can still be committed.
+   */
+  const interruptStreaming = useCallback(
+    async (sessionId: string): Promise<void> => {
+      const session = useBuildSessionStore.getState().sessions.get(sessionId);
+      if (
+        !session ||
+        (session.status !== "running" && session.status !== "creating") ||
+        (!session.activeTurnId && !session.activeTurnLocalOwner) ||
+        session.isInterrupting
+      ) {
+        return;
+      }
+
+      cancelLatestInFlightToolCallStreamItem(sessionId);
+      await requestStop(sessionId, session.instanceId, session.turnGeneration);
+    },
+    [requestStop, cancelLatestInFlightToolCallStreamItem]
+  );
+
+  const streamScheduledRunEvents = useCallback(
+    async (
+      sessionId: string,
+      runId: string,
+      signal: AbortSignal,
+      onSettled?: () => void
+    ): Promise<void> => {
+      const owner = useBuildSessionStore.getState().sessions.get(sessionId);
+      if (!owner || signal.aborted) return;
+      const ownsScheduledStream = (): boolean => {
+        const current = useBuildSessionStore.getState().sessions.get(sessionId);
+        return (
+          !signal.aborted &&
+          current?.instanceId === owner.instanceId &&
+          current.turnGeneration === owner.turnGeneration
+        );
+      };
+      // A scheduled run owns one session; reattaching does not start a new turn.
+      updateSessionData(sessionId, { status: "running" });
+      clearStreamItems(sessionId);
+      let settledFromTerminalPacket = false;
+      const settleFromTerminalPacket = (): void => {
+        if (!ownsScheduledStream()) return;
+        settledFromTerminalPacket = true;
+        void useBuildSessionStore
+          .getState()
+          .beginTurnSettlement(
+            sessionId,
+            { kind: "scheduled", runId },
+            owner.turnGeneration
+          );
+        onSettled?.();
+      };
+      const processor = createStreamPacketProcessor(sessionId, {
+        signal,
+        onPromptResponse: settleFromTerminalPacket,
+        onTerminalError: settleFromTerminalPacket,
+      });
+
+      try {
+        while (ownsScheduledStream()) {
+          try {
+            const response = await fetchScheduledRunEventStream(
+              sessionId,
+              signal
+            );
+            if (!ownsScheduledStream()) return;
+            await processSSEStream(response, processor.processPacket);
+          } catch (error) {
+            if (
+              signal.aborted ||
+              (error instanceof Error && error.name === "AbortError")
+            )
+              return;
+            if (isAuthStatusError(error) || isNotFoundError(error)) throw error;
+            console.warn("[Streaming] Scheduled run stream error:", error);
+          }
+          if (!ownsScheduledStream() || settledFromTerminalPacket) return;
+          let run: Awaited<ReturnType<typeof fetchScheduledRunContext>>;
+          try {
+            run = await fetchScheduledRunContext(sessionId);
+          } catch (error) {
+            if (!ownsScheduledStream()) return;
+            if (isAuthStatusError(error) || isNotFoundError(error)) throw error;
+            console.warn("[Streaming] Failed to check scheduled run:", error);
+            await sleep(STREAM_RECONNECT_INTERVAL_MS);
+            continue;
+          }
+          if (!ownsScheduledStream() || run.run_id !== runId) return;
+          if (run.status !== "RUNNING" && run.status !== "QUEUED") {
+            await useBuildSessionStore
+              .getState()
+              .beginTurnSettlement(
+                sessionId,
+                { kind: "scheduled", runId },
+                owner.turnGeneration
+              );
+            return;
+          }
+          await sleep(STREAM_RECONNECT_INTERVAL_MS);
+        }
+      } catch (error) {
+        if (ownsScheduledStream())
+          updateSessionData(sessionId, {
+            status: "failed",
+            loadError: error instanceof Error ? error.message : String(error),
+            activeTurnId: null,
+            activeTurnIndex: null,
+            activeTurnLocalOwner: false,
+          });
+      } finally {
+        processor.cancelOutputs();
+        if (ownsScheduledStream() && !settledFromTerminalPacket) onSettled?.();
+      }
+    },
+    [updateSessionData, clearStreamItems, createStreamPacketProcessor]
+  );
+
+  return useMemo(
+    () => ({
+      streamMessage,
+      retryQueuedMessage,
+      interruptStreaming,
+      streamScheduledRunEvents,
+      streamTurnEvents,
+    }),
+    [
+      streamMessage,
+      retryQueuedMessage,
+      interruptStreaming,
+      streamScheduledRunEvents,
+      streamTurnEvents,
+    ]
+  );
+}

@@ -1,0 +1,79 @@
+import { test, expect } from "@playwright/test";
+import { DepthApiClient } from "@tests/e2e/utils/depthApiClient";
+import { ConnectorSetupPage } from "@tests/e2e/admin/connector/ConnectorSetupPage";
+import { IndexingStatusPage } from "@tests/e2e/admin/connector/IndexingStatusPage";
+import { AdminConnectorDetailPage } from "@tests/e2e/pages/AdminConnectorDetailPage";
+
+/**
+ * Full UI workflow for configuring a web connector: fill in the setup page,
+ * create the connector, and verify it lands on the status page and its
+ * detail page reflects the configuration.
+ *
+ * The connector is paused via the API immediately after creation so
+ * background workers don't actually crawl the site, and deleted in
+ * `afterEach` (looked up by name so cleanup also runs if the test fails
+ * mid-way after creation).
+ */
+const DOCS_URL = "https://docs.onyx.app";
+
+test.describe("Web connector setup", () => {
+  let connectorName: string;
+  let ccPairId: number | null = null;
+
+  test.beforeEach(() => {
+    connectorName = `Web Connector E2E ${Date.now()}`;
+  });
+
+  test.afterEach(async ({ page }) => {
+    const apiClient = new DepthApiClient(page.request);
+    try {
+      const idToDelete =
+        ccPairId ?? (await apiClient.findCCPairByName("web", connectorName));
+      ccPairId = null;
+      if (idToDelete === null) return;
+
+      // Deletion accepts an active connector, so this pause is not required.
+      await apiClient.pauseConnector(idToDelete);
+      await apiClient.deleteCCPair(idToDelete);
+    } catch (error) {
+      console.warn(`Failed to clean up connector "${connectorName}": ${error}`);
+    }
+  });
+
+  test("configures a web connector through the setup page", async ({
+    page,
+  }) => {
+    const setupPage = new ConnectorSetupPage(page, "web");
+    await setupPage.goto();
+
+    await setupPage.connectorNameInput.fill(connectorName);
+    await setupPage.textField("base_url").fill(DOCS_URL);
+    await setupPage.pickOption("web_connector_type", "recursive");
+
+    await setupPage.submitAndWaitForCreation();
+
+    // Pause via the API as soon as the connector exists so background
+    // workers don't start crawling the site while the test finishes.
+    const apiClient = new DepthApiClient(page.request);
+    ccPairId = await apiClient.findCCPairByName("web", connectorName);
+    expect(ccPairId).not.toBeNull();
+    await apiClient.pauseConnector(ccPairId!);
+
+    // Create opens the new connector's own page.
+    await expect(page).toHaveURL(new RegExp(`/admin/connector/${ccPairId}$`));
+
+    // The new connector is listed on the status page.
+    const statusPage = new IndexingStatusPage(page);
+    await statusPage.goto();
+    await statusPage.waitForConnector(connectorName);
+
+    // Its manage link opens the detail page for the same cc-pair. Its
+    // folded index configurations show the configured base URL.
+    const openedCcPairId = await statusPage.openConnector(connectorName);
+    expect(openedCcPairId).toBe(ccPairId);
+    await expect(page.getByText(connectorName).first()).toBeVisible();
+    await new AdminConnectorDetailPage(page).expectIndexConfigurationValue(
+      DOCS_URL
+    );
+  });
+});

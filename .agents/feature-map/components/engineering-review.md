@@ -1,0 +1,113 @@
+# Engineering Review Queue
+
+> Owner-scoped two-PDF review queue with private inference, worker leases, evidence, engineer decisions, and JSON export.
+
+**Verified against:** `3eb6420f6c` (2026-11-01)
+**Edition:** CE. Single-tenant pilot, disabled by default.
+
+---
+
+## User experience
+
+The opt-in `/app/reviews` page accepts an original commented PDF and a revised PDF.
+The user confirms equal sheet order. Both PDFs must have 1–8 pages and at most 20 MiB.
+Users see their own queued reviews, PDF evidence, model proposals, and append-only engineer decisions.
+JSON export records input hashes, pipeline version, results and decision history.
+The pilot does not approve drawing release.
+
+Chat PDF attachments open a single-document EmbedPDF Headless viewer inside chat.
+Original/revised tabs share numbered findings with the chat cards. Each card opens either revision.
+EmbedPDF native annotations render and select confirmed locations. Navigation preserves zoom and waits for layout.
+Hover previews and custom issue overlays are removed. Legacy comment/text boxes remain proposed locations.
+The owner-scoped locations endpoint uses local pdfplumber native text geometry. Unique isolated dimension
+labels matched to evidence can produce located_text anchors; these identify text, not verified geometric features.
+Repeated or missing labels remain unmarked. No edge-placeholder annotations are generated.
+Manual location corrections use the native rectangle tool and versioned workspace commands.
+Corrections use finding-content keys; legacy sequential issue keys are ignored to prevent reassociation.
+The explicit Inspect detail action increases zoom without automatic fit-to-area navigation.
+PDF export includes native review annotations. It does not change the source PDF.
+
+## Scope
+
+This component owns review records, job execution, inference policy, and engineer decisions.
+The file store owns binary storage. Authentication owns the acting user.
+The tools framework owns historical chat result persistence and rendering.
+
+## Architecture
+
+- `backend/onyx/server/features/engineering/api.py` authorizes routes with BASIC_ACCESS plus owner checks.
+- `backend/onyx/engineering/config.py` gates deployment and builds explicit Ollama inference at a literal internal IP.
+- `backend/onyx/db/models.py:EngineeringReview` is the immutable input pair and durable work ledger.
+- `backend/onyx/db/engineering_review.py` owns request deduplication, leases, fenced completion, cancellation and optimistic decisions.
+- `backend/onyx/engineering/worker.py` polls PostgreSQL, avoiding a broker dependency in Lite and the publish/commit gap.
+- `backend/onyx/engineering/processing.py` isolates PDF parsing, reads native annotations and records coverage limits.
+- `backend/onyx/engineering/checks.py` checks quoted note replacements. It never measures geometry.
+- `web/src/views/EngineeringReviewsPage.tsx` owns explicit file roles, polling, decisions and export.
+- The existing comment viewer accepts a file URL resolver. Historical chat callers keep their original file routes.
+- `web/src/lib/pdf-review/` owns EmbedPDF loading, durable edit synchronization, native annotations and local text-location requests.
+- `backend/onyx/db/drawing_workspace.py` owns idempotent commands, optimistic versions and shared undo/redo.
+- `backend/onyx/server/features/engineering/workspace_api.py` authorizes workspace reads, edits and region crops.
+- `backend/onyx/tools/tool_implementations/drawing_review/workspace_tool.py` exposes the same commands to agents.
+
+## Contracts and traps
+
+1. `deployment-gate` **The capabilities route controls sidebar availability.** Disabled installations reject review routes.
+2. `separate-input-path` **Review inputs bypass chat extraction and model defaults.** The worker requires explicit private inference settings.
+3. `single-tenant-worker` **The worker and API share one database, schema and file store.** The worker refuses multi-tenant mode.
+4. `lease-fence` **Only the current lease holder may publish.** Cancel invalidates the token. Expired owners cannot renew it.
+5. `bounded-recovery` **Claims skip locked rows.** Interrupted runs restart from inputs, up to three attempts.
+6. `native-priority` **Native annotations take priority per page.** Mixed native/flattened comments require manual checking, stated in results.
+7. `confirmed-order` **Page matching is confirmed identity order.** Reject unequal page counts and oversized packages.
+8. `human-decisions` **AI proposals and human decisions stay separate.** Decision versions prevent lost updates.
+9. `legacy-contracts` **Old tool names, result types and checkpoint discriminators stay unchanged.** The new workflow adds records outside chat.
+10. `private-boundary` **Endpoint checks do not replace network controls.** Unit tests do not qualify model quality or offline operation.
+
+11. `revised-evidence-grounding` **Private verification receives full revision text and requires verbatim evidence.** This checks quote provenance, not engineering correctness. Extra-issue generation is disabled pending qualification.
+
+12. `context-forwarding` **The private adapter sends an 8,192-token context to Ollama.** A client input budget alone does not change the server context; both limits must agree.
+
+13. `highlight-grounding` **Model-selected revision spans must match their quoted evidence.** Unknown, wrong-page, short or unrelated spans become page-level highlights. This does not qualify exact region association.
+
+14. `identical-inputs` **Identical input bytes are rejected before inference.** The API also compares source hashes before storing a review. This does not detect unchanged regions inside otherwise different PDFs.
+
+15. `pin-location` **Only confirmed normalized anchors produce native feature regions.** Page-level evidence must remain visibly unconfirmed.
+16. `shared-edits` **Users and agents share owner checks, idempotency keys and expected versions.** Never add a separate agent mutation path.
+17. `chat-viewer` **PDF review stays inside chat.** Document switch requests include the target file, issue and page, with a fresh ID for repeated clicks.
+18. `local-pdf-runtime` **The PDFium WASM URL must be absolute inside its blob worker.** Assets are copied from the pinned SDK during frontend preparation.
+
+19. `native-text-location` **pdfplumber returns text locations, not engineering feature identities.** Automatic anchors require unique native callout evidence and remain distinct from manual feature confirmation. Raster-only drawings remain unlocated.
+20. `no-edge-fallback` **An unresolved location produces no PDF annotation.** Never replace missing coordinates with a margin note or a fabricated box.
+
+## Known issues
+
+Shared project roles, automated retention/deletion, per-comment checkpoints, extraction caching, model qualification and GPU lifecycle control are not implemented.
+Deleting an account removes its review metadata through foreign-key cascades. Binary cleanup still needs the installation's retention process.
+
+## Dependencies
+
+- [[file-store-and-user-files]]: the file store persists and reads the original PDFs.
+- [[authorization]]: BASIC_ACCESS gates the acting user; review ownership limits object access.
+- [[tools-framework]]: comment tools supply the existing typed result and viewer contract.
+
+## Verification
+
+`backend/tests/unit/onyx/engineering/test_review.py` covers PDF limits, private inference configuration, ownership, recovery, cancellation, decisions and exact text checks.
+SQLite ledger tests do not prove PostgreSQL locking. Verify concurrent workers against PostgreSQL before production.
+Existing drawing/comment/DXF tests protect chat compatibility. The route manifest covers new API permissions.
+
+
+## Local review coverage and navigation
+
+The chat reviewer uses the VISION model flow, not the selected chat model. Drawing results record the actual vision model.
+Native text-line indexing uses pdfplumber and reports its explicit limits; the first-80-word restriction is removed.
+Unclear judgements receive at most three evidence-changing visual passes. Repeated unclear output stops retries.
+The verdict and location remain distinct; supported geometry is not implied by a located text excerpt.
+Original locations resolve native comment text independently of the revised evidence.
+The chat tool rejects likely reversed PDF roles when only the revised input contains native comments.
+An empty comment review raises an actionable tool error, rather than returning a successful zero-finding result.
+Accepted results have owner-scoped, 24-hour CacheBackend checkpoints keyed by inputs, model, comment and pipeline version.
+The reviewer publishes per-comment progress. Unclear results are not cached as complete.
+
+Read-only PDF/page navigation is independent of workspace saving and inference. The SDK handles scroll coordinates,
+rotation and crop transforms. A transient page-relative ring lasts two seconds after visibility confirmation.
+The ring has no annotation ID, persistence command or export representation. Repeated requests restart its lifetime.

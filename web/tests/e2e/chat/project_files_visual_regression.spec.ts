@@ -1,0 +1,182 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { ProjectFilesSection } from "@tests/e2e/pages/ProjectFilesSection";
+import { loginAsWorkerUser } from "@tests/e2e/utils/auth";
+import { DepthApiClient } from "@tests/e2e/utils/depthApiClient";
+import { expectElementScreenshot } from "@tests/e2e/utils/visualRegression";
+import type { CategorizedFiles } from "@/lib/projects/types";
+
+const PROJECT_NAME = "E2E-PROJECT-FILES-VISUAL";
+const LONG_FILE_NAME =
+  "CSE_202_Final_Project_Solution_Regression_Check_Long_Name.txt";
+const FILE_CONTENT = "Visual regression test content for long filename cards.";
+
+let projectId: number | null = null;
+
+type Geometry = {
+  elementLeft: number;
+  elementRight: number;
+  elementTop: number;
+  elementBottom: number;
+  cardLeft: number;
+  cardRight: number;
+  cardTop: number;
+  cardBottom: number;
+};
+
+async function uploadFileToProject(
+  page: Page,
+  targetProjectId: number,
+  fileName: string,
+  content: string
+): Promise<string[]> {
+  const response = await page.request.post("/api/user/projects/file/upload", {
+    multipart: {
+      project_id: String(targetProjectId),
+      files: {
+        name: fileName,
+        mimeType: "text/plain",
+        buffer: Buffer.from(content, "utf-8"),
+      },
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  const body: CategorizedFiles = await response.json();
+  expect(body.rejected_files).toEqual([]);
+  return body.user_files.map((file) => file.id);
+}
+
+async function getElementGeometryInCard(
+  element: Locator
+): Promise<Geometry | null> {
+  return element.evaluate((targetEl) => {
+    let cardEl: HTMLElement | null = targetEl.parentElement;
+
+    while (cardEl) {
+      const style = window.getComputedStyle(cardEl);
+      const hasBorder =
+        parseFloat(style.borderTopWidth) > 0 ||
+        parseFloat(style.borderLeftWidth) > 0;
+      const hasRadius = parseFloat(style.borderTopLeftRadius) > 0;
+
+      if (hasBorder && hasRadius) {
+        break;
+      }
+      cardEl = cardEl.parentElement;
+    }
+
+    if (!cardEl) {
+      return null;
+    }
+
+    const elementRect = targetEl.getBoundingClientRect();
+    const cardRect = cardEl.getBoundingClientRect();
+
+    return {
+      elementLeft: elementRect.left,
+      elementRight: elementRect.right,
+      elementTop: elementRect.top,
+      elementBottom: elementRect.bottom,
+      cardLeft: cardRect.left,
+      cardRight: cardRect.right,
+      cardTop: cardRect.top,
+      cardBottom: cardRect.bottom,
+    };
+  });
+}
+
+function expectGeometryWithinCard(geometry: Geometry | null): void {
+  expect(geometry).not.toBeNull();
+  expect(geometry!.elementLeft).toBeGreaterThanOrEqual(geometry!.cardLeft - 1);
+  expect(geometry!.elementRight).toBeLessThanOrEqual(geometry!.cardRight + 1);
+  expect(geometry!.elementTop).toBeGreaterThanOrEqual(geometry!.cardTop - 1);
+  expect(geometry!.elementBottom).toBeLessThanOrEqual(geometry!.cardBottom + 1);
+}
+
+test.describe("Project Files visual regression", () => {
+  test.beforeAll(async ({ browser }, workerInfo) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await loginAsWorkerUser(page, workerInfo.workerIndex);
+    const client = new DepthApiClient(page.request);
+
+    projectId = await client.createProject(PROJECT_NAME);
+    const fileIds = await uploadFileToProject(
+      page,
+      projectId,
+      LONG_FILE_NAME,
+      FILE_CONTENT
+    );
+    // the page never re-polls a file it did not upload, so it must load after processing
+    await client.waitForUserFilesCompleted(fileIds);
+
+    await context.close();
+  });
+
+  test.afterAll(async ({ browser }, workerInfo) => {
+    if (!projectId) {
+      return;
+    }
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await loginAsWorkerUser(page, workerInfo.workerIndex);
+    const client = new DepthApiClient(page.request);
+    await client.deleteProject(projectId);
+
+    await context.close();
+  });
+
+  test.beforeEach(async ({ page }, workerInfo) => {
+    if (projectId === null) {
+      throw new Error(
+        "Project setup failed in beforeAll; cannot run visual regression test"
+      );
+    }
+
+    await page.context().clearCookies();
+    await loginAsWorkerUser(page, workerInfo.workerIndex);
+    await page.goto(`/app?projectId=${projectId}`);
+    await page.waitForLoadState("networkidle");
+    await expect(
+      page.getByText("Chats in this project can access these files.")
+    ).toBeVisible();
+  });
+
+  test("long underscore filename stays visually contained in file card", async ({
+    page,
+  }) => {
+    const files = new ProjectFilesSection(page);
+    await expect(files.section).toBeVisible();
+
+    const fileTitle = files.fileTitle(LONG_FILE_NAME);
+    await expect(fileTitle).toBeVisible();
+
+    // Wait for deterministic post-processing state before geometry
+    // checks/screenshot. Title and description are separate elements now, so
+    // the state text is asserted on the whole files section.
+    await expect(files.section).not.toContainText("Processing...", {
+      timeout: 30_000,
+    });
+    await expect(files.section).not.toContainText("Uploading...", {
+      timeout: 30_000,
+    });
+    await expect(files.section).toContainText("TXT", { timeout: 30_000 });
+
+    const iconWrapper = files.attachmentTile;
+    await expect(iconWrapper).toBeVisible();
+
+    const container = page.locator("[data-main-container]");
+    await expect(container).toBeVisible();
+    await expectElementScreenshot(container, {
+      name: "project-files-long-underscore-filename",
+    });
+
+    const iconGeometry = await getElementGeometryInCard(iconWrapper);
+    const titleGeometry = await getElementGeometryInCard(fileTitle);
+    expectGeometryWithinCard(iconGeometry);
+    expectGeometryWithinCard(titleGeometry);
+  });
+});

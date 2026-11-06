@@ -1,0 +1,137 @@
+---
+title: "Desktop App"
+description: "Install and configure the Onyx desktop application"
+icon: "desktop"
+---
+
+The Onyx Desktop App is a native window for a local Onyx Lite stack. It starts that stack and Ollama on your machine.
+After the first download, chat works with no network.
+
+Features include:
+
+- Quick-launch from the system tray or dock
+- A global shortcut that summons Onyx from any app (`⌘ ⇧ Space` on macOS, `Ctrl Alt Space` on Windows and Linux)
+- Local chat, tools, file uploads, projects, and agents
+
+<img
+
+className="rounded-image" src="/assets/deployment/onyx_desktop_app.webp" alt="Onyx Desktop App" />
+
+<Info>
+  Connectors, company search, and Craft do not run in this mode. Those need a
+  full Onyx deployment.
+</Info>
+
+## Prerequisites
+
+The first launch needs a network connection. The app installs what is missing:
+
+- Docker. On macOS with Homebrew, the app runs `brew install --cask docker`. Without Homebrew, it downloads Docker Desktop. Copying `Docker.app` into `/Applications` can ask for an admin password. On Linux, `onyx-cli deploy install` installs Docker Engine. If sudo asks for a password, start Docker, then try again. On Windows, `winget` installs Docker Desktop when `winget` is installed. Otherwise the app opens the install page.
+- Ollama. On macOS and Linux with Homebrew, the app runs `brew install ollama`. On macOS without Homebrew, it downloads Ollama and can ask for an admin password. On Linux without Homebrew, it runs the Ollama install script. On Windows, `winget` installs Ollama when `winget` is installed. Otherwise the app opens the install page.
+- The Onyx CLI. The app installs `uv` when it is missing, then runs `uv tool install onyx-cli`.
+
+The app starts Docker and Ollama on each launch when they are stopped.
+
+Docker Desktop can ask you to accept its license on the first launch. Finish that window, then try again.
+
+The first launch downloads the Onyx Lite images and the chat models. That step needs a network connection.
+The chat default is `qwen3:8b`. The app also downloads `glm4:latest` and adds it as a chat model.
+Later launches use the files already on disk.
+
+## Download
+
+Download the latest Onyx Desktop App for your platform:
+
+<CardGroup cols={3}>
+  <Card title="Windows" icon="windows" href="https://github.com/onyx-dot-app/onyx/releases/latest/download/Onyx_x64.exe">
+    Download for Windows (.exe)
+  </Card>
+
+<Card
+  title="macOS"
+  icon="apple"
+  href="https://github.com/onyx-dot-app/onyx/releases/latest/download/Onyx_universal.dmg"
+>
+  Download for macOS (.dmg)
+</Card>
+
+  <Card title="Linux" icon="linux" href="https://github.com/onyx-dot-app/onyx/releases/latest/download/Onyx_amd64.deb">
+    Download for Linux (.deb)
+  </Card>
+</CardGroup>
+
+<Tip>
+  Additional architectures and formats (.msi, .rpm, .app.tar.gz) are available
+  on the [GitHub Releases
+  page](https://github.com/onyx-dot-app/onyx/releases/latest).
+</Tip>
+
+## First Launch
+
+On first launch the app checks Docker and Ollama, downloads Onyx Lite, and downloads the models.
+The status page shows the download size and about how many minutes are left.
+Each model download can take several minutes. The Onyx images can take about 10 minutes. It then opens the local app.
+Create an account there. The first account is the admin. The app connects Ollama for you,
+sets `qwen3:8b` as the chat default, and adds GLM 4 beside it.
+
+If Docker, Ollama, or the model is missing, the app stays on the status page. It does not open Onyx Cloud.
+Fix the problem, then click **Try again**.
+
+## Choose a Model
+
+The default model is `qwen3:8b`. To use another model that Ollama can pull,
+set `local_model` in `config.json` before the first successful launch. Use a model with tool calling.
+A weak tool model still chats, and agents fail.
+
+### Configuration File Location
+
+The app reads its settings from a `config.json` file at the following location:
+
+<Tabs>
+  <Tab title="Windows">
+    ```
+    %APPDATA%\onyx\onyx-desktop\config\config.json
+    ```
+  </Tab>
+
+<Tab title="macOS">
+  ``` ~/Library/Application Support/app.onyx.onyx-desktop/config.json ```
+</Tab>
+
+  <Tab title="Linux">
+    ```
+
+    ~/.config/onyx-desktop/config.json
+
+# or, if $XDG_CONFIG_HOME is set:
+
+    $XDG_CONFIG_HOME/onyx-desktop/config.json
+
+    ```
+
+  </Tab>
+</Tabs>
+
+Example `config.json`:
+
+```json
+{ "local_model": "qwen3:8b", "window_title": "Onyx" }
+```
+
+## Configuration Options
+
+| Option                    | Values                                                                                                   | Platforms             | Description                                                                                                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `local_model`             | string<br />(default: `"qwen3:8b"`)                                                                      | Windows, macOS, Linux | Ollama model the app downloads and sets as the chat default. Use letters, numbers, and `.` `_` `:` `-`.                                                                                          |
+| `server_url`              | string                                                                                                   | Windows, macOS, Linux | Set by the app to the local Onyx URL after a successful start. You do not edit this to choose a cloud server.                                                                                    |
+| `window_title`            | string<br />(default: `"Onyx"`)                                                                          | Windows, macOS, Linux | Custom title shown in the application window.                                                                                                                                                    |
+| `show_menu_bar`           | boolean<br />(default: `true`)                                                                           | Windows, Linux        | Whether the application menu bar is shown. Normally toggled from **Window → Show Menu Bar** rather than pre-configured. Ignored on macOS, where the menu bar is managed by the operating system. |
+| `hide_window_decorations` | boolean<br />(default: `false`)                                                                          | Linux                 | Hides the window's title bar and borders. Normally toggled from **Window → Hide Window Decorations**.                                                                                            |
+| `summon_shortcut`         | string or `null`<br />(default: `"Super+Shift+Space"` on macOS, `"Ctrl+Alt+Space"` on Windows and Linux) | Windows, macOS, Linux | Global shortcut that brings Onyx to the front from any app, in Tauri accelerator syntax. Set to `null` to disable it.                                                                            |
+| `summon_opens_new_chat`   | boolean<br />(default: `true`)                                                                           | Windows, macOS, Linux | Whether the summon shortcut opens a new chat. Set to `false` to return to the current page.                                                                                                      |
+
+<Warning>
+  `config.json` must be valid JSON with values of the correct type. A single
+  invalid entry causes the app to discard the **entire** file and fall back to
+  the default settings.
+</Warning>

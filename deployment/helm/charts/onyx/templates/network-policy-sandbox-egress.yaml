@@ -1,0 +1,83 @@
+{{- if eq (include "onyx.craftEnabled" .) "true" }}
+{{- $sandboxNs := (index (.Values.configMap | default (dict)) "SANDBOX_NAMESPACE") | default "onyx-sandboxes" }}
+{{- $proxyNs := (index (.Values.configMap | default (dict)) "SANDBOX_PROXY_NAMESPACE") | default $.Release.Namespace }}
+# CNI-layer proxy allow-list for all Craft sandbox pods. Declarative
+# backstop to the default in-pod iptables, or primary control when netAdminLockdown=false.
+# Only enforced where the CNI honors NetworkPolicy, inert otherwise. DNS is allowed only
+# for firewall bootstrap; without iptables, hostAliases supply proxy resolution instead.
+# Each ipBlock is its own egress rule per the IPv4/IPv6
+# fail-closed caveat documented in the proxy-side policy (templates/sandbox-proxy/networkpolicy-egress.yaml).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "onyx.resourceName" (list . "sandbox-egress") }}
+  namespace: {{ $sandboxNs }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: sandbox
+  policyTypes: [Egress]
+  egress:
+    # Egress proxy pod ($proxyNs = SANDBOX_PROXY_NAMESPACE or release ns; matched by pod label, not Service).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $proxyNs }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: sandbox-proxy
+      ports:
+        - protocol: TCP
+          port: {{ include "onyx.sandboxProxyPort" . }}
+    # Proxy by CIDR (craft.proxyExtraCIDRs) when SANDBOX_PROXY_HOST points at a non-chart-labeled target.
+    {{- range (index (.Values.craft | default (dict)) "proxyExtraCIDRs" | default list) }}
+    - to:
+        - ipBlock:
+            cidr: {{ . | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ include "onyx.sandboxProxyPort" $ }}
+    {{- end }}
+---
+# Keep bootstrap DNS separate so Helm upgrades cannot expose firewall-free pods.
+# Older pods have no lockdown label and always used iptables.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "onyx.resourceName" (list . "sandbox-bootstrap-dns") }}
+  namespace: {{ $sandboxNs }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: sandbox
+    matchExpressions:
+      - key: onyx.app/net-admin-lockdown
+        operator: NotIn
+        values: ["false"]
+  policyTypes: [Egress]
+  egress:
+    # kube-dns (firewall bootstrap only).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # NodeLocal DNS / non-pod DNS listeners (craft.dnsExtraCIDRs), e.g. 169.254.20.10/32.
+    {{- range (index (.Values.craft | default (dict)) "dnsExtraCIDRs" | default list) }}
+    - to:
+        - ipBlock:
+            cidr: {{ . | quote }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+{{- end }}

@@ -1,0 +1,186 @@
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from onyx.db.models import ImageGenerationConfig as ImageGenerationConfigModel
+
+
+def _mask_api_key(api_key: str | None) -> str | None:
+    """Mask API key, showing first 4 and last 4 characters."""
+    if not api_key:
+        return None
+    if len(api_key) <= 8:
+        return "****"
+    return api_key[:4] + "****" + api_key[-4:]
+
+
+class TestImageGenerationRequest(BaseModel):
+    """Request model for testing image generation API key."""
+
+    model_name: str  # e.g., "gpt-image-1"
+    provider: str | None = None  # e.g., "openai", "azure"
+    api_key: str | None = None
+
+    # Additional fields for custom config
+    custom_config: dict[str, str] | None = None
+
+    # Additional fields for Azure
+    api_base: str | None = None
+    api_version: str | None = None
+    deployment_name: str | None = None
+
+
+class ImageGenerationConfigCreate(BaseModel):
+    """Request model for creating an image generation config.
+
+    The backend always creates a new LLM provider + model config with the
+    provided credentials.
+    """
+
+    image_provider_id: str  # Static unique key (e.g., "openai_gpt_image_1")
+    model_name: str  # e.g., "gpt-image-1"
+
+    provider: str | None = None  # e.g., "openai", "azure"
+    api_key: str | None = None
+    api_base: str | None = None
+    api_version: str | None = None
+    deployment_name: str | None = None
+    custom_config: dict[str, str] | None = None
+
+    is_default: bool = False
+
+
+class ImageGenerationConfigLink(BaseModel):
+    """Link a model on an existing LLM provider. No credentials are sent;
+    the LLM provider's own credentials are used."""
+
+    llm_provider_id: int
+    model_name: str
+    is_default: bool = False
+
+
+class ImageGenerationProviderModel(BaseModel):
+    name: str
+    display_name: str | None
+    # Catalog or model name says this is an image generation model.
+    is_recommended: bool
+    image_provider_id: str | None  # Set when this model is already connected
+
+
+class ImageGenerationLLMProvider(BaseModel):
+    llm_provider_id: int
+    llm_provider_name: str | None
+    provider: str
+    is_public: bool
+    models: list[ImageGenerationProviderModel]
+
+
+class ImageGenerationConfigUpdate(BaseModel):
+    """Request model for updating an image generation config.
+
+    Backend will delete old LLM provider and create new one.
+    """
+
+    model_name: str  # e.g., "gpt-image-1"
+    # Note: image_provider_id cannot be changed during update
+
+    provider: str | None = None  # e.g., "openai", "azure"
+    api_key: str | None = None
+    api_base: str | None = None
+    api_version: str | None = None
+    deployment_name: str | None = None
+    custom_config: dict[str, str] | None = None
+
+    # If False, preserve existing API key from DB
+    api_key_changed: bool = False
+
+
+class ImageGenerationConfigView(BaseModel):
+    """Response model for image generation config with related data."""
+
+    image_provider_id: str  # Primary key - static unique key for UI-DB mapping
+    model_configuration_id: int
+    model_name: str  # From model_configuration.name
+    llm_provider_id: int  # From model_configuration.llm_provider_id
+    llm_provider_name: str | None  # From model_configuration.llm_provider.name
+    llm_provider_type: str  # From model_configuration.llm_provider.provider
+    llm_provider_owned: bool
+    is_default: bool
+
+    @classmethod
+    def from_model(
+        cls, config: "ImageGenerationConfigModel"
+    ) -> "ImageGenerationConfigView":
+        """Convert database model to view model."""
+        return cls(
+            image_provider_id=config.image_provider_id,
+            model_configuration_id=config.model_configuration_id,
+            model_name=config.model_configuration.name,
+            llm_provider_id=config.model_configuration.llm_provider_id,
+            llm_provider_name=config.model_configuration.llm_provider.name,
+            llm_provider_type=config.model_configuration.llm_provider.provider,
+            llm_provider_owned=config.llm_provider_owned,
+            is_default=config.is_default,
+        )
+
+
+class ImageGenerationCredentials(BaseModel):
+    """Response model for image generation config credentials (edit mode)."""
+
+    api_key: str | None
+    api_base: str | None
+    api_version: str | None
+    deployment_name: str | None
+
+    @classmethod
+    def from_model(
+        cls, config: "ImageGenerationConfigModel"
+    ) -> "ImageGenerationCredentials":
+        """Convert database model to credentials model.
+
+        Note: API key is masked for security - only first 4 and last 4 chars shown.
+        """
+        llm_provider = config.model_configuration.llm_provider
+        return cls(
+            api_key=_mask_api_key(
+                llm_provider.api_key.get_value(apply_mask=False)
+                if llm_provider.api_key
+                else None
+            ),
+            api_base=llm_provider.api_base,
+            api_version=llm_provider.api_version,
+            deployment_name=llm_provider.deployment_name,
+        )
+
+
+class DefaultImageGenerationConfig(BaseModel):
+    """Contains all info needed for image generation tool."""
+
+    model_configuration_id: int
+    model_name: str  # From model_configuration.name
+    provider: str  # e.g., "openai", "azure" - from llm_provider.provider
+    api_key: str | None
+    api_base: str | None
+    api_version: str | None
+    deployment_name: str | None
+
+    @classmethod
+    def from_model(
+        cls, config: "ImageGenerationConfigModel"
+    ) -> "DefaultImageGenerationConfig":
+        """Convert database model to default config model."""
+        llm_provider = config.model_configuration.llm_provider
+        return cls(
+            model_configuration_id=config.model_configuration_id,
+            model_name=config.model_configuration.name,
+            provider=llm_provider.provider,
+            api_key=(
+                llm_provider.api_key.get_value(apply_mask=False)
+                if llm_provider.api_key
+                else None
+            ),
+            api_base=llm_provider.api_base,
+            api_version=llm_provider.api_version,
+            deployment_name=llm_provider.deployment_name,
+        )

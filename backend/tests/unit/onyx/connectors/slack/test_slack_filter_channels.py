@@ -1,0 +1,204 @@
+"""Channel include/exclude filtering for the Slack connector: excludes apply
+after includes, exact entries match a channel id or name, regex entries match
+the name in full, and excludes never fail on entries absent from the
+workspace."""
+
+import time
+from typing import Any, cast
+
+import pytest
+
+from onyx.connectors.exceptions import ConnectorValidationError
+from onyx.connectors.slack.connector import filter_channels, validate_channel_regexes
+from onyx.connectors.slack.models import ChannelType
+
+
+def _channel(name: str) -> ChannelType:
+    base: dict[str, Any] = {"id": f"C0{name.upper().replace('-', '')}", "name": name}
+    return cast(ChannelType, base)
+
+
+CHANNELS = [
+    _channel("general"),
+    _channel("support"),
+    _channel("infra-alerts"),
+    _channel("billing-alerts"),
+    _channel("deploy-notifications"),
+]
+
+
+def _names(channels: list[ChannelType]) -> list[str]:
+    return [channel["name"] for channel in channels]
+
+
+def test_no_filters_returns_all() -> None:
+    assert filter_channels(CHANNELS, None, False) == CHANNELS
+
+
+def test_exclude_regex_without_includes() -> None:
+    result = filter_channels(
+        CHANNELS,
+        None,
+        False,
+        channels_to_exclude=[".*-alerts", ".*-notifications"],
+        exclude_regex_enabled=True,
+    )
+    assert _names(result) == ["general", "support"]
+
+
+def test_exclude_exact_names() -> None:
+    result = filter_channels(
+        CHANNELS,
+        None,
+        False,
+        channels_to_exclude=["support"],
+        exclude_regex_enabled=False,
+    )
+    assert _names(result) == [
+        "general",
+        "infra-alerts",
+        "billing-alerts",
+        "deploy-notifications",
+    ]
+
+
+def test_exclude_exact_requires_full_name() -> None:
+    result = filter_channels(
+        CHANNELS,
+        None,
+        False,
+        channels_to_exclude=["alerts"],
+        exclude_regex_enabled=False,
+    )
+    assert result == CHANNELS
+
+
+def test_exclude_applied_after_include_regex() -> None:
+    result = filter_channels(
+        CHANNELS,
+        ["infra-.*", "general"],
+        True,
+        channels_to_exclude=[".*-alerts"],
+        exclude_regex_enabled=True,
+    )
+    assert _names(result) == ["general"]
+
+
+def test_exclude_applied_after_include_exact() -> None:
+    result = filter_channels(
+        CHANNELS,
+        ["general", "support"],
+        False,
+        channels_to_exclude=["support"],
+        exclude_regex_enabled=False,
+    )
+    assert _names(result) == ["general"]
+
+
+def test_exclude_nonexistent_name_is_harmless() -> None:
+    result = filter_channels(
+        CHANNELS,
+        None,
+        False,
+        channels_to_exclude=["no-such-channel"],
+        exclude_regex_enabled=False,
+    )
+    assert result == CHANNELS
+
+
+def test_exclude_regex_is_full_match() -> None:
+    # "alerts" only partially matches "infra-alerts", so nothing is excluded
+    result = filter_channels(
+        CHANNELS,
+        None,
+        False,
+        channels_to_exclude=["alerts"],
+        exclude_regex_enabled=True,
+    )
+    assert result == CHANNELS
+
+
+def test_include_exact_matches_channel_id() -> None:
+    result = filter_channels(CHANNELS, ["C0SUPPORT", "C0BILLINGALERTS"], False)
+    assert _names(result) == ["support", "billing-alerts"]
+
+
+def test_include_exact_mixes_ids_and_names() -> None:
+    result = filter_channels(CHANNELS, ["C0SUPPORT", "general"], False)
+    assert _names(result) == ["general", "support"]
+
+
+def test_exact_entries_take_typed_names_in_any_case_with_a_hash() -> None:
+    result = filter_channels(
+        CHANNELS,
+        ["#Support", "C0GENERAL"],
+        False,
+        channels_to_exclude=["General"],
+        exclude_regex_enabled=False,
+    )
+    assert _names(result) == ["support"]
+
+
+def test_include_regex_never_matches_channel_id() -> None:
+    result = filter_channels(CHANNELS, ["C0.*"], True)
+    assert result == []
+
+
+def test_exclude_exact_matches_channel_id() -> None:
+    result = filter_channels(
+        CHANNELS,
+        None,
+        False,
+        channels_to_exclude=["C0SUPPORT", "infra-alerts"],
+        exclude_regex_enabled=False,
+    )
+    assert _names(result) == ["general", "billing-alerts", "deploy-notifications"]
+
+
+def test_include_validation_raises_for_unknown_channel_id() -> None:
+    with pytest.raises(ValueError, match="C0RENAMED.*not found in workspace"):
+        filter_channels(CHANNELS, ["C0SUPPORT", "C0RENAMED"], False)
+
+
+def test_include_validation_still_raises_for_unknown_channel() -> None:
+    with pytest.raises(ValueError, match="not found in workspace"):
+        filter_channels(CHANNELS, ["typo-channel"], False)
+
+
+def test_validate_channel_regexes_accepts_valid_patterns() -> None:
+    validate_channel_regexes([".*-alerts$", "general"], "channel")
+
+
+def test_validate_channel_regexes_rejects_invalid_pattern() -> None:
+    with pytest.raises(ConnectorValidationError, match="Invalid channel regex"):
+        validate_channel_regexes(["[unclosed"], "channel")
+
+
+def test_validate_channel_regexes_handles_none() -> None:
+    validate_channel_regexes(None, "channel")
+
+
+_BACKTRACKING_PATTERN = r"^(a|a)+$"
+_SLOW_NAME = "a" * 79 + "b"
+
+
+def test_backtracking_include_regex_times_out_as_no_match() -> None:
+    channels = [_channel(_SLOW_NAME), _channel("general")]
+    start = time.monotonic()
+    result = filter_channels(channels, [_BACKTRACKING_PATTERN, "general"], True)
+    assert time.monotonic() - start < 2
+    assert _names(result) == ["general"]
+
+
+def test_backtracking_exclude_regex_times_out_as_match() -> None:
+    channels = [_channel(_SLOW_NAME), _channel("general")]
+    start = time.monotonic()
+    result = filter_channels(
+        channels,
+        None,
+        False,
+        channels_to_exclude=[_BACKTRACKING_PATTERN],
+        exclude_regex_enabled=True,
+    )
+    assert time.monotonic() - start < 2
+    assert _names(result) == ["general"]

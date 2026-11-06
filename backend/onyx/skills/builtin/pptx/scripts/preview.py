@@ -1,0 +1,288 @@
+"""Generate cached page previews from PDF or PowerPoint files.
+
+Converts PPTX -> PDF -> JPEG slides with caching. If cached slides
+already exist and are up-to-date, returns them without reconverting.
+
+Output protocol (stdout):
+    Line 1: status — CACHED, GENERATED, or an ERROR_* code
+    Lines 2+: sorted absolute paths to slide-*.jpg files
+
+Usage:
+    python preview.py /path/to/document /path/to/cache_dir [--first-page] [--session-root ROOT]
+"""
+
+import argparse
+import fcntl
+import json
+import os
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Literal
+
+CONVERSION_DPI: int = 150
+THUMBNAIL_TIMEOUT_SECONDS: float = 30.0
+FULL_PREVIEW_TIMEOUT_SECONDS: float = 120.0
+
+
+class PreviewError(Exception):
+    """A converter failure with a stable CLI protocol code."""
+
+    def __init__(
+        self,
+        code: Literal[
+            "ERROR_CONVERSION",
+            "ERROR_NO_PDF",
+            "ERROR_SOURCE_CHANGED",
+            "ERROR_TOO_LARGE",
+        ],
+        message: str,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class PreviewArguments(argparse.Namespace):
+    document_path: Path
+    cache_dir: Path
+    first_page: bool
+    session_root: Path | None
+
+
+def _find_slides(directory: Path) -> list[str]:
+    """Find slide-*.jpg files in directory, sorted by page number."""
+    slides: list[Path] = list(directory.glob("slide-*.jpg"))
+    slides.sort(key=lambda p: int(p.stem.split("-")[-1]))
+    return [str(s) for s in slides]
+
+
+def main() -> None:
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("document_path", type=Path)
+    parser.add_argument("cache_dir", type=Path)
+    parser.add_argument("--first-page", action="store_true")
+    parser.add_argument("--session-root", type=Path)
+    arguments: PreviewArguments = PreviewArguments()
+    parser.parse_args(namespace=arguments)
+    document_path: Path = arguments.document_path
+    cache_dir: Path = arguments.cache_dir
+    first_page_only: bool = arguments.first_page
+    session_root: Path | None = arguments.session_root
+    if session_root is not None and (
+        not document_path.resolve().is_relative_to(session_root.resolve())
+        or not cache_dir.resolve().is_relative_to(session_root.resolve())
+    ):
+        print("ERROR_ACCESS_DENIED")
+        return
+
+    if not document_path.is_file():
+        print("ERROR_NOT_FOUND")
+        return
+
+    if first_page_only and document_path.stat().st_size > 20 * 1024 * 1024:
+        print("ERROR_TOO_LARGE")
+        return
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    deadline: float = time.monotonic() + (
+        THUMBNAIL_TIMEOUT_SECONDS if first_page_only else FULL_PREVIEW_TIMEOUT_SECONDS
+    )
+    try:
+        with os.fdopen(
+            os.open(
+                cache_dir / ".conversion.lock",
+                os.O_CREAT | os.O_RDWR | os.O_NONBLOCK | os.O_NOFOLLOW,
+                0o600,
+            ),
+            "a",
+        ) as lock:
+            if not stat.S_ISREG(os.fstat(lock.fileno()).st_mode):
+                raise PreviewError(
+                    "ERROR_CONVERSION", "Conversion lock is not a regular file"
+                )
+            while True:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("Thumbnail conversion timed out")
+                    time.sleep(0.05)
+            _generate_preview(document_path, cache_dir, first_page_only, deadline)
+    except TimeoutError:
+        print("ERROR_TIMEOUT")
+    except PreviewError as error:
+        print(error.code, flush=True)
+        print(str(error), file=sys.stderr)
+    except OSError:
+        print("ERROR_CONVERSION", flush=True)
+        print("Document conversion could not access required files", file=sys.stderr)
+
+
+def _source_revision(document_path: Path) -> tuple[int, int, int, int, int]:
+    source_stat: os.stat_result = document_path.stat()
+    return (
+        source_stat.st_dev,
+        source_stat.st_ino,
+        source_stat.st_size,
+        source_stat.st_mtime_ns,
+        source_stat.st_ctime_ns,
+    )
+
+
+def _generate_preview(
+    document_path: Path,
+    cache_dir: Path,
+    first_page_only: bool,
+    deadline: float,
+) -> None:
+    revision: tuple[int, int, int, int, int] = _source_revision(document_path)
+    # Advisory preflight: concurrent source edits are detected after bounded rendering.
+    if first_page_only and revision[2] > 20 * 1024 * 1024:
+        raise PreviewError(
+            "ERROR_TOO_LARGE", "Document exceeds the thumbnail size limit"
+        )
+    revision_path: Path = cache_dir / ".source-revision.json"
+    cached_slides: list[str] = _find_slides(cache_dir)
+    if cached_slides:
+        cache_current: bool = False
+        try:
+            with os.fdopen(
+                os.open(revision_path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW),
+                "r",
+            ) as record:
+                if stat.S_ISREG(os.fstat(record.fileno()).st_mode):
+                    cached_revision: object = json.load(record)
+                    cache_current = cached_revision == list(revision)
+        except (OSError, ValueError):
+            pass
+        if cache_current:
+            print("CACHED")
+            for slide in cached_slides:
+                print(slide)
+            return
+
+    # Keep published files readable until a complete replacement is ready.
+    with tempfile.TemporaryDirectory(prefix=".render-", dir=cache_dir) as temporary_dir:
+        render_dir: Path = Path(temporary_dir)
+        _render_preview(document_path, render_dir, first_page_only, deadline)
+        try:
+            if _source_revision(document_path) != revision:
+                raise PreviewError(
+                    "ERROR_SOURCE_CHANGED", "Document changed during conversion"
+                )
+        except FileNotFoundError as error:
+            raise PreviewError(
+                "ERROR_SOURCE_CHANGED", "Document disappeared during conversion"
+            ) from error
+        rendered: list[str] = _find_slides(render_dir)
+        if not rendered:
+            raise PreviewError("ERROR_CONVERSION", "PDF renderer produced no pages")
+        published: list[Path] = []
+        for rendered_path in rendered:
+            target: Path = cache_dir / Path(rendered_path).name
+            os.replace(rendered_path, target)
+            published.append(target)
+        # Persist the rendered revision so a change during publication cannot bless stale JPEGs.
+        rendered_revision: Path = render_dir / revision_path.name
+        rendered_revision.write_text(json.dumps(revision))
+        os.replace(rendered_revision, revision_path)
+        for stale_path in cached_slides:
+            if Path(stale_path) not in published:
+                Path(stale_path).unlink(missing_ok=True)
+    print("GENERATED")
+    for page in published:
+        print(page)
+
+
+def _run_conversion(
+    command: list[str], deadline: float, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    remaining: float = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("Thumbnail conversion timed out")
+    with subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        start_new_session=True,
+    ) as process:
+        stdout: str
+        stderr: str
+        try:
+            stdout, stderr = process.communicate(timeout=remaining)
+        except subprocess.TimeoutExpired as error:
+            # LibreOffice can spawn children; stop the whole conversion group.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.communicate()
+            raise TimeoutError("Thumbnail conversion timed out") from error
+        return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
+def _render_preview(
+    document_path: Path,
+    cache_dir: Path,
+    first_page_only: bool,
+    deadline: float,
+) -> None:
+    if document_path.suffix.lower() == ".pdf":
+        pdf_file: Path = document_path
+    else:
+        from office.soffice import get_soffice_env
+
+        # Convert PPTX -> PDF via LibreOffice
+        office_args: list[str] = [
+            "--headless",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(cache_dir),
+            str(document_path),
+        ]
+        result: subprocess.CompletedProcess[str] = _run_conversion(
+            ["soffice", *office_args], deadline, get_soffice_env()
+        )
+        if result.returncode != 0:
+            raise PreviewError(
+                "ERROR_CONVERSION", f"LibreOffice exited with code {result.returncode}"
+            )
+
+        # Find the generated PDF
+        pdfs: list[Path] = sorted(cache_dir.glob("*.pdf"))
+        if not pdfs:
+            raise PreviewError("ERROR_NO_PDF", "LibreOffice did not produce a PDF")
+
+        pdf_file = pdfs[0]
+
+    # Convert PDF -> JPEG slides
+    command: list[str] = [
+        "pdftoppm",
+        "-jpeg",
+        "-r",
+        str(CONVERSION_DPI),
+        *(["-f", "1", "-l", "1", "-scale-to", "640"] if first_page_only else []),
+        str(pdf_file),
+        str(cache_dir / "slide"),
+    ]
+    result = _run_conversion(command, deadline)
+    if result.returncode != 0:
+        raise PreviewError(
+            "ERROR_CONVERSION", f"PDF renderer exited with code {result.returncode}"
+        )
+
+    # Clean up PDF
+    if pdf_file != document_path:
+        pdf_file.unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
+    main()

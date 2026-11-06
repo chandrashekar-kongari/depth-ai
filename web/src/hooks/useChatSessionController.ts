@@ -1,0 +1,650 @@
+"use client";
+
+import { useEffect, useCallback, useState } from "react";
+import { ReadonlyURLSearchParams } from "next/navigation";
+import {
+  nameChatSession,
+  processRawChatHistory,
+  patchMessageToBeLatest,
+  resumeStream,
+} from "@/app/app/services/lib";
+import { Packet } from "@/app/app/services/streamingModels";
+import {
+  getLatestMessageChain,
+  getMessageByMessageId,
+  setMessageAsLatest,
+  restoreIncognitoMessages,
+} from "@/app/app/services/messageTree";
+import {
+  BackendChatSession,
+  ChatSessionSharedStatus,
+  Message,
+} from "@/app/app/types";
+import {
+  SEARCH_PARAM_NAMES,
+  shouldSubmitOnLoad,
+} from "@/app/app/services/searchParams";
+
+import { DepthDocument } from "@/lib/search/types";
+import {
+  useChatSessionStore,
+  useCurrentMessageHistory,
+} from "@/app/app/stores/useChatSessionStore";
+import { useIncognito } from "@/providers/IncognitoProvider";
+import { chatPageUrl, reloadLatestChatPage } from "@/lib/chat/pagedSession";
+import type { ProjectFile } from "@/lib/projects/types";
+import { getProjectFilesForSession } from "@/lib/projects/svc";
+import { AppInputBarHandle } from "@/sections/input/AppInputBar";
+import type { ErrorResponseBody } from "@/lib/fetcher";
+import {
+  preserveFailedMessages,
+  settleChatSession,
+} from "@/lib/chat/settleChatSession";
+import { useTranslations } from "next-intl";
+
+// Runs currently being re-attached; module-level so effect re-runs (incl.
+// strict mode) can't start a second tail for the same run.
+const resumingRuns = new Set<number>();
+
+interface UseChatSessionControllerProps {
+  existingChatSessionId: string | null;
+  searchParams: ReadonlyURLSearchParams;
+  firstMessage?: string;
+
+  // UI state setters
+  setSelectedDocuments: (documents: DepthDocument[]) => void;
+  setCurrentMessageFiles: (
+    files: ProjectFile[] | ((prev: ProjectFile[]) => ProjectFile[])
+  ) => void;
+
+  // Refs
+  chatSessionIdRef: React.RefObject<string | null>;
+  loadedIdSessionRef: React.RefObject<string | null>;
+  chatInputBarRef: React.RefObject<AppInputBarHandle | null>;
+  isInitialLoad: React.RefObject<boolean>;
+  submitOnLoadPerformed: React.RefObject<boolean>;
+
+  // Actions
+  refreshChatSessions: () => void;
+  onSubmit: (params: {
+    message: string;
+    currentMessageFiles: ProjectFile[];
+    deepResearch: boolean;
+    isSeededChat?: boolean;
+  }) => Promise<void>;
+}
+
+export type SessionFetchError = {
+  type: "not_found" | "access_denied" | "unknown";
+  detail: string;
+} | null;
+
+export default function useChatSessionController({
+  existingChatSessionId,
+  searchParams,
+  firstMessage,
+  setSelectedDocuments,
+  setCurrentMessageFiles,
+  chatSessionIdRef,
+  loadedIdSessionRef,
+  chatInputBarRef,
+  isInitialLoad,
+  submitOnLoadPerformed,
+  refreshChatSessions,
+  onSubmit,
+}: UseChatSessionControllerProps) {
+  const tReadiness = useTranslations("chat.readiness");
+  const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
+  const [sessionFetchError, setSessionFetchError] =
+    useState<SessionFetchError>(null);
+  // Store actions
+  const updateSessionAndMessageTree = useChatSessionStore(
+    (state) => state.updateSessionAndMessageTree
+  );
+  const updateSessionMessageTree = useChatSessionStore(
+    (state) => state.updateSessionMessageTree
+  );
+  const setIsFetchingChatMessages = useChatSessionStore(
+    (state) => state.setIsFetchingChatMessages
+  );
+  const setCurrentSession = useChatSessionStore(
+    (state) => state.setCurrentSession
+  );
+  const initializeSession = useChatSessionStore(
+    (state) => state.initializeSession
+  );
+  const updateCurrentChatSessionSharedStatus = useChatSessionStore(
+    (state) => state.updateCurrentChatSessionSharedStatus
+  );
+  const updateCurrentSelectedNodeForDocDisplay = useChatSessionStore(
+    (state) => state.updateCurrentSelectedNodeForDocDisplay
+  );
+  const currentChatState = useChatSessionStore(
+    (state) =>
+      state.sessions.get(state.currentSessionId || "")?.chatState || "input"
+  );
+  const currentChatHistory = useCurrentMessageHistory();
+  const chatSessions = useChatSessionStore((state) => state.sessions);
+  const { setIncognitoEnabled, setIncognitoSessionId } = useIncognito();
+
+  // Fetch chat messages for the chat session
+  useEffect(() => {
+    const priorChatSessionId = chatSessionIdRef.current;
+    const loadedSessionId = loadedIdSessionRef.current;
+    chatSessionIdRef.current = existingChatSessionId;
+    loadedIdSessionRef.current = existingChatSessionId;
+
+    chatInputBarRef.current?.focus();
+
+    const isCreatingNewSession =
+      priorChatSessionId === null && existingChatSessionId !== null;
+    const isSwitchingBetweenSessions =
+      priorChatSessionId !== null &&
+      existingChatSessionId !== priorChatSessionId;
+
+    // Clear uploaded files on any session change (they're already in context)
+    if (isCreatingNewSession || isSwitchingBetweenSessions) {
+      setCurrentMessageFiles([]);
+    }
+
+    // Only reset selections when switching between existing sessions. The
+    // search filters need no reset: they live on the chat's tool
+    // configuration, so the next chat reads its own.
+    if (isSwitchingBetweenSessions) {
+      setSelectedDocuments([]);
+
+      // Remove uploaded files
+      setCurrentMessageFiles([]);
+
+      // If switching from one chat to another, then need to scroll again
+      // If we're creating a brand new chat, then don't need to scroll
+      if (priorChatSessionId !== null) {
+        setSelectedDocuments([]);
+      }
+    }
+
+    async function initialSessionFetch() {
+      setSessionFetchError(null);
+
+      if (existingChatSessionId === null) {
+        // Clear the current session in the store to show intro messages
+        setCurrentSession(null);
+
+        updateCurrentChatSessionSharedStatus(ChatSessionSharedStatus.Private);
+
+        // If we're supposed to submit on initial load, then do that here
+        if (
+          shouldSubmitOnLoad(searchParams) &&
+          !submitOnLoadPerformed.current
+        ) {
+          submitOnLoadPerformed.current = true;
+          await onSubmit({
+            message: firstMessage || "",
+            currentMessageFiles: [],
+            deepResearch: false,
+          });
+        }
+        return;
+      }
+
+      // Set the current session first, then set fetching state to prevent intro flash
+      setCurrentSession(existingChatSessionId);
+      setIsFetchingChatMessages(existingChatSessionId, true);
+
+      const fetchOwner = useChatSessionStore
+        .getState()
+        .sessions.get(existingChatSessionId)?.abortController;
+      const ownsFetch = () => {
+        const store = useChatSessionStore.getState();
+        return (
+          store.currentSessionId === existingChatSessionId &&
+          store.sessions.get(existingChatSessionId)?.abortController ===
+            fetchOwner
+        );
+      };
+
+      let response: Response;
+      try {
+        response = await fetch(chatPageUrl(existingChatSessionId));
+      } catch (error) {
+        if (!ownsFetch()) return;
+        setIsFetchingChatMessages(existingChatSessionId, false);
+        console.error("Failed to fetch chat session", {
+          chatSessionId: existingChatSessionId,
+          error,
+        });
+        setSessionFetchError({
+          type: "unknown",
+          detail: "Failed to load chat session. Please check your connection.",
+        });
+        return;
+      }
+
+      if (!ownsFetch()) return;
+      if (!response.ok) {
+        setIsFetchingChatMessages(existingChatSessionId, false);
+        let detail = "An unexpected error occurred.";
+        try {
+          const errorBody: ErrorResponseBody = await response.json();
+          detail = errorBody.detail || detail;
+        } catch {
+          // ignore parse errors
+        }
+        const type =
+          response.status === 404
+            ? "not_found"
+            : response.status === 403
+              ? "access_denied"
+              : "unknown";
+        if (!ownsFetch()) return;
+        setSessionFetchError({ type, detail });
+        return;
+      }
+
+      const session: BackendChatSession = await response.json();
+      if (!ownsFetch()) return;
+      const chatSession = session;
+      // Restore the incognito UI state on reload of a live incognito session.
+      // The id must come back too, or a later upload would be sent with none
+      // and land as an ordinary indexed file.
+      const isIncognito = chatSession.incognito ?? false;
+      setIncognitoEnabled(isIncognito);
+      setIncognitoSessionId(isIncognito ? chatSession.chat_session_id : null);
+
+      // Ensure the current session is set to the actual session ID from the response
+      setCurrentSession(chatSession.chat_session_id);
+
+      // Initialize session data including personaId
+      initializeSession(chatSession.chat_session_id, chatSession);
+      const sessionOwner = useChatSessionStore
+        .getState()
+        .sessions.get(chatSession.chat_session_id)?.abortController;
+      const recovering =
+        useChatSessionStore.getState().sessions.get(chatSession.chat_session_id)
+          ?.chatState === "unconfirmed" ||
+        Boolean(sessionOwner?.signal.aborted);
+      const sessionBusy = Boolean(
+        chatSession.is_processing || chatSession.current_stream
+      );
+      if (sessionBusy) {
+        const store = useChatSessionStore.getState();
+        if (
+          store.sessions.get(chatSession.chat_session_id)?.chatState !==
+          "cancelling"
+        ) {
+          store.updateChatState(chatSession.chat_session_id, "streaming");
+        }
+      }
+
+      const savedMessages = processRawChatHistory(
+        chatSession.messages,
+        chatSession.packets
+      );
+      const localMessages = useChatSessionStore
+        .getState()
+        .sessions.get(chatSession.chat_session_id)?.messageTree;
+      let newMessageMap = savedMessages;
+      if (recovering && localMessages?.size) {
+        if (isIncognito) {
+          newMessageMap = restoreIncognitoMessages(
+            savedMessages,
+            localMessages,
+            chatSession.current_stream?.stream_id
+          );
+        } else {
+          newMessageMap = preserveFailedMessages(savedMessages, localMessages);
+        }
+      }
+      const currentStream = chatSession.current_stream;
+      if (currentStream) {
+        // Stop targets the accepted stream even when its output cannot be replayed.
+        useChatSessionStore
+          .getState()
+          .updateSessionData(chatSession.chat_session_id, {
+            sendAcknowledged: Promise.resolve(currentStream.stream_id),
+          });
+      }
+      const resumedMessage = currentStream
+        ? getMessageByMessageId(newMessageMap, currentStream.stream_id)
+        : undefined;
+      if (currentStream && resumedMessage?.type === "assistant") {
+        const retained = localMessages
+          ? getMessageByMessageId(localMessages, currentStream.stream_id)
+          : undefined;
+        newMessageMap = new Map(newMessageMap);
+        newMessageMap.set(
+          resumedMessage.nodeId,
+          retained?.replayCursor !== undefined
+            ? {
+                ...retained,
+                nodeId: resumedMessage.nodeId,
+                parentNodeId: resumedMessage.parentNodeId,
+                childrenNodeIds: resumedMessage.childrenNodeIds,
+                latestChildNodeId: resumedMessage.latestChildNodeId,
+              }
+            : {
+                ...resumedMessage,
+                message: "",
+                packets: [],
+                packetCount: 0,
+              }
+        );
+      }
+      const newMessageHistory = getLatestMessageChain(newMessageMap);
+
+      // Update message history except for edge where where
+      // last message is an error and we're on a new chat.
+      // This corresponds to a "renaming" of chat, which occurs after first message
+      // stream
+      if (
+        (newMessageHistory[newMessageHistory.length - 1]?.type !== "error" ||
+          loadedSessionId != null) &&
+        !(
+          currentChatState == "toolBuilding" ||
+          currentChatState == "streaming" ||
+          currentChatState == "loading" ||
+          currentChatState == "cancelling"
+        )
+      ) {
+        updateCurrentSelectedNodeForDocDisplay(
+          newMessageHistory[newMessageHistory.length - 1]?.nodeId ?? null
+        );
+
+        updateSessionAndMessageTree(chatSession.chat_session_id, newMessageMap);
+        useChatSessionStore
+          .getState()
+          .updateSessionData(chatSession.chat_session_id, {
+            hasOlderMessages: chatSession.has_older_messages ?? false,
+          });
+        chatSessionIdRef.current = chatSession.chat_session_id;
+      }
+
+      setIsFetchingChatMessages(chatSession.chat_session_id, false);
+
+      async function settleSession(sessionId: string) {
+        if (!sessionOwner) return;
+        await settleChatSession({
+          sessionId,
+          controller: sessionOwner,
+          errorMessage: tReadiness("checkFailed"),
+          mode: recovering ? "recovery" : "completion",
+        });
+      }
+
+      // Replay single-model output; multi-model sessions wait for saved history.
+      async function resumeInFlightRun(
+        sessionId: string,
+        runId: number,
+        messageMap: Map<number, Message>
+      ) {
+        const retained = getMessageByMessageId(messageMap, runId);
+        if (!retained || resumingRuns.has(runId)) {
+          return;
+        }
+        const node = { ...retained };
+        // Added and deleted in this function only, so an entry can never
+        // outlive its tail.
+        resumingRuns.add(runId);
+        let resolveReaderFinished: () => void = () => {};
+        const readerFinished = new Promise<void>((resolve) => {
+          resolveReaderFinished = resolve;
+        });
+        useChatSessionStore.getState().updateSessionData(sessionId, {
+          readerFinished,
+        });
+        const accumulated: Packet[] = [...node.packets];
+        let restoring = true;
+        let pendingRestore: Message | undefined;
+        // Keep replay attached across navigation without changing the selected chat.
+        const ownsStream = () => {
+          const session = useChatSessionStore
+            .getState()
+            .sessions.get(sessionId);
+          return (
+            session !== undefined &&
+            session.abortController === sessionOwner &&
+            session.chatState !== "input"
+          );
+        };
+        const publishResponse = (response: Message) => {
+          if (!ownsStream()) return;
+          messageMap.set(response.nodeId, response);
+          useChatSessionStore
+            .getState()
+            .updateSessionMessageTree(sessionId, new Map(messageMap));
+        };
+        const abortController = new AbortController();
+        try {
+          for await (const rawPacket of resumeStream(
+            sessionId,
+            runId,
+            node.replayCursor ?? 0,
+            abortController.signal
+          )) {
+            if (!ownsStream()) {
+              return;
+            }
+            if ("next_cursor" in rawPacket) {
+              if (rawPacket.stream_id !== runId) {
+                throw new Error("Replay cursor belongs to another response");
+              }
+              if (restoring) {
+                node.restoredPacketCount = accumulated.length;
+                restoring = !rawPacket.replay_complete;
+              }
+              // Store content and cursor together, only after a complete batch.
+              node.replayCursor = rawPacket.next_cursor;
+              const response: Message = {
+                ...node,
+                packets: [...accumulated],
+                packetCount: accumulated.length,
+              };
+              if (restoring) {
+                pendingRestore = response;
+                continue;
+              }
+              pendingRestore = undefined;
+              publishResponse(response);
+              continue;
+            }
+            if ("error" in rawPacket && rawPacket.error) {
+              const store = useChatSessionStore.getState();
+              store.updateSessionData(sessionId, {
+                queuedMessagesPaused: true,
+              });
+              // Keep the error on its reserved row through readiness retries.
+              node.type = "error";
+              node.errorMessage = rawPacket.error;
+              if (!("message_id" in rawPacket)) {
+                node.errorCode = rawPacket.error_code;
+                node.stackTrace = rawPacket.stack_trace;
+                node.isRetryable = rawPacket.is_retryable ?? true;
+                node.errorDetails = rawPacket.details;
+              }
+              node.is_generating = false;
+            }
+            if (!("obj" in rawPacket)) {
+              continue;
+            }
+            const packet = rawPacket;
+            // Heartbeats are liveness ticks for the ownership check above,
+            // not run state — never render them.
+            if (packet.obj.type === "chat_heartbeat") {
+              continue;
+            }
+            accumulated.push(packet);
+          }
+        } catch (error) {
+          console.error("Failed to resume in-flight run", { runId, error });
+        } finally {
+          abortController.abort();
+          try {
+            // A lost tail must not discard earlier acknowledged cache batches.
+            if (pendingRestore) publishResponse(pendingRestore);
+          } finally {
+            resumingRuns.delete(runId);
+            resolveReaderFinished();
+            await settleSession(sessionId);
+          }
+        }
+      }
+
+      if (currentStream && resumedMessage?.type === "assistant") {
+        void resumeInFlightRun(
+          chatSession.chat_session_id,
+          currentStream.stream_id,
+          newMessageMap
+        );
+      } else if (
+        sessionBusy ||
+        useChatSessionStore.getState().sessions.get(chatSession.chat_session_id)
+          ?.chatState !== "input"
+      ) {
+        void settleSession(chatSession.chat_session_id);
+      }
+
+      // Fetch project files for this chat session (if any)
+      try {
+        if (chatSession.chat_session_id) {
+          const files = await getProjectFilesForSession(
+            chatSession.chat_session_id
+          );
+          setProjectFiles(files || []);
+        } else {
+          setProjectFiles([]);
+        }
+      } catch (e) {
+        setProjectFiles([]);
+      }
+
+      // If this is a seeded chat, then kick off the AI message generation
+      if (
+        newMessageHistory.length === 1 &&
+        !submitOnLoadPerformed.current &&
+        searchParams?.get(SEARCH_PARAM_NAMES.SEEDED) === "true"
+      ) {
+        submitOnLoadPerformed.current = true;
+
+        const seededMessage = newMessageHistory[0]?.message;
+        if (!seededMessage) {
+          return;
+        }
+
+        await onSubmit({
+          message: seededMessage,
+          isSeededChat: true,
+          currentMessageFiles: [],
+          deepResearch: false,
+        });
+        // Force re-name if the chat session doesn't have one
+        if (!chatSession.description) {
+          await nameChatSession(existingChatSessionId);
+          refreshChatSessions();
+        }
+      } else if (newMessageHistory.length >= 2 && !chatSession.description) {
+        await nameChatSession(existingChatSessionId);
+        refreshChatSessions();
+      }
+    }
+
+    // SKIP_RELOAD is used after completing the first message in a new session.
+    // We don't need to re-fetch at that point, we have everything we need.
+    // For safety, we should always re-fetch if there are no messages in the chat history.
+    if (
+      !searchParams?.get(SEARCH_PARAM_NAMES.SKIP_RELOAD) ||
+      currentChatHistory.length === 0
+    ) {
+      const existingChatSession = existingChatSessionId
+        ? chatSessions.get(existingChatSessionId)
+        : null;
+
+      if (
+        !existingChatSession?.chatState ||
+        existingChatSession.chatState === "input" ||
+        existingChatSession.chatState === "unconfirmed" ||
+        existingChatSession.abortController.signal.aborted
+      ) {
+        initialSessionFetch();
+      } else {
+        // no need to fetch if the chat session is currently streaming (it would be )
+        // out of date).
+        // this means that the user kicked off a message, switched to a different
+        // chat, and then switched back.
+        setCurrentSession(existingChatSessionId);
+      }
+    } else {
+      // Remove SKIP_RELOAD param without triggering a page reload
+      const currentSearchParams = new URLSearchParams(searchParams?.toString());
+      if (currentSearchParams.has(SEARCH_PARAM_NAMES.SKIP_RELOAD)) {
+        currentSearchParams.delete(SEARCH_PARAM_NAMES.SKIP_RELOAD);
+        const newUrl = `${window.location.pathname}${
+          currentSearchParams.toString()
+            ? "?" + currentSearchParams.toString()
+            : ""
+        }`;
+        window.history.replaceState({}, "", newUrl);
+      }
+    }
+  }, [
+    existingChatSessionId,
+    searchParams?.get(SEARCH_PARAM_NAMES.AGENT_ID),
+    // Note: We're intentionally not including all dependencies to avoid infinite loops
+    // This effect should only run when existingChatSessionId or persona ID changes
+  ]);
+
+  const onMessageSelection = useCallback(
+    (nodeId: number) => {
+      updateCurrentSelectedNodeForDocDisplay(nodeId);
+      const currentMessageTree = useChatSessionStore
+        .getState()
+        .sessions.get(
+          useChatSessionStore.getState().currentSessionId || ""
+        )?.messageTree;
+
+      if (currentMessageTree) {
+        const newMessageTree = setMessageAsLatest(currentMessageTree, nodeId);
+        const currentSessionId =
+          useChatSessionStore.getState().currentSessionId;
+        if (currentSessionId) {
+          updateSessionMessageTree(currentSessionId, newMessageTree);
+        }
+
+        const message = currentMessageTree.get(nodeId);
+
+        if (message?.messageId) {
+          // Makes actual API call to set message as latest in the DB so we can
+          // edit this message and so it sticks around on page reload
+          const saved = patchMessageToBeLatest(message.messageId);
+
+          // A branch's messages below the selected one may not be loaded yet.
+          // Once the server has the new branch, load its last page.
+          const branch = getLatestMessageChain(newMessageTree);
+          const nextId = branch[branch.length - 1]?.latestChildNodeId;
+          if (
+            currentSessionId &&
+            nextId !== null &&
+            nextId !== undefined &&
+            !newMessageTree.has(nextId)
+          ) {
+            void saved.then((response) => {
+              if (response.ok) return reloadLatestChatPage(currentSessionId);
+              console.error("Failed to save the selected branch", {
+                messageId: message.messageId,
+                status: response.status,
+              });
+            });
+          }
+        } else {
+          console.error("Message has no messageId", nodeId);
+        }
+      }
+    },
+    [updateCurrentSelectedNodeForDocDisplay, updateSessionMessageTree]
+  );
+
+  return {
+    onMessageSelection,
+    projectFiles,
+    sessionFetchError,
+  };
+}

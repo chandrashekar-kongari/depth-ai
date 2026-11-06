@@ -1,0 +1,241 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { humanReadableFormat } from "@opal/time";
+import { BackendChatSession } from "@/app/app/types";
+import { processRawChatHistory } from "@/app/app/services/lib";
+import { getLatestMessageChain } from "@/app/app/services/messageTree";
+import HumanMessage from "@/app/app/message/HumanMessage";
+import { ErrorBanner } from "@/app/app/message/Resubmit";
+import AgentMessage from "@/app/app/message/messageComponents/AgentMessage";
+import MultiModelResponseView from "@/app/app/message/MultiModelResponseView";
+import { getMultiModelResponses } from "@/app/app/message/multiModel";
+import { useLanguageModels } from "@/lib/languageModels/hooks";
+import { buildModelProviderLookup } from "@/lib/languageModels/options";
+import DepthInitializingLoader from "@/components/DepthInitializingLoader";
+import { Section } from "@/layouts/general-layouts";
+import { IllustrationContent } from "@opal/layouts";
+import SvgNotFound from "@opal/illustrations/not-found";
+import { Button, Text } from "@opal/components";
+import { Agent } from "@/lib/agents/types";
+import { MinimalDepthDocument } from "@/lib/search/types";
+import PreviewModal from "@/sections/modals/PreviewModal";
+import useOnMount from "@/hooks/useOnMount";
+import SharedAppInputBar from "@/sections/input/SharedAppInputBar";
+import { useLocale, useTranslations } from "next-intl";
+
+export interface SharedChatDisplayProps {
+  chatSession: BackendChatSession | null;
+  persona: Agent;
+}
+
+export default function SharedChatDisplay({
+  chatSession,
+  persona,
+}: SharedChatDisplayProps) {
+  const t = useTranslations("chat.sharedChat");
+  const locale = useLocale();
+  const [presentingDocument, setPresentingDocument] =
+    useState<MinimalDepthDocument | null>(null);
+
+  const isMounted = useOnMount();
+
+  // The shared viewer is authenticated, so the user-facing provider list is
+  // available for resolving each model's provider icon, same as the live view.
+  const { llmProviders } = useLanguageModels();
+  const modelProviderLookup = useMemo(
+    () => buildModelProviderLookup(llmProviders),
+    [llmProviders]
+  );
+
+  if (!chatSession) {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center">
+        <Section flexDirection="column" alignItems="center" gap={4}>
+          <IllustrationContent
+            illustration={SvgNotFound}
+            title={t("notFound.title")}
+            description={t("notFound.description")}
+          />
+          <Button href="/app" prominence="secondary">
+            {t("newChatButton.label")}
+          </Button>
+        </Section>
+      </div>
+    );
+  }
+
+  const messageTree = processRawChatHistory(
+    chatSession.messages,
+    chatSession.packets
+  );
+  const messages = getLatestMessageChain(messageTree);
+
+  const firstMessage = messages[0];
+
+  if (firstMessage === undefined) {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center">
+        <Section flexDirection="column" alignItems="center" gap={4}>
+          <IllustrationContent
+            illustration={SvgNotFound}
+            title={t("notFound.title")}
+            description={t("emptyChat.description")}
+          />
+          <Button href="/app" prominence="secondary">
+            {t("newChatButton.label")}
+          </Button>
+        </Section>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {presentingDocument && (
+        <PreviewModal
+          presentingDocument={presentingDocument}
+          onClose={() => setPresentingDocument(null)}
+        />
+      )}
+
+      <div className="flex flex-col h-full w-full overflow-hidden">
+        <div className="flex-1 flex flex-col items-center overflow-y-auto">
+          <div className="sticky top-0 z-10 flex items-center justify-between w-full bg-background-tint-01 px-8 py-4">
+            <Text as="p" font="heading-h2" color="text-04">
+              {chatSession.description || t("header.untitledChat.title")}
+            </Text>
+            <div className="flex flex-col items-end">
+              <Text as="p" font="secondary-body" color="text-03">
+                {t("header.sharedOn.text", {
+                  date: humanReadableFormat(chatSession.time_created, locale),
+                })}
+              </Text>
+              {chatSession.owner_name && (
+                <Text as="p" font="secondary-body" color="text-03">
+                  {t("header.owner.text", { name: chatSession.owner_name })}
+                </Text>
+              )}
+            </div>
+          </div>
+
+          {isMounted ? (
+            <div className="w-full flex flex-col items-center">
+              {messages.map((message, i) => {
+                if (message.type === "user") {
+                  const multiModelResponses = getMultiModelResponses(
+                    message,
+                    messageTree,
+                    modelProviderLookup
+                  );
+                  return (
+                    <div
+                      key={message.messageId}
+                      className="w-full flex flex-col items-center"
+                    >
+                      <div className="w-[min(50rem,100%)]">
+                        <HumanMessage
+                          content={message.message}
+                          files={message.files}
+                          nodeId={message.nodeId}
+                        />
+                      </div>
+                      {/* Multi-model turns render every response side-by-side,
+                          full width, mirroring the author's comparison. */}
+                      {multiModelResponses && (
+                        <div className="w-full px-4 pt-12">
+                          <MultiModelResponseView
+                            responses={multiModelResponses}
+                            chatState={{
+                              agent: persona,
+                              docs: [],
+                              citations: undefined,
+                              setPresentingDocument,
+                            }}
+                            llmManager={null}
+                            parentMessage={message}
+                            readOnly
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Non-user (assistant or error): skip the single child the
+                // chain surfaced when its parent is a multi-model turn. The
+                // panels already render every response, including failures.
+                const previousMessage = i !== 0 ? messages[i - 1] : null;
+                if (
+                  previousMessage?.type === "user" &&
+                  getMultiModelResponses(
+                    previousMessage,
+                    messageTree,
+                    modelProviderLookup
+                  )
+                ) {
+                  return null;
+                }
+
+                if (message.type === "assistant" || message.type === "error") {
+                  return (
+                    <div
+                      key={message.messageId}
+                      className="w-[min(50rem,100%)]"
+                    >
+                      {(message.type !== "error" ||
+                        message.packets.length > 0) && (
+                        <AgentMessage
+                          rawPackets={message.packets}
+                          chatState={{
+                            agent: persona,
+                            docs: message.documents,
+                            citations: message.citations,
+                            setPresentingDocument: setPresentingDocument,
+                            // Shared payload carries the model as `modelDisplayName`,
+                            // not `overridden_model`. Surface it in the read-only footer.
+                            overriddenModel:
+                              message.modelDisplayName ?? undefined,
+                            overriddenModelProvider: message.modelDisplayName
+                              ? modelProviderLookup.get(
+                                  message.modelDisplayName
+                                )
+                              : undefined,
+                          }}
+                          nodeId={message.nodeId}
+                          llmManager={null}
+                          otherMessagesCanSwitchTo={undefined}
+                          onMessageSelection={undefined}
+                          hideFooter={message.type === "error"}
+                          disableTTS={message.type === "error"}
+                        />
+                      )}
+                      {message.type === "error" && (
+                        <ErrorBanner
+                          error={message.errorMessage ?? ""}
+                          errorCode={message.errorCode ?? undefined}
+                          isRetryable={message.isRetryable}
+                          details={message.errorDetails ?? undefined}
+                        />
+                      )}
+                    </div>
+                  );
+                }
+
+                return null;
+              })}
+            </div>
+          ) : (
+            <div className="h-full w-full flex items-center justify-center">
+              <DepthInitializingLoader />
+            </div>
+          )}
+        </div>
+
+        <div className="w-full max-w-200 mx-auto px-4 pb-4">
+          <SharedAppInputBar />
+        </div>
+      </div>
+    </>
+  );
+}

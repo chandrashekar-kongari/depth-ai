@@ -1,0 +1,124 @@
+import { Text, OverflowText } from "@opal/components";
+import { SourceIcon } from "@/components/SourceIcon";
+import { MinimalDepthDocument, DepthDocument } from "@/lib/search/types";
+import { SvgTag } from "@opal/icons";
+import { buildDocumentSummaryDisplay } from "@/components/search/DocumentDisplay";
+import { DocumentUpdatedAtBadge } from "@/components/search/DocumentUpdatedAtBadge";
+import { MetadataBadge } from "@/components/MetadataBadge";
+import { WebResultIcon } from "@/components/WebResultIcon";
+import { Dispatch, SetStateAction, useMemo } from "react";
+import { openDocument } from "@/lib/search/utils";
+import { ValidSources } from "@/lib/connectors/types/source";
+import { cn, richNodes } from "@opal/utils";
+
+interface DocumentMetadataBlockProps {
+  modal?: boolean;
+  document: DepthDocument;
+}
+
+function DocumentMetadataBlock({
+  modal,
+  document,
+}: DocumentMetadataBlockProps) {
+  const MAX_METADATA_ITEMS = 3;
+  const metadataEntries = Object.entries(document.metadata);
+
+  return (
+    <div className="flex items-center overflow-hidden">
+      {document.updated_at && (
+        <DocumentUpdatedAtBadge updatedAt={document.updated_at} modal={modal} />
+      )}
+
+      {metadataEntries.length > 0 && (
+        <>
+          <div className="flex items-center overflow-hidden">
+            {metadataEntries
+              .slice(0, MAX_METADATA_ITEMS)
+              .map(([key, value], index) => (
+                <MetadataBadge
+                  key={index}
+                  icon={SvgTag}
+                  value={`${key}=${value}`}
+                />
+              ))}
+            {metadataEntries.length > MAX_METADATA_ITEMS && (
+              <span className="ms-1 text-xs text-text-500">...</span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export interface ChatDocumentDisplayProps {
+  document: DepthDocument;
+  modal?: boolean;
+  isSelected: boolean;
+  setPresentingDocument: Dispatch<SetStateAction<MinimalDepthDocument | null>>;
+}
+
+export default function ChatDocumentDisplay({
+  document,
+  modal,
+  isSelected,
+  setPresentingDocument,
+}: ChatDocumentDisplayProps) {
+  const isInternet = document.is_internet;
+  const title = useMemo(
+    () => document.semantic_identifier || document.document_id,
+    [document.semantic_identifier, document.document_id]
+  );
+
+  if (document.score === null) {
+    return null;
+  }
+
+  const hasMetadata =
+    document.updated_at || Object.keys(document.metadata).length > 0;
+
+  return (
+    <button
+      type="button"
+      onClick={() => openDocument(document, setPresentingDocument)}
+      className={cn(
+        "flex w-full flex-col p-3 gap-2 rounded-12 hover:bg-background-tint-00 cursor-pointer text-start",
+        isSelected && "bg-action-selection-02"
+      )}
+    >
+      <div className="flex items-center gap-2">
+        {document.is_internet || document.source_type === ValidSources.Web ? (
+          <WebResultIcon url={document.link} />
+        ) : (
+          <SourceIcon sourceType={document.source_type} iconSize={18} />
+        )}
+        <OverflowText
+          as="p"
+          textPosition="text-start"
+          font="main-ui-body"
+          color="text-05"
+          maxLines={2}
+          wordWrap="break-all"
+        >
+          {title}
+        </OverflowText>
+      </div>
+
+      {hasMetadata && (
+        <DocumentMetadataBlock modal={modal} document={document} />
+      )}
+
+      <Text
+        as="p"
+        textPosition="text-start"
+        maxLines={2}
+        font="secondary-body"
+        color="text-03"
+      >
+        {richNodes(
+          buildDocumentSummaryDisplay(document.match_highlights, document.blurb)
+        )}
+      </Text>
+    </button>
+  );
+}

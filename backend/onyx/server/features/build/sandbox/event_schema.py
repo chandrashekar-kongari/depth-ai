@@ -1,0 +1,66 @@
+"""Onyx's internal sandbox-event schema.
+
+Single import point for the typed events Onyx's sandbox layer emits and
+consumes. Currently re-exports from the `agent-client-protocol` PyPI
+package; the wrapper exists so consumers don't need to know that, and so
+a future inlining of these types (or swap to a different upstream)
+touches only this file.
+
+If you replace the re-exports with local models, keep the
+``model_dump(by_alias=True)`` output byte-identical. ``BuildMessage.message_metadata``
+stores tool-call and plan events in that shape, and saved rows are not migrated.
+"""
+
+from typing import NotRequired, TypedDict
+
+from acp.schema import (
+    AgentMessageChunk,
+    AgentPlanUpdate,
+    AgentThoughtChunk,
+    CurrentModeUpdate,
+    Error,
+    PromptResponse,
+    RequestPermissionRequest,
+    ToolCallProgress,
+    ToolCallStart,
+)
+
+
+class TextPartMetadata(TypedDict):
+    """Live part identity and authoritative text from OpenCode part updates."""
+
+    partId: str
+    snapshotText: NotRequired[str]
+
+
+# Onyx-synthesized ``Error.code`` sentinels for turn-terminating failures.
+# Negative so they never collide with opencode / JSON-RPC error codes.
+TURN_ERROR_CODE_SESSION = -1  # opencode reported an error during the turn
+TURN_ERROR_CODE_TIMEOUT = -2
+TURN_ERROR_CODE_TRANSPORT = -3
+
+
+class ActivityTimeoutError(Error):
+    """A step produced no output within the inactivity window — recoverable by
+    re-prompting, unlike a hard absolute/budget timeout. The distinction is
+    carried by the type, not ``code`` (which it shares with the hard timeout)."""
+
+    code: int = TURN_ERROR_CODE_TIMEOUT
+
+
+__all__ = [
+    "ActivityTimeoutError",
+    "AgentMessageChunk",
+    "AgentPlanUpdate",
+    "AgentThoughtChunk",
+    "CurrentModeUpdate",
+    "Error",
+    "PromptResponse",
+    "RequestPermissionRequest",
+    "ToolCallProgress",
+    "ToolCallStart",
+    "TextPartMetadata",
+    "TURN_ERROR_CODE_SESSION",
+    "TURN_ERROR_CODE_TIMEOUT",
+    "TURN_ERROR_CODE_TRANSPORT",
+]

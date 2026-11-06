@@ -1,0 +1,243 @@
+---
+title: "Drawing Review"
+description: "Review a mechanical drawing from a DXF file and a plotted sheet"
+icon: "ruler"
+---
+
+Drawing Review checks a 2D mechanical drawing in [Chat](/overview/core_features/chat).
+The DXF file is the source of measurements, units, layers, blocks, and text.
+The plotted sheet is the source of the checklist. The two results stay separate.
+A comment on the sheet does not replace a DXF measurement.
+
+The review does not certify the drawing. It does not claim ASME, ISO, or company-standard compliance.
+
+## What you upload
+
+Use both files when you have them. You can upload only one.
+
+| File                    | Role                                            |
+| ----------------------- | ----------------------------------------------- |
+| DXF                     | Measurements, units, layers, blocks, and text   |
+| PDF, PNG, JPEG, or WEBP | Title block, views, notes, and the sheet layout |
+
+Export a DWG file to DXF before you upload it. Onyx does not read DWG or STEP files.
+The sheet must be the file you plotted. Onyx does not draw the DXF.
+
+## Set up the agent
+
+An admin creates the agent. The default assistant does not include this action.
+
+<Steps>
+  <Step title="Create an agent">
+    Open **Admin Panel → Agents** and create an agent. Name it Drawing Review.
+  </Step>
+
+  <Step title="Add the action">
+    Add the **Drawing Review** action. Leave the default system prompt in place.
+  </Step>
+
+  <Step title="Attach standards">
+    Add a **Document Set** that contains your drawing standards. When the agent has no document set,
+    each finding says that no company standard was used.
+  </Step>
+
+  <Step title="Write short instructions">
+    In the agent instructions, tell the agent to call `review_drawing` and answer with the findings list.
+  </Step>
+</Steps>
+
+The action uses the [Captioning LLM](/admins/advanced_configs/search_configs) for the sheet.
+Set that model under **Admin Panel → Index Settings**. When it is not set,
+the DXF result still returns and the sheet section says the model is not configured.
+
+## Read the answer
+
+The answer has two sections.
+
+- **Measured** comes from the DXF. It lists units, layers, blocks, text, and dimension entities.
+- **Observed** comes from the plotted sheet. It lists the checklist.
+
+The checklist covers the title block, views and notes, dimensions and tolerances, visible GD&T, BOM and callouts,
+and the same fields across sheets. Each item is **Pass**, **Fail**, or **Needs review**. Ask for one group,
+such as dimensions, when you do not want the full checklist.
+
+A number in a text note is not a measurement. Only a dimension entity is a measurement.
+A mismatch between a dimension entity and text on the sheet is a finding. When you upload only one file,
+the answer says which check did not run.
+
+On a wide screen, the sheet is in the center. The chat stays on the right. The checklist is in the chat response.
+Select a failed or uncertain finding there. The sheet opens that page and highlights the text the finding uses.
+Select the highlight to select the finding. A finding with no text on the page highlights the whole page.
+A passed item has no highlight and stays collapsed. On a narrow screen,
+the checklist and the sheet stay in the tool card.
+
+Onyx reviews the first 8 pages. The answer names any later pages that were not reviewed.
+
+## Check comments on a new sheet
+
+Use this check when you have a marked-up sheet and a new sheet. The marked-up sheet has the comments.
+The new sheet is the revision. The default assistant includes **Comment Review**.
+An agent that already has Drawing Review gets this action too.
+
+Say "verify" after you attach both sheets. The first sheet is the marked-up sheet. The second sheet is the new sheet.
+
+Keep the file roles clear: the original contains review comments, and the revised sheet contains the corrections.
+The action rejects likely reversed PDF roles when only the revised input contains native comments.
+If no comments can be extracted, the action reports an incomplete review. It does not report a passed drawing.
+
+Attach both sheets. A comment is a cloud, a balloon, a redline, or a note. The sheet is a PDF, PNG, JPEG, or WEBP.
+A DXF of the new drawing is optional. Use the DXF when a comment is about a dimension.
+A number in a comment is not a measurement.
+
+Ask the agent to check each comment. The answer has one row per comment.
+
+- **Open.** The new sheet does not show the requested change. The row says what must change.
+- **Solved, correct.** The requested change is on the new sheet and it matches the comment.
+- **Solved, incorrect.** The new sheet changed that area, but the change does not match the comment.
+- **Unclear.** The pages do not show enough to decide.
+
+The answer also lists short problems on the new sheet that no comment asked for. That list is not the full checklist.
+
+On a wide screen, both sheets are in the center. The queue stays in the chat. Select a comment.
+Both sheets open that page and highlight the comment. On a narrow screen,
+the queue and both sheets stay in the tool card.
+
+The check uses the Captioning LLM. When it is not set, no verdict is invented.
+Onyx checks the first 8 pages of each sheet.
+
+## Private Review Queue pilot
+
+The private Review Queue is a separate workflow at `/app/reviews`. It saves reviews outside chat.
+Closing the browser does not cancel processing. Each user can read and change only their own reviews in this pilot.
+Shared project review and drawing-release approval are not included.
+
+Upload the **Original PDF with comments** and **Revised PDF** separately.
+Each PDF must have 1–8 pages and must be at most 20 MiB.
+Confirm that both PDFs contain the same sheets in the same order. Different page counts fail validation.
+Reordered sheets need correction before upload.
+
+The worker reads native PDF annotations before using vision. On pages with native annotations,
+flattened comments need manual checking. A missing private model leaves unsupported comments as **Needs review**.
+An exact note replacement check verifies text only. It does not measure geometry.
+
+Select a review to compare the PDFs and their evidence highlights. Record an engineer decision for each proposal,
+with an optional reason. The decision history preserves earlier decisions.
+**Export Review** downloads the current results and decision history as JSON.
+The export includes the original file hashes and processing version. It does not certify or approve the drawing.
+
+### Enable the pilot
+
+Use a backend and web build from this checkout. Released images do not include these changes.
+Run the database migration before you enable the feature. The pilot supports single-tenant installations only.
+
+Set these backend settings:
+
+| Variable | Value |
+| --- | --- |
+| `DEPTH_REVIEW_ENABLED` | `true` enables the API and sidebar entry |
+| `DEPTH_REVIEW_API_BASE` | Ollama HTTP(S) origin with a literal internal IP, such as `http://127.0.0.1:11434` |
+| `DEPTH_REVIEW_MODEL` | Installed vision model name, validated on your drawing samples |
+
+The review model is independent of the chat model. There is no public-provider fallback. Without both model settings,
+native comments remain available for manual checking. The inference origin cannot include credentials, a query,
+or a path. In containers, use the inference server's reachable internal address.
+Loopback refers to the current container.
+
+Start a separate worker with the same database, file-store settings, and tenant schema as the API:
+
+```bash
+PYTHONPATH=backend uv run python -m onyx.engineering.worker
+```
+
+For a Lite Compose installation, apply the review overlay last:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.onyx-lite.yml \
+  -f docker-compose.depth-review.yml up -d --build
+```
+
+The API applies migrations before serving requests. A worker can retry until the schema is available.
+The review worker uses PostgreSQL and does not require Redis or OpenSearch.
+Jobs interrupted by worker failure can restart, up to three attempts. An interrupted review restarts its processing;
+individual comment checkpoints are not included in this pilot.
+**Cancel Review** prevents a late worker from publishing its result.
+Cancellation waits for an active parser or model call to return or time out.
+
+### Prepare a private installation
+
+The inference restriction applies to this workflow. It does not change other chat tools or provider settings.
+Use customer-approved database and file storage. The Lite profile stores files in PostgreSQL.
+Disable unapproved analytics, error reporting, and tracing exporters in the web and API configuration.
+Block unapproved outbound traffic and verify the full workflow before claiming offline operation.
+The review overlay does not configure a network firewall or prove air-gap support.
+
+Back up the database and file store together. Test that a restored review can open both PDFs.
+This pilot has no automated retention or review deletion workflow.
+Set an approved retention process before using confidential customer drawings. GPU start/stop automation,
+automatic sheet alignment, and validated model benchmarks are future work.
+
+In the private pilot, verification also receives the complete extracted revision-page text.
+A definite proposal needs a matching verbatim text excerpt. This check validates the quoted text,
+not its engineering interpretation. Additional-issue detection is disabled in the private pilot until it is validated.
+
+The private review adapter requests an 8,192-token Ollama context.
+Its input budget and inference-server context use the same limit.
+
+A precise revision highlight requires matching text in the cited span.
+Unsupported span references use a page-level highlight instead.
+
+Identical original and revision PDFs are rejected before inference.
+
+## Review PDFs in chat
+
+Attach one or two PDFs to your chat. The drawing viewer opens beside the conversation.
+Use the tabs above the viewer to switch between the original and revised PDFs.
+
+Each comment result has a numbered card with its request, evidence, and status.
+Select **Show in original** or **Show in revised** to open that PDF at the finding.
+A confirmed location uses native PDF annotations. Navigation preserves zoom, opens the target page,
+and shows a two-second attention ring. Green indicates a completed correction.
+Red indicates an open or incorrect correction. Amber indicates an uncertain result.
+
+There is no hover preview. Read the request and evidence in the chat card. Use **Correct this location**,
+then draw a rectangle around the target with the native markup tool.
+Move or resize the region to adjust its saved location. **Inspect detail** increases zoom only when selected.
+Native dimension callouts are located locally with pdfplumber.
+A unique label matched to the review evidence can be highlighted at its native PDF coordinates.
+Repeated or missing labels remain unmarked. These highlights identify dimension text;
+they do not verify the associated geometry or engineering verdict. There are no placeholder notes at the page edge.
+No drawing data is sent to an external extraction service.
+Scanned pages without native text require a manually placed location in this version.
+Old corrections keyed only by sequential issue numbers must be confirmed again.
+Additional findings use the revised PDF location. An original location requires confirmation.
+
+Use **Markup tool** to add highlights, drawing strokes, shapes, arrows, text, callouts, or notes.
+**Undo** and **Redo** apply to saved drawing edits. Changes are stored separately from the source PDF.
+Select **Export PDF** to download the active PDF with its review annotations.
+
+The agent uses the same local text-location service and versioned edit commands as the viewer.
+A review status or highlighted region does not certify engineering correctness.
+
+### Local vision and bounded review
+
+The drawing action uses the **Captioning LLM**, independently of the chat model.
+Choose an installed vision-capable local model, such as `qwen3-vl:8b-instruct`, for that role.
+New results show the vision model and the number of review passes for each finding.
+
+The reviewer processes each known comment. Unclear results can receive up to three visual passes,
+using the full page and overlapping crops. Repeated unclear output stops the loop early.
+A supported verdict can remain separate from an unresolved location. The review does not claim every issue is fixed.
+
+Accepted comment results use owner-scoped application-cache checkpoints for 24 hours.
+The key includes the input PDF content, model name, optional CAD summary, comment and pipeline version.
+A repeated request can reuse these checkpoints. Unclear verdicts are not cached as completed work.
+Checkpoints expire and do not replace the saved chat or engineer decision history.
+
+**Show in original** locates the native review comment when available. **Show in revised** uses revised-sheet evidence.
+Page navigation does not wait for inference or saving. The attention ring is a temporary view effect.
+It is not saved or exported as a PDF annotation.
+
+The original-sheet action resolves native annotation comments independently of revised-sheet evidence.
+The local locator also searches unique verbatim note excerpts, including finish instructions and BOM text.
+A located excerpt is evidence text, not a measured feature. Ambiguous matches still require confirmation.
+Native text-line indexing uses pdfplumber and reports explicit extraction limits.

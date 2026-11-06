@@ -1,0 +1,227 @@
+import json
+import os
+from typing import Any
+from uuid import uuid4
+
+from tests.integration.common_utils.constants import API_SERVER_URL
+from tests.integration.common_utils.http_client import client
+from tests.integration.common_utils.test_models import (
+    DATestImageGenerationConfig,
+    DATestUser,
+)
+
+
+def _serialize_custom_config(
+    custom_config: dict[str, Any] | None,
+) -> dict[str, str] | None:
+    """Convert custom_config values to strings (API expects dict[str, str])."""
+    if custom_config is None:
+        return None
+    return {
+        key: json.dumps(value) if not isinstance(value, str) else value
+        for key, value in custom_config.items()
+    }
+
+
+class ImageGenerationConfigManager:
+    @staticmethod
+    def create(
+        user_performing_action: DATestUser,
+        image_provider_id: str | None = None,
+        model_name: str = "gpt-image-2.5-flare",
+        provider: str = "openai",
+        api_key: str | None = None,
+        api_base: str | None = None,
+        api_version: str | None = None,
+        deployment_name: str | None = None,
+        custom_config: dict[str, Any] | None = None,
+        is_default: bool = False,
+    ) -> DATestImageGenerationConfig:
+        """Create a new image generation config with new credentials."""
+        image_provider_id = image_provider_id or f"test-provider-{uuid4()}"
+
+        response = client.post(
+            f"{API_SERVER_URL}/admin/image-generation/config",
+            json={
+                "image_provider_id": image_provider_id,
+                "model_name": model_name,
+                "provider": provider,
+                "api_key": api_key or os.environ["OPENAI_API_KEY"],
+                "api_base": api_base,
+                "api_version": api_version,
+                "deployment_name": deployment_name,
+                "custom_config": _serialize_custom_config(custom_config),
+                "is_default": is_default,
+            },
+            headers=user_performing_action.headers,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        return DATestImageGenerationConfig(
+            image_provider_id=data["image_provider_id"],
+            model_configuration_id=data["model_configuration_id"],
+            model_name=data["model_name"],
+            llm_provider_id=data["llm_provider_id"],
+            llm_provider_name=data["llm_provider_name"],
+            is_default=data["is_default"],
+        )
+
+    @staticmethod
+    def get_all(
+        user_performing_action: DATestUser,
+    ) -> list[DATestImageGenerationConfig]:
+        """Get all image generation configs."""
+        response = client.get(
+            f"{API_SERVER_URL}/admin/image-generation/config",
+            headers=user_performing_action.headers,
+        )
+        response.raise_for_status()
+        return [DATestImageGenerationConfig(**config) for config in response.json()]
+
+    @staticmethod
+    def get_credentials(
+        image_provider_id: str,
+        user_performing_action: DATestUser,
+    ) -> dict:
+        """Get credentials for an image generation config."""
+        response = client.get(
+            f"{API_SERVER_URL}/admin/image-generation/config/{image_provider_id}/credentials",
+            headers=user_performing_action.headers,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    @staticmethod
+    def update(
+        image_provider_id: str,
+        model_name: str,
+        user_performing_action: DATestUser,
+        provider: str | None = None,
+        api_key: str | None = None,
+        api_base: str | None = None,
+        api_version: str | None = None,
+        deployment_name: str | None = None,
+    ) -> DATestImageGenerationConfig:
+        """Update an existing image generation config."""
+        payload: dict = {
+            "model_name": model_name,
+            "api_base": api_base,
+            "api_version": api_version,
+            "deployment_name": deployment_name,
+        }
+
+        if api_key is None or provider is None:
+            raise ValueError("Both api_key and provider must be provided.")
+        payload["provider"] = provider
+        payload["api_key"] = api_key
+
+        response = client.put(
+            f"{API_SERVER_URL}/admin/image-generation/config/{image_provider_id}",
+            json=payload,
+            headers=user_performing_action.headers,
+        )
+        if response.is_error:
+            print(f"Update failed with status {response.status_code}: {response.text}")
+        response.raise_for_status()
+        data = response.json()
+
+        return DATestImageGenerationConfig(
+            image_provider_id=data["image_provider_id"],
+            model_configuration_id=data["model_configuration_id"],
+            model_name=data["model_name"],
+            llm_provider_id=data["llm_provider_id"],
+            llm_provider_name=data["llm_provider_name"],
+            is_default=data["is_default"],
+        )
+
+    @staticmethod
+    def link(
+        llm_provider_id: int,
+        model_name: str,
+        user_performing_action: DATestUser,
+        is_default: bool = False,
+    ) -> DATestImageGenerationConfig:
+        """Connect a model on an existing LLM provider, without credentials."""
+        response = client.post(
+            f"{API_SERVER_URL}/admin/image-generation/config/link",
+            json={
+                "llm_provider_id": llm_provider_id,
+                "model_name": model_name,
+                "is_default": is_default,
+            },
+            headers=user_performing_action.headers,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return DATestImageGenerationConfig(
+            image_provider_id=data["image_provider_id"],
+            model_configuration_id=data["model_configuration_id"],
+            model_name=data["model_name"],
+            llm_provider_id=data["llm_provider_id"],
+            llm_provider_name=data["llm_provider_name"],
+            is_default=data["is_default"],
+            llm_provider_owned=data["llm_provider_owned"],
+        )
+
+    @staticmethod
+    def list_llm_provider_models(
+        user_performing_action: DATestUser,
+    ) -> list[dict[str, Any]]:
+        response = client.get(
+            f"{API_SERVER_URL}/admin/image-generation/llm-providers",
+            headers=user_performing_action.headers,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    @staticmethod
+    def delete(
+        image_provider_id: str,
+        user_performing_action: DATestUser,
+    ) -> None:
+        """Delete an image generation config."""
+        response = client.delete(
+            f"{API_SERVER_URL}/admin/image-generation/config/{image_provider_id}",
+            headers=user_performing_action.headers,
+        )
+        response.raise_for_status()
+
+    @staticmethod
+    def set_default(
+        image_provider_id: str,
+        user_performing_action: DATestUser,
+    ) -> None:
+        """Set an image generation config as the default."""
+        response = client.post(
+            f"{API_SERVER_URL}/admin/image-generation/config/{image_provider_id}/default",
+            headers=user_performing_action.headers,
+        )
+        response.raise_for_status()
+
+    @staticmethod
+    def verify(
+        config: DATestImageGenerationConfig,
+        user_performing_action: DATestUser,
+        verify_deleted: bool = False,
+    ) -> None:
+        """Verify that a config exists (or doesn't exist if verify_deleted=True)."""
+        all_configs = ImageGenerationConfigManager.get_all(user_performing_action)
+
+        for fetched_config in all_configs:
+            if fetched_config.image_provider_id == config.image_provider_id:
+                if verify_deleted:
+                    raise ValueError(
+                        f"ImageGenerationConfig {config.image_provider_id} found but should be deleted"
+                    )
+                # Verify the config matches
+                if (
+                    fetched_config.model_name == config.model_name
+                    and fetched_config.is_default == config.is_default
+                ):
+                    return
+
+        if not verify_deleted:
+            raise ValueError(
+                f"ImageGenerationConfig {config.image_provider_id} not found"
+            )

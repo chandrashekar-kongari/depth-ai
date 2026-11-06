@@ -1,0 +1,445 @@
+"use client";
+
+import { IconLoader } from "@opal/loaders";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import useSWR from "swr";
+import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import {
+  Button,
+  Table,
+  Text,
+  Tooltip,
+  type TableColumn,
+} from "@opal/components";
+import SvgLock from "@opal/icons/lock";
+
+import { markdown } from "@opal/utils";
+import { toPlainString } from "@opal/components/text/InlineMarkdown";
+import { Section } from "@/layouts/general-layouts";
+import { toast } from "@opal/layouts";
+import UnseenMarker from "@/app/craft/components/UnseenMarker";
+import {
+  listScheduledTaskRuns,
+  markScheduledRunsViewed,
+} from "@/app/craft/v1/tasks/api";
+import { revalidateScheduledRunViews } from "@/lib/scheduledTasks/hooks";
+import { RunStatusBadge } from "@/app/craft/v1/tasks/components/StatusBadge";
+import {
+  buildSessionPath,
+  RUNS_MAX_PAGE_SIZE,
+  RUNS_PAGE_SIZE,
+} from "@/app/craft/v1/tasks/constants";
+import type {
+  ScheduledRunListResponse,
+  ScheduledRunSummary,
+} from "@/app/craft/v1/tasks/types";
+import {
+  formatAbsolute,
+  formatRelativeShort,
+  formatRunDuration,
+  getNonClickableReason,
+  isRunUnviewed,
+  type RunReasonTranslate,
+} from "@/app/craft/v1/tasks/utils";
+import { SWR_KEYS } from "@/lib/swr-keys";
+import { errorHandlingFetcher } from "@/lib/fetcher";
+
+interface RunHistoryTableProps {
+  taskId: string;
+}
+type RunHistoryTranslate = ReturnType<
+  typeof useTranslations<"craft.tasks.runHistory">
+>;
+const RUN_HISTORY_REFRESH_INTERVAL_MS = 5000;
+const SUMMARY_TOOLTIP_THRESHOLD_CHARS = 80;
+const SUMMARY_TOOLTIP_MAX_CHARS = 400;
+
+interface NonClickableCellProps {
+  reason: string | null;
+  children: ReactNode;
+}
+
+// Wraps a cell's content so non-clickable rows get a clear "you can't click
+// this" affordance: dimmed content, ``not-allowed`` cursor, and a tooltip
+// explaining why. Clickable rows pass through unchanged.
+function NonClickableCell({ reason, children }: NonClickableCellProps) {
+  if (!reason) return <>{children}</>;
+  return (
+    <Tooltip tooltip={reason} side="top" delayDuration={150}>
+      <div
+        data-non-clickable="true"
+        className="flex w-full cursor-not-allowed items-center opacity-60"
+      >
+        {children}
+      </div>
+    </Tooltip>
+  );
+}
+
+function clipAtWordBoundary(text: string): string {
+  const chars = Array.from(text);
+  if (chars.length <= SUMMARY_TOOLTIP_MAX_CHARS) return text;
+  const head = chars.slice(0, SUMMARY_TOOLTIP_MAX_CHARS).join("");
+  const lastSpace = head.lastIndexOf(" ");
+  return `${(lastSpace > 0 ? head.slice(0, lastSpace) : head).trimEnd()}…`;
+}
+
+interface SummaryCellProps {
+  row: ScheduledRunSummary;
+}
+
+function SummaryCell({ row }: SummaryCellProps) {
+  const tReason = useTranslations("craft.tasks.runHistory.nonClickable");
+  const reason = getNonClickableReason(row, tReason);
+  const tActionPolicies = useTranslations("craft.actionPolicies");
+  const raw =
+    row.error_class === "agent_permission_required"
+      ? tActionPolicies("agentPermissionRequired")
+      : (row.summary ?? row.skip_reason ?? row.error_class);
+  // Heading strip must run before toPlainString collapses newlines.
+  const stripped = raw
+    ? toPlainString(markdown(raw.replace(/^#{1,6}\s+/gm, "")))
+        .replace(/\*\*|~~|`/g, "")
+        .replace(/(?<!\w)__|__(?!\w)/g, "")
+    : null;
+  const plain = stripped?.trim() ? stripped : null;
+
+  const showTooltip =
+    !reason && plain != null && plain.length > SUMMARY_TOOLTIP_THRESHOLD_CHARS;
+  const tooltip = showTooltip ? clipAtWordBoundary(plain) : undefined;
+
+  const text = (
+    // Two 20px lines exactly fill the table's fixed 40px cell; three would clip.
+    <Text font="main-ui-body" color="text-03" maxLines={2}>
+      {plain ?? "—"}
+    </Text>
+  );
+
+  return (
+    <NonClickableCell reason={reason}>
+      {tooltip ? (
+        <Tooltip tooltip={tooltip} side="top" delayDuration={300}>
+          <div className="min-w-0">{text}</div>
+        </Tooltip>
+      ) : (
+        text
+      )}
+    </NonClickableCell>
+  );
+}
+
+function buildColumns(
+  t: RunHistoryTranslate,
+  tReason: RunReasonTranslate,
+  unviewedLabel: string
+): TableColumn<ScheduledRunSummary>[] {
+  return [
+    {
+      kind: "data",
+      field: "started_at",
+      title: t("columns.started"),
+      weight: 22,
+      sortable: false,
+      cell: (value, row) => (
+        <NonClickableCell reason={getNonClickableReason(row, tReason)}>
+          <Section
+            flexDirection="row"
+            justifyContent="start"
+            gap={2}
+            width="fit"
+            height="fit"
+          >
+            {isRunUnviewed(row) && (
+              <UnseenMarker label={unviewedLabel} className="shrink-0" />
+            )}
+            <Section alignItems="start" gap={0.5} width="fit" height="fit">
+              <Text
+                font="main-ui-body"
+                color="text-05"
+                wordWrap="whitespace-nowrap"
+              >
+                {formatAbsolute(value)}
+              </Text>
+              <Text font="secondary-body" color="text-03">
+                {formatRelativeShort(value)}
+              </Text>
+            </Section>
+          </Section>
+        </NonClickableCell>
+      ),
+    },
+    {
+      kind: "data",
+      field: "status",
+      title: t("columns.status"),
+      weight: 14,
+      sortable: false,
+      cell: (status, row) => {
+        const reason = getNonClickableReason(row, tReason);
+        return (
+          // Wrapper exposes the status to Playwright (and lets the row's
+          // ``onRowClick`` still navigate via event bubbling).
+          <NonClickableCell reason={reason}>
+            <div
+              data-run-status={status}
+              className="inline-flex items-center gap-1.5"
+            >
+              <RunStatusBadge status={status} />
+              {reason && (
+                <SvgLock
+                  size={12}
+                  className="text-text-03"
+                  aria-label={t("status.notOpenableAriaLabel")}
+                />
+              )}
+            </div>
+          </NonClickableCell>
+        );
+      },
+    },
+    {
+      kind: "display",
+      id: "duration",
+      title: t("columns.duration"),
+      width: { weight: 12 },
+      cell: (row) => (
+        <NonClickableCell reason={getNonClickableReason(row, tReason)}>
+          <Text
+            font="main-ui-body"
+            color="text-03"
+            wordWrap="whitespace-nowrap"
+          >
+            {formatRunDuration(row.started_at, row.finished_at)}
+          </Text>
+        </NonClickableCell>
+      ),
+    },
+    {
+      kind: "display",
+      id: "summary",
+      title: t("columns.summary"),
+      width: { weight: 38 },
+      cell: (row) => <SummaryCell row={row} />,
+    },
+    {
+      kind: "data",
+      field: "trigger_source",
+      title: t("columns.trigger"),
+      weight: 14,
+      sortable: false,
+      cell: (value, row) => (
+        <NonClickableCell reason={getNonClickableReason(row, tReason)}>
+          <Text
+            font="main-ui-body"
+            color="text-03"
+            wordWrap="whitespace-nowrap"
+          >
+            {value === "MANUAL_RUN_NOW"
+              ? t("trigger.runNow")
+              : t("trigger.schedule")}
+          </Text>
+        </NonClickableCell>
+      ),
+    },
+  ];
+}
+
+export default function RunHistoryTable({ taskId }: RunHistoryTableProps) {
+  const t = useTranslations("craft.tasks.runHistory");
+  const router = useRouter();
+  const [olderPages, setOlderPages] = useState<ScheduledRunSummary[][]>([]);
+  const [olderNextCursor, setOlderNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const firstPageUrl = `${SWR_KEYS.scheduledTaskRuns(
+    taskId
+  )}?limit=${RUNS_PAGE_SIZE}`;
+  const { data, error, isLoading, mutate } = useSWR<ScheduledRunListResponse>(
+    firstPageUrl,
+    errorHandlingFetcher,
+    {
+      revalidateOnFocus: false,
+      refreshInterval: RUN_HISTORY_REFRESH_INTERVAL_MS,
+    }
+  );
+
+  const { data: unviewedProbe } = useSWR<ScheduledRunListResponse>(
+    SWR_KEYS.scheduledTaskHasUnviewedRuns(taskId),
+    errorHandlingFetcher,
+    {
+      revalidateOnFocus: false,
+      refreshInterval: RUN_HISTORY_REFRESH_INTERVAL_MS,
+    }
+  );
+
+  useEffect(() => {
+    setOlderPages([]);
+    setOlderNextCursor(null);
+  }, [taskId]);
+
+  const loadMoreCursor =
+    olderPages.length > 0 ? olderNextCursor : (data?.next_cursor ?? null);
+
+  const loadMore = useCallback(async () => {
+    if (!loadMoreCursor) return;
+    setLoadingMore(true);
+    try {
+      const res = await listScheduledTaskRuns(taskId, {
+        cursor: loadMoreCursor,
+        limit: RUNS_PAGE_SIZE,
+      });
+      setOlderPages((prev) => [...prev, res.items]);
+      setOlderNextCursor(res.next_cursor);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadMoreCursor, taskId]);
+
+  const refresh = useCallback(() => {
+    void mutate();
+  }, [mutate]);
+
+  const tReason = useTranslations("craft.tasks.runHistory.nonClickable");
+  const tTasks = useTranslations("craft.tasks");
+  const unviewedLabel = tTasks("unviewedResults");
+  const columns = useMemo(
+    () => buildColumns(t, tReason, unviewedLabel),
+    [t, tReason, unviewedLabel]
+  );
+  const [markingViewed, setMarkingViewed] = useState(false);
+
+  const allRuns = useMemo(() => {
+    const runs: ScheduledRunSummary[] = [];
+    const seenRunIds = new Set<string>();
+
+    for (const run of data?.items ?? []) {
+      runs.push(run);
+      seenRunIds.add(run.id);
+    }
+
+    for (const page of olderPages) {
+      for (const run of page) {
+        if (seenRunIds.has(run.id)) continue;
+        runs.push(run);
+        seenRunIds.add(run.id);
+      }
+    }
+
+    return runs;
+  }, [data?.items, olderPages]);
+
+  const hasUnviewedRuns =
+    allRuns.some(isRunUnviewed) ||
+    (unviewedProbe?.items.some(isRunUnviewed) ?? false);
+
+  const markAllViewed = useCallback(async () => {
+    if (markingViewed) return;
+    setMarkingViewed(true);
+    const viewed = new Map<string, ScheduledRunSummary>();
+    try {
+      // Acknowledged runs leave the unviewed filter, so each pass reads the next batch.
+      for (;;) {
+        const page = await listScheduledTaskRuns(taskId, {
+          limit: RUNS_MAX_PAGE_SIZE,
+          unviewed: true,
+        });
+        if (page.items.length === 0) break;
+        const res = await markScheduledRunsViewed(taskId, page.items);
+        for (const run of res.items) viewed.set(run.id, run);
+        if (page.items.length < RUNS_MAX_PAGE_SIZE) break;
+      }
+    } catch {
+      toast.error(t("markAllViewed.error"));
+    } finally {
+      if (viewed.size > 0) {
+        setOlderPages((pages) =>
+          pages.map((page) => page.map((run) => viewed.get(run.id) ?? run))
+        );
+        await revalidateScheduledRunViews(taskId).catch(() => undefined);
+      }
+      setMarkingViewed(false);
+    }
+  }, [markingViewed, taskId, t]);
+
+  if (isLoading && !data) {
+    return (
+      <div className="flex justify-center py-8">
+        <IconLoader className="h-6 w-6" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Section gap={2}>
+        <Text font="main-ui-body" color="text-03">
+          {t("errors.loadFailed")}
+        </Text>
+        <Button
+          variant="default"
+          prominence="secondary"
+          onClick={refresh}
+          size="sm"
+        >
+          {t("errors.tryAgainButton")}
+        </Button>
+      </Section>
+    );
+  }
+
+  if (allRuns.length === 0) {
+    return (
+      <div className="py-6 text-center">
+        <Text font="main-ui-body" color="text-03">
+          {t("empty.label")}
+        </Text>
+      </div>
+    );
+  }
+
+  return (
+    <Section gap={2} alignItems="stretch">
+      <Section flexDirection="row" justifyContent="end" height="fit">
+        <Button
+          prominence="tertiary"
+          size="xs"
+          disabled={markingViewed || !hasUnviewedRuns}
+          aria-busy={markingViewed}
+          onClick={() => void markAllViewed()}
+        >
+          {t("markAllViewed.label")}
+        </Button>
+      </Section>
+      <Table
+        items={allRuns}
+        columns={columns}
+        getRowId={(row) => row.id}
+        selectionBehavior="single-select"
+        onRowClick={(row) => {
+          if (!getNonClickableReason(row, tReason) && row.session_id) {
+            router.push(buildSessionPath(row.session_id));
+          }
+        }}
+      />
+      {loadMoreCursor && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="default"
+            prominence="secondary"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+          >
+            {loadingMore ? t("loadMore.loadingButton") : t("loadMore.button")}
+          </Button>
+        </div>
+      )}
+    </Section>
+  );
+}

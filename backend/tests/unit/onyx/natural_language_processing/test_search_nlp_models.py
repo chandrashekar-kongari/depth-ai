@@ -1,0 +1,955 @@
+import json
+from collections.abc import AsyncGenerator, Iterator
+from threading import Lock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
+import openai
+import pytest
+import requests
+from google.auth.credentials import Credentials
+from httpx import AsyncClient
+from litellm.exceptions import RateLimitError
+from tenacity import wait_none
+
+from onyx.llm.constants import LlmProviderNames
+from onyx.natural_language_processing.embedding_auth import build_embedding_auth
+from onyx.natural_language_processing.embedding_rate_limit import EmbeddingRateLimiter
+from onyx.natural_language_processing.search_nlp_models import (
+    CloudEmbedding,
+    EmbeddingModel,
+    EmbeddingRequestPolicy,
+    EmbeddingRetryBackoff,
+    cohere_rerank_aws,
+)
+from onyx.natural_language_processing.vertex_auth import VertexEmbeddingConfig
+from shared_configs.enums import EmbeddingProvider, EmbedTextType
+from shared_configs.model_server_models import EmbedRequest, EmbedResponse
+from shared_configs.utils import clean_model_name
+
+
+@pytest.fixture
+async def mock_http_client() -> AsyncGenerator[AsyncMock, None]:
+    with patch("httpx.AsyncClient") as mock:
+        client = AsyncMock(spec=AsyncClient)
+        mock.return_value = client
+        client.post = AsyncMock()
+        async with client as c:
+            yield c
+
+
+@pytest.fixture
+def sample_embeddings() -> list[list[float]]:
+    return [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+
+
+def test_clean_model_name_lowercases_names_for_opensearch_index() -> None:
+    cleaned_model_name = clean_model_name("Qwen3-VL-Embedding-8B")
+
+    assert cleaned_model_name == "qwen3_vl_embedding_8b"
+    assert (
+        f"danswer_chunk_{cleaned_model_name}" == "danswer_chunk_qwen3_vl_embedding_8b"
+    )
+
+
+@pytest.mark.asyncio
+async def test_cloud_embedding_context_manager() -> None:
+    async with CloudEmbedding("fake-key", EmbeddingProvider.OPENAI) as embedding:
+        assert not embedding._closed
+    assert embedding._closed
+
+
+@pytest.mark.asyncio
+async def test_cloud_embedding_explicit_close() -> None:
+    embedding = CloudEmbedding("fake-key", EmbeddingProvider.OPENAI)
+    assert not embedding._closed
+    await embedding.aclose()
+    assert embedding._closed
+
+
+@pytest.mark.asyncio
+async def test_openai_embedding(
+    mock_http_client: AsyncMock,  # noqa: ARG001
+    sample_embeddings: list[list[float]],
+) -> None:
+    with patch("openai.AsyncOpenAI") as mock_openai:
+        mock_client = AsyncMock()
+        mock_openai.return_value = mock_client
+
+        mock_response = MagicMock()
+        mock_response.data = [MagicMock(embedding=emb) for emb in sample_embeddings]
+        mock_client.embeddings.create = AsyncMock(return_value=mock_response)
+
+        embedding = CloudEmbedding("fake-key", EmbeddingProvider.OPENAI)
+        result = await embedding._embed_openai(
+            ["test1", "test2"], "text-embedding-ada-002", None
+        )
+
+        assert result == sample_embeddings
+        mock_client.embeddings.create.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("reduced_dimension", "expected_dimensions"),
+    [(1024, 1024), (None, openai.omit)],
+)
+async def test_openai_compatible_embedding_sends_base_url_and_dimensions(
+    reduced_dimension: int | None, expected_dimensions: object
+) -> None:
+    created = MagicMock()
+    created.data = [MagicMock(embedding=[0.1, 0.2])]
+    client = MagicMock()
+    client.embeddings.create = AsyncMock(return_value=created)
+
+    with patch.object(openai, "AsyncOpenAI", return_value=client) as make_client:
+        async with CloudEmbedding(
+            "fake-key",
+            EmbeddingProvider.OPENAI_COMPATIBLE,
+            api_url="https://embed.example.com/v1",
+        ) as embedding:
+            result = await embedding.embed(
+                texts=["a"],
+                text_type=EmbedTextType.PASSAGE,
+                model_name="qwen3-embedding-8b",
+                reduced_dimension=reduced_dimension,
+            )
+
+    assert result == [[0.1, 0.2]]
+    assert make_client.call_args.kwargs["base_url"] == "https://embed.example.com/v1"
+    assert client.embeddings.create.call_args.kwargs["model"] == "qwen3-embedding-8b"
+    assert (
+        client.embeddings.create.call_args.kwargs["dimensions"] is expected_dimensions
+    )
+
+
+def _build_google_embed_response(
+    embeddings: list[list[float]],
+) -> MagicMock:
+    response = MagicMock()
+    response.embeddings = [MagicMock(values=embedding) for embedding in embeddings]
+    return response
+
+
+@pytest.mark.asyncio
+async def test_vertex_workload_identity_embeds_each_gemini_2_input_separately() -> None:
+    client = MagicMock()
+    client.aio.models.embed_content = AsyncMock(
+        side_effect=[
+            _build_google_embed_response([[0.1, 0.2]]),
+            _build_google_embed_response([[0.3, 0.4]]),
+        ]
+    )
+    client.aio.aclose = AsyncMock()
+    with (
+        patch(
+            "google.auth.default",
+            return_value=(MagicMock(spec=Credentials), "cluster-project"),
+        ),
+        patch("google.genai.Client", return_value=client) as genai,
+        patch("onyx.natural_language_processing.search_nlp_models.get_tokenizer"),
+    ):
+        model = EmbeddingModel(
+            server_host="localhost",
+            server_port=9000,
+            model_name="gemini-embedding-2",
+            normalize=False,
+            query_prefix=None,
+            passage_prefix=None,
+            api_key=None,
+            api_url=None,
+            provider_type=EmbeddingProvider.GOOGLE,
+            auth=build_embedding_auth(
+                EmbeddingProvider.GOOGLE,
+                None,
+                VertexEmbeddingConfig(
+                    auth_method="workload_identity",
+                    project_id="target-project",
+                    location="global",
+                ),
+            ),
+        )
+        response = await model._make_direct_api_call(
+            EmbedRequest(
+                model_name="gemini-embedding-2",
+                texts=["first", "second"],
+                text_type=EmbedTextType.PASSAGE,
+                max_context_length=512,
+                normalize_embeddings=False,
+            )
+        )
+    assert response.embeddings == [[0.1, 0.2], [0.3, 0.4]]
+    assert genai.call_args.kwargs["project"] == "target-project"
+    assert client.aio.models.embed_content.await_count == 2
+    assert all(
+        len(call.kwargs["contents"]) == 1
+        for call in client.aio.models.embed_content.await_args_list
+    )
+    client.aio.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_vertex_embed_keeps_task_type_for_existing_models(
+    sample_embeddings: list[list[float]],
+) -> None:
+    """Existing Vertex models continue to receive task_type and unmodified text."""
+    with patch(
+        "google.oauth2.service_account.Credentials.from_service_account_info",
+    ) as mock_credentials:
+        mock_credentials.return_value = MagicMock(spec=Credentials)
+
+        with patch("google.genai.Client") as mock_genai_client:
+            mock_client = MagicMock()
+            mock_client.aio.models.embed_content = AsyncMock(
+                return_value=_build_google_embed_response(sample_embeddings[:1])
+            )
+            mock_client.aio.aclose = AsyncMock()
+            mock_genai_client.return_value = mock_client
+
+            embedding = CloudEmbedding(
+                '{"project_id":"test-project"}',
+                EmbeddingProvider.GOOGLE,
+            )
+            try:
+                result = await embedding._embed_vertex(
+                    ["query text"],
+                    "text-embedding-005",
+                    "RETRIEVAL_QUERY",
+                    128,
+                )
+            finally:
+                await embedding.aclose()
+
+            assert result == sample_embeddings[:1]
+
+            embed_call = mock_client.aio.models.embed_content.await_args
+            assert embed_call is not None
+            config = embed_call.kwargs["config"]
+            contents = embed_call.kwargs["contents"]
+
+            assert config.task_type == "RETRIEVAL_QUERY"
+            assert config.output_dimensionality == 128
+            assert config.auto_truncate is True
+            assert contents[0].parts[0].text == "query text"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model_name",
+    ["gemini-embedding-2", "gemini-embedding-2-preview"],
+)
+@pytest.mark.parametrize(
+    ("embedding_type", "expected_text"),
+    [
+        ("RETRIEVAL_QUERY", "task: search result | query: hello world"),
+        ("RETRIEVAL_DOCUMENT", "title: none | text: hello world"),
+    ],
+)
+async def test_vertex_embed_uses_instruction_prefix_for_gemini_embedding_2(
+    model_name: str,
+    embedding_type: str,
+    expected_text: str,
+    sample_embeddings: list[list[float]],
+) -> None:
+    """gemini-embedding-2 omits task_type and prefixes the text per Google's docs."""
+    with patch(
+        "google.oauth2.service_account.Credentials.from_service_account_info",
+    ) as mock_credentials:
+        mock_credentials.return_value = MagicMock(spec=Credentials)
+
+        with patch("google.genai.Client") as mock_genai_client:
+            mock_client = MagicMock()
+            mock_client.aio.models.embed_content = AsyncMock(
+                return_value=_build_google_embed_response(sample_embeddings[:1])
+            )
+            mock_client.aio.aclose = AsyncMock()
+            mock_genai_client.return_value = mock_client
+
+            embedding = CloudEmbedding(
+                '{"project_id":"test-project"}',
+                EmbeddingProvider.GOOGLE,
+            )
+            try:
+                result = await embedding._embed_vertex(
+                    ["hello world"],
+                    model_name,
+                    embedding_type,
+                    None,
+                )
+            finally:
+                await embedding.aclose()
+
+            assert result == sample_embeddings[:1]
+
+            embed_call = mock_client.aio.models.embed_content.await_args
+            assert embed_call is not None
+            config = embed_call.kwargs["config"]
+            contents = embed_call.kwargs["contents"]
+
+            assert config.task_type is None
+            assert contents[0].parts[0].text == expected_text
+
+
+@pytest.mark.asyncio
+async def test_cohere_embed_supports_v3_response_format(
+    sample_embeddings: list[list[float]],
+) -> None:
+    """v3 models hand back ``response.embeddings`` as a flat ``list[list[float]]``."""
+    with patch(
+        "onyx.natural_language_processing.search_nlp_models.CohereAsyncClient"
+    ) as mock_cohere:
+        mock_client = AsyncMock()
+        mock_cohere.return_value = mock_client
+
+        mock_response = MagicMock()
+        mock_response.embeddings = sample_embeddings
+        mock_client.embed = AsyncMock(return_value=mock_response)
+
+        embedding = CloudEmbedding("fake-key", EmbeddingProvider.COHERE)
+        try:
+            result = await embedding._embed_cohere(
+                ["test1", "test2"],
+                "embed-english-v3.0",
+                "search_document",
+            )
+        finally:
+            await embedding.aclose()
+
+        assert result == sample_embeddings
+
+
+@pytest.mark.asyncio
+async def test_cohere_embed_supports_v4_response_format(
+    sample_embeddings: list[list[float]],
+) -> None:
+    """v4 models hand back ``response.embeddings`` as an EmbedByTypeResponseEmbeddings
+    object with the float bucket on ``.float_``."""
+    with patch(
+        "onyx.natural_language_processing.search_nlp_models.CohereAsyncClient"
+    ) as mock_cohere:
+        mock_client = AsyncMock()
+        mock_cohere.return_value = mock_client
+
+        embeddings_by_type = MagicMock()
+        embeddings_by_type.float_ = sample_embeddings
+
+        mock_response = MagicMock()
+        mock_response.embeddings = embeddings_by_type
+        mock_client.embed = AsyncMock(return_value=mock_response)
+
+        embedding = CloudEmbedding("fake-key", EmbeddingProvider.COHERE)
+        try:
+            result = await embedding._embed_cohere(
+                ["test1", "test2"],
+                "embed-v4.0",
+                "search_document",
+            )
+        finally:
+            await embedding.aclose()
+
+        assert result == sample_embeddings
+
+
+@pytest.mark.asyncio
+async def test_voyage_embed_splits_requests_under_per_request_token_cap() -> None:
+    """voyage-4-large accepts at most 120k tokens per request, so a full API
+    batch (512 chunks of up to 512 tokens) must go out as several requests."""
+    texts = [f"text-{i}" for i in range(300)]
+
+    async def fake_embed(texts: list[str], **_: Any) -> MagicMock:
+        response = MagicMock()
+        response.embeddings = [[float(t.split("-")[1])] for t in texts]
+        return response
+
+    with patch(
+        "onyx.natural_language_processing.search_nlp_models.voyageai.AsyncClient"
+    ) as mock_voyage:
+        mock_client = MagicMock()
+        mock_client.embed = AsyncMock(side_effect=fake_embed)
+        mock_voyage.return_value = mock_client
+
+        embedding = CloudEmbedding("fake-key", EmbeddingProvider.VOYAGE)
+        try:
+            result = await embedding._embed_voyage(texts, "voyage-4-large", "document")
+        finally:
+            await embedding.aclose()
+
+    batch_sizes = [len(c.kwargs["texts"]) for c in mock_client.embed.call_args_list]
+    assert batch_sizes == [128, 128, 44]
+    assert result == [[float(i)] for i in range(300)]
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_handling() -> None:
+    with patch(
+        "onyx.natural_language_processing.search_nlp_models.CloudEmbedding.embed"
+    ) as mock_embed:
+        mock_embed.side_effect = RateLimitError(
+            "Rate limit exceeded",
+            llm_provider=LlmProviderNames.OPENAI,
+            model="fake-model",
+        )
+
+        embedding = CloudEmbedding("fake-key", EmbeddingProvider.OPENAI)
+
+        with pytest.raises(RateLimitError):
+            await embedding.embed(
+                texts=["test"],
+                model_name="fake-model",
+                text_type=EmbedTextType.QUERY,
+            )
+
+
+@pytest.mark.asyncio
+async def test_cloud_embedding_retries_on_transient_failure() -> None:
+    """
+    The @retry decorator on CloudEmbedding.embed should re-invoke the provider
+    after a transient failure. We simulate a failure on the first attempt and
+    a success on the second, and assert embed() returns the successful result.
+    """
+    call_count = 0
+
+    async def flaky_embed_openai(
+        self: CloudEmbedding,  # noqa: ARG001
+        texts: list[str],
+        model: str | None,  # noqa: ARG001
+        reduced_dimension: int | None,  # noqa: ARG001
+    ) -> list[list[float]]:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("simulated transient failure on attempt 1")
+        return [[0.1, 0.2, 0.3] for _ in texts]
+
+    with (
+        patch.object(EmbeddingRetryBackoff, "wait", lambda _self: wait_none()),
+        patch.object(
+            CloudEmbedding,
+            CloudEmbedding._embed_openai.__name__,
+            new=flaky_embed_openai,
+        ),
+    ):
+        async with CloudEmbedding("fake-key", EmbeddingProvider.OPENAI) as embedding:
+            result = await embedding.embed(
+                texts=["test"],
+                text_type=EmbedTextType.PASSAGE,
+            )
+
+    assert call_count == 2, (
+        f"expected @retry to re-invoke the provider after a transient failure, "
+        f"but the provider was called {call_count} time(s)"
+    )
+    assert result == [[0.1, 0.2, 0.3]]
+
+
+@pytest.mark.asyncio
+async def test_cloud_embedding_retries_on_vertex_429() -> None:
+    """
+    Reproduces the exact Vertex 429 RESOURCE_EXHAUSTED error path (a
+    google.genai.errors.ClientError that is neither httpx.HTTPStatusError nor
+    openai.AuthenticationError) and asserts embed() retries after such a
+    failure. This is the production failure mode driving these retries.
+    """
+    from google.genai.errors import ClientError
+
+    vertex_429_message = (
+        "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, "
+        "'message': 'Resource exhausted. Please try again later. Please refer "
+        "to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 "
+        "for more details.', 'status': 'RESOURCE_EXHAUSTED'}}"
+    )
+
+    call_count = 0
+
+    async def flaky_embed_vertex(
+        self: CloudEmbedding,  # noqa: ARG001
+        texts: list[str],
+        model: str | None,  # noqa: ARG001
+        embedding_type: str,  # noqa: ARG001
+        reduced_dimension: int | None,  # noqa: ARG001
+    ) -> list[list[float]]:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # google.genai.errors.ClientError requires (code, response_json, response)
+            raise ClientError(429, {"message": vertex_429_message})
+        return [[0.1, 0.2, 0.3] for _ in texts]
+
+    with (
+        patch.object(EmbeddingRetryBackoff, "wait", lambda _self: wait_none()),
+        patch.object(
+            CloudEmbedding,
+            CloudEmbedding._embed_vertex.__name__,
+            new=flaky_embed_vertex,
+        ),
+    ):
+        async with CloudEmbedding(
+            '{"project_id": "fake", "type": "service_account"}',
+            EmbeddingProvider.GOOGLE,
+        ) as embedding:
+            result = await embedding.embed(
+                texts=["test"],
+                text_type=EmbedTextType.PASSAGE,
+            )
+
+    assert call_count == 2, (
+        f"expected @retry to re-invoke after a Vertex 429, "
+        f"but the provider was called {call_count} time(s)"
+    )
+    assert result == [[0.1, 0.2, 0.3]]
+
+
+# ------------------------------------------------------------------------------
+# _batch_encode_texts tests
+#
+# Tests correct ordering of the embedding results, and that sync and async
+# caller contexts both work.
+# ------------------------------------------------------------------------------
+
+_SEARCH_NLP_MODULE = "onyx.natural_language_processing.search_nlp_models"
+
+
+def _text_for_idx(i: int) -> str:
+    return f"text_{i}"
+
+
+def _embedding_for_idx(i: int) -> list[float]:
+    return [float(i)]
+
+
+def _embedding_for_text(text: str) -> list[float]:
+    return _embedding_for_idx(int(text.split("_")[1]))
+
+
+@pytest.fixture(autouse=True)
+def _no_embedding_rate_limit() -> Iterator[None]:
+    with patch(f"{_SEARCH_NLP_MODULE}.load_embedding_rate_limiter", return_value=None):
+        yield
+
+
+def _fake_direct_api_call(
+    embed_request: EmbedRequest,
+    *_retry_config: object,
+) -> EmbedResponse:
+    return EmbedResponse(
+        embeddings=[_embedding_for_text(t) for t in embed_request.texts]
+    )
+
+
+def _fake_model_server_call(
+    embed_request: EmbedRequest,
+    tenant_id: str | None = None,  # noqa: ARG001
+    request_id: str | None = None,  # noqa: ARG001
+    policy: EmbeddingRequestPolicy | None = None,  # noqa: ARG001
+) -> EmbedResponse:
+    return EmbedResponse(
+        embeddings=[_embedding_for_text(t) for t in embed_request.texts]
+    )
+
+
+def _make_cloud_embedding_model() -> EmbeddingModel:
+    with patch(f"{_SEARCH_NLP_MODULE}.get_tokenizer", return_value=MagicMock()):
+        return EmbeddingModel(
+            server_host="localhost",
+            server_port=9000,
+            model_name="text-embedding-3-small",
+            normalize=True,
+            query_prefix=None,
+            passage_prefix=None,
+            api_key="fake-key",
+            api_url=None,
+            provider_type=EmbeddingProvider.OPENAI,
+        )
+
+
+def _make_local_embedding_model() -> EmbeddingModel:
+    with patch(f"{_SEARCH_NLP_MODULE}.get_tokenizer", return_value=MagicMock()):
+        return EmbeddingModel(
+            server_host="localhost",
+            server_port=9000,
+            model_name="nomic-ai/nomic-embed-text-v1",
+            normalize=True,
+            query_prefix=None,
+            passage_prefix=None,
+            api_key=None,
+            api_url=None,
+            provider_type=None,
+        )
+
+
+def test_batch_encode_multi_batch_partial_last() -> None:
+    """
+    Tests that the multi-threaded path with non-uniform batches preserves
+    expected ordering and cardinality of embeddings given an input.
+    """
+    # Precondition.
+    model = _make_cloud_embedding_model()
+    n_texts = 13  # 3 batches of 4 + 1 partial batch of 1.
+    texts = [_text_for_idx(i) for i in range(n_texts)]
+
+    # Under test.
+    with patch.object(
+        EmbeddingModel,
+        "_make_direct_api_call",
+        new=AsyncMock(side_effect=_fake_direct_api_call),
+    ):
+        result = model.encode(
+            texts=texts,
+            text_type=EmbedTextType.PASSAGE,  # Arbitrary.
+            api_embedding_batch_size=4,
+        )
+
+    # Postcondition.
+    assert result == [_embedding_for_idx(i) for i in range(n_texts)]
+
+
+def test_batch_encode_multi_batch_uniform() -> None:
+    """
+    Tests that the multi-threaded path with uniform batches preserves expected
+    ordering and cardinality of embeddings given an input.
+    """
+    # Precondition.
+    model = _make_cloud_embedding_model()
+    n_texts = 16  # 4 batches of 4.
+    texts = [_text_for_idx(i) for i in range(n_texts)]
+
+    # Under test.
+    with patch.object(
+        EmbeddingModel,
+        "_make_direct_api_call",
+        new=AsyncMock(side_effect=_fake_direct_api_call),
+    ):
+        result = model.encode(
+            texts=texts,
+            text_type=EmbedTextType.PASSAGE,  # Arbitrary.
+            api_embedding_batch_size=4,
+        )
+
+    # Postcondition.
+    assert result == [_embedding_for_idx(i) for i in range(n_texts)]
+
+
+def test_batch_encode_single_batch_sequential() -> None:
+    """
+    Tests that the sequential path with a single batch preserves expected
+    ordering and cardinality of embeddings given an input.
+    """
+    # Precondition.
+    model = _make_cloud_embedding_model()
+    n_texts = 3  # Less than the batch size.
+    texts = [_text_for_idx(i) for i in range(n_texts)]
+
+    # Under test.
+    with patch.object(
+        EmbeddingModel,
+        "_make_direct_api_call",
+        new=AsyncMock(side_effect=_fake_direct_api_call),
+    ):
+        result = model.encode(
+            texts=texts,
+            text_type=EmbedTextType.PASSAGE,  # Arbitrary.
+            api_embedding_batch_size=4,
+        )
+
+    # Postcondition.
+    assert result == [_embedding_for_idx(i) for i in range(n_texts)]
+
+
+def test_batch_encode_local_model_sequential() -> None:
+    """
+    Tests that the sequential path with a local model preserves expected
+    ordering and cardinality of embeddings given an input.
+    """
+    # Precondition.
+    model = _make_local_embedding_model()
+    n_texts = 10  # 2 batches of 4 + 1 partial batch of 2.
+    texts = [_text_for_idx(i) for i in range(n_texts)]
+
+    # Under test.
+    with patch.object(
+        EmbeddingModel,
+        "_make_model_server_request",
+        side_effect=_fake_model_server_call,
+    ):
+        result = model.encode(
+            texts=texts,
+            text_type=EmbedTextType.PASSAGE,  # Arbitrary.
+            local_embedding_batch_size=4,
+        )
+
+    # Postcondition.
+    assert result == [_embedding_for_idx(i) for i in range(n_texts)]
+
+
+def test_batch_encode_error_propagates() -> None:
+    """
+    Tests that a failing batch propagates its exception out of encode().
+    """
+    # Precondition.
+    model = _make_cloud_embedding_model()
+    texts = [_text_for_idx(i) for i in range(8)]
+
+    call_count = {"n": 0}
+    call_count_lock = Lock()
+
+    def _fail_on_second_call(
+        embed_request: EmbedRequest, *_retry_config: object
+    ) -> EmbedResponse:
+        with call_count_lock:
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                raise RuntimeError("simulated provider failure")
+        return _fake_direct_api_call(embed_request)
+
+    # Under test and postcondition.
+    with patch.object(
+        EmbeddingModel,
+        "_make_direct_api_call",
+        new=AsyncMock(side_effect=_fail_on_second_call),
+    ):
+        with pytest.raises(RuntimeError, match="simulated provider failure"):
+            model.encode(
+                texts=texts,
+                text_type=EmbedTextType.PASSAGE,  # Arbitrary.
+                api_embedding_batch_size=2,
+            )
+
+
+def test_batch_encode_sync_caller_uses_thread_local_loop() -> None:
+    """
+    Tests that a sync call uses the thread-local event loop and does not call
+    asyncio.run.
+    """
+    # Precondition.
+    model = _make_cloud_embedding_model()
+    texts = [_text_for_idx(i) for i in range(4)]
+
+    # Under test.
+    with (
+        patch.object(
+            EmbeddingModel,
+            "_make_direct_api_call",
+            new=AsyncMock(side_effect=_fake_direct_api_call),
+        ),
+        patch(f"{_SEARCH_NLP_MODULE}.asyncio.run") as mock_asyncio_run,
+    ):
+        result = model.encode(
+            texts=texts,
+            text_type=EmbedTextType.PASSAGE,  # Arbitrary.
+            api_embedding_batch_size=4,
+        )
+
+    # Postcondition.
+    assert result == [_embedding_for_idx(i) for i in range(4)]
+    assert mock_asyncio_run.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_batch_encode_async_caller_single_batch_no_deadlock() -> None:
+    """
+    Tests that an async call using the sequential path calls asyncio.run exactly
+    once, and that this call succeeds. In this path the caller is in an event
+    loop, so calling asyncio.run would raise as a thread running an event loop
+    cannot wait on itself. Calling asyncio.run in a thread with no event loop is
+    safe.
+    """
+    # Precondition.
+    model = _make_cloud_embedding_model()
+    n_texts = 4  # 1 batch of 4.
+    texts = [_text_for_idx(i) for i in range(n_texts)]
+
+    # Under test.
+    with (
+        patch.object(
+            EmbeddingModel,
+            "_make_direct_api_call",
+            new=AsyncMock(side_effect=_fake_direct_api_call),
+        ),
+        patch(
+            f"{_SEARCH_NLP_MODULE}.asyncio.run",
+            wraps=__import__("asyncio").run,
+        ) as spy_asyncio_run,
+    ):
+        result = model.encode(
+            texts=texts,
+            text_type=EmbedTextType.PASSAGE,  # Arbitrary.
+            api_embedding_batch_size=4,
+        )
+
+    # Postcondition.
+    assert result == [_embedding_for_idx(i) for i in range(n_texts)]
+    assert spy_asyncio_run.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_batch_encode_async_caller_multi_batch() -> None:
+    """
+    Tests that an async call using the multi-threaded path does not call
+    asyncio.run, and that the encode call succeeds. In this path the caller is
+    in an event loop, but the batches are processed in separate threads which do
+    not have running event loops, so we do not expect to call asyncio.run.
+    """
+    # Precondition.
+    model = _make_cloud_embedding_model()
+    n_texts = 13  # 3 batches of 4 + 1 partial batch of 1.
+    texts = [_text_for_idx(i) for i in range(n_texts)]
+
+    # Under test.
+    with (
+        patch.object(
+            EmbeddingModel,
+            "_make_direct_api_call",
+            new=AsyncMock(side_effect=_fake_direct_api_call),
+        ),
+        patch(
+            f"{_SEARCH_NLP_MODULE}.asyncio.run",
+            wraps=__import__("asyncio").run,
+        ) as spy_asyncio_run,
+    ):
+        result = model.encode(
+            texts=texts,
+            text_type=EmbedTextType.PASSAGE,  # Arbitrary.
+            api_embedding_batch_size=4,
+        )
+
+    # Postcondition.
+    assert result == [_embedding_for_idx(i) for i in range(n_texts)]
+    assert spy_asyncio_run.call_count == 0
+
+
+def test_passage_model_server_requests_wait_for_the_rate_limit() -> None:
+    """Every passage request to the model server, retries included, takes a
+    slot from the rate limiter and passes it the stop check."""
+    callback = MagicMock()
+    callback.should_stop.return_value = False
+    model = _make_local_embedding_model()
+    model.callback = callback
+    limiter = MagicMock(spec=EmbeddingRateLimiter)
+    limiter.acquire.return_value = 0.0
+
+    rate_limited = MagicMock(status_code=429, text="slow down")
+    ok = MagicMock(status_code=200)
+    ok.json.return_value = {"embeddings": [[1.0]]}
+
+    with (
+        patch(
+            f"{_SEARCH_NLP_MODULE}.load_embedding_rate_limiter", return_value=limiter
+        ),
+        patch(f"{_SEARCH_NLP_MODULE}.wait_sleeps", return_value=iter([0.0])),
+        patch(
+            f"{_SEARCH_NLP_MODULE}.requests.post", side_effect=[rate_limited, ok]
+        ) as post,
+    ):
+        result = model.encode(texts=["text_0"], text_type=EmbedTextType.PASSAGE)
+
+    assert result == [[1.0]]
+    assert post.call_count == 2
+    assert limiter.acquire.call_count == 2
+    assert limiter.acquire.call_args.args[0] is callback.should_stop
+
+
+def test_query_embeddings_never_wait_for_the_rate_limit() -> None:
+    model = _make_local_embedding_model()
+    ok = MagicMock(status_code=200)
+    ok.json.return_value = {"embeddings": [[1.0]]}
+
+    with (
+        patch(f"{_SEARCH_NLP_MODULE}.load_embedding_rate_limiter") as load_limiter,
+        patch(f"{_SEARCH_NLP_MODULE}.requests.post", return_value=ok),
+    ):
+        model.encode(texts=["text_0"], text_type=EmbedTextType.QUERY)
+
+    load_limiter.assert_not_called()
+
+
+def test_model_server_error_detail_reaches_the_caller() -> None:
+    model = _make_local_embedding_model()
+    failed = MagicMock(status_code=500)
+    failed.raise_for_status.side_effect = requests.HTTPError("500", response=failed)
+    failed.json.return_value = {"detail": "model is not in the cache"}
+
+    with (
+        patch(f"{_SEARCH_NLP_MODULE}.requests.post", return_value=failed),
+        pytest.raises(httpx.HTTPError, match="model is not in the cache"),
+    ):
+        model.encode(texts=["text_0"], text_type=EmbedTextType.QUERY)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("block_on_provider_rate_limit", "expected_retries"),
+    [(True, 0), (False, 2)],
+)
+async def test_openai_sdk_retries_are_off_when_the_policy_counts_requests(
+    block_on_provider_rate_limit: bool, expected_retries: int
+) -> None:
+    """SDK retries would send requests that take no rate limit slot."""
+    policy = EmbeddingRequestPolicy(
+        retry_backoff=EmbeddingRetryBackoff(scale_seconds=0, max_seconds=0),
+        retry_tries=1,
+        block_on_provider_rate_limit=block_on_provider_rate_limit,
+    )
+    created = MagicMock()
+    created.data = [MagicMock(embedding=[0.1])]
+    client = MagicMock()
+    client.embeddings.create = AsyncMock(return_value=created)
+
+    with patch.object(openai, "AsyncOpenAI", return_value=client) as make_client:
+        async with CloudEmbedding(
+            "fake-key", EmbeddingProvider.OPENAI, policy=policy
+        ) as embedding:
+            await embedding._embed_openai(["a"], "text-embedding-3-small", None)
+
+    assert make_client.call_args.kwargs["max_retries"] == expected_retries
+
+
+@pytest.mark.asyncio
+async def test_cohere_rerank_aws_scores_follow_document_order() -> None:
+    body = MagicMock()
+    body.read = AsyncMock(
+        return_value=json.dumps(
+            {
+                "results": [
+                    {"index": 1, "relevance_score": 0.2},
+                    {"index": 0, "relevance_score": 0.9},
+                ]
+            }
+        ).encode()
+    )
+    bedrock_client = MagicMock()
+    bedrock_client.invoke_model = AsyncMock(return_value={"body": body})
+    client_context = MagicMock()
+    client_context.__aenter__ = AsyncMock(return_value=bedrock_client)
+    client_context.__aexit__ = AsyncMock(return_value=None)
+    session = MagicMock()
+    session.create_client.return_value = client_context
+
+    with patch(
+        "onyx.natural_language_processing.search_nlp_models.get_session",
+        return_value=session,
+    ):
+        scores = await cohere_rerank_aws(
+            query="q",
+            docs=["first", "second"],
+            model_name="cohere.rerank-v3-5:0",
+            region_name="us-east-1",
+            aws_access_key_id="key-id",
+            aws_secret_access_key="secret",
+        )
+
+    assert scores == [0.9, 0.2]
+    session.create_client.assert_called_once_with(
+        "bedrock-runtime",
+        region_name="us-east-1",
+        aws_access_key_id="key-id",
+        aws_secret_access_key="secret",
+    )
+    request = bedrock_client.invoke_model.call_args.kwargs
+    assert request["modelId"] == "cohere.rerank-v3-5:0"
+    assert json.loads(request["body"]) == {
+        "query": "q",
+        "documents": ["first", "second"],
+        "api_version": 2,
+    }
+    client_context.__aexit__.assert_awaited_once()

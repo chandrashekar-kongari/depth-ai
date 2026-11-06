@@ -1,0 +1,138 @@
+{{/*
+Pre-pulls the sandbox image onto every node in the sandbox pool so a user's
+first sandbox there doesn't pay the pull (~30s cold, inside the provisioning
+timeout). Each constraint below fails silently if broken: the DaemonSet goes
+Ready while sandboxes still cold-pull. Render tests in
+backend/tests/external_dependency_unit/craft_helm/test_sandbox_image_prepuller.py
+cover them.
+
+- A DaemonSet, not a Job: kubelet image GC spares only images that a running
+  pod uses, and a DaemonSet also covers nodes that join later.
+- Image ref AND pull policy come from the same helpers as the sandbox
+  PodTemplate. A drifted tag or policy pins a digest that sandboxes do not use.
+- Scheduling mirrors sandboxPod (nodeSelector + tolerations).
+- Pull credentials come only from the sandbox ServiceAccount, like the
+  PodTemplate. Chart-level imagePullSecrets live in the release namespace and
+  do not resolve here.
+- A portable idle loop, not `sleep infinity` (GNU-only). A crashlooping
+  prepuller unpins the image.
+- Labelled component=sandbox-image-prepuller, not sandbox, so the sandbox
+  NetworkPolicies do not select it. It gets its own deny-all policy instead.
+- NAMESPACED objects only, and no PriorityClass. PriorityClass.value is
+  immutable and `helm upgrade` patches, so a changed value failed every
+  upgrade. Preempting a 10m/32Mi pod also frees nothing a sandbox needs.
+  Operators can set sandboxImagePrepull.priorityClassName to their own class.
+
+Pin global.version to an immutable tag: with a mutable tag the DaemonSet spec
+does not change on a repoint, so nodes keep the first digest they pulled.
+Node autoscale-up is not covered: the new node and the sandbox pull at the
+same time.
+*/}}
+{{- $prepull := .Values.sandboxImagePrepull | default dict }}
+{{- $res := $prepull.resources | default dict }}
+{{- $cpu := $res.cpu | default "10m" }}
+{{- $mem := $res.memory | default "32Mi" }}
+{{- $eph := $res.ephemeralStorage | default "64Mi" }}
+{{- $maxUnavailable := $prepull.updateMaxUnavailable | default "25%" }}
+{{- if and (eq (include "onyx.craftEnabled" .) "true") $prepull.enabled }}
+{{- $cm := .Values.configMap }}
+{{- $sandboxNs := $cm.SANDBOX_NAMESPACE | default "onyx-sandboxes" }}
+{{- $saName := (index $cm "SANDBOX_SERVICE_ACCOUNT_NAME") | default "sandbox" }}
+{{- $image := include "onyx.sandboxImage" . }}
+{{- $pullPolicy := include "onyx.sandboxImagePullPolicy" . }}
+{{- $sandboxPod := .Values.sandboxPod | default dict }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "onyx.resourceName" (list . "sandbox-image-prepuller") }}
+  namespace: {{ $sandboxNs }}
+  labels:
+    {{- include "onyx.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandbox-image-prepuller
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ $maxUnavailable | quote }}
+  selector:
+    matchLabels:
+      {{- include "onyx.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sandbox-image-prepuller
+  template:
+    metadata:
+      labels:
+        {{- include "onyx.selectorLabels" . | nindent 8 }}
+        {{- /* Not `component: sandbox` — that label is the selector for the
+        sandbox NetworkPolicies, and this pod is not a sandbox. */}}
+        app.kubernetes.io/component: sandbox-image-prepuller
+        admission.datadoghq.com/enabled: "false"
+    spec:
+      {{- /* Same placement as the sandbox pods, or the wrong nodes get warmed. */}}
+      {{- with $sandboxPod.runtimeClassName }}
+      runtimeClassName: {{ . | quote }}
+      {{- end }}
+      nodeSelector:
+        {{- (index $sandboxPod "nodeSelector" | default (dict "onyx.app/workload" "sandbox")) | toYaml | nindent 8 }}
+      tolerations:
+        {{- (index $sandboxPod "tolerations" | default (list (dict "key" "workload" "operator" "Equal" "value" "sandbox" "effect" "NoSchedule"))) | toYaml | nindent 8 }}
+      {{- /* Opt-in only, and it must be a class that already exists: the chart
+      creates none. Unset means the cluster default priority. */}}
+      {{- with $prepull.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- /* Pull credentials come from the sandbox SA only, same as the
+      PodTemplate. `.Values.imagePullSecrets` names release-namespace secrets,
+      which don't resolve for a pod in the sandbox namespace. */}}
+      serviceAccountName: {{ $saName }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 0
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: prepuller
+          image: {{ $image }}
+          {{- /* Shared with the sandbox pods: pinning this to IfNotPresent
+          would hold a stale digest on a mutable tag. */}}
+          imagePullPolicy: {{ $pullPolicy }}
+          {{- /* Portable idle loop, not `sleep infinity` (a GNU coreutils
+          extension that dies on busybox/alpine). The pod must stay running:
+          kubelet only exempts images a running pod references from image GC. */}}
+          command: ["sh", "-c", "while :; do sleep 86400; done"]
+          resources:
+            requests:
+              cpu: {{ $cpu | quote }}
+              memory: {{ $mem | quote }}
+              ephemeral-storage: {{ $eph | quote }}
+            limits:
+              cpu: {{ $cpu | quote }}
+              memory: {{ $mem | quote }}
+              ephemeral-storage: {{ $eph | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            privileged: false
+            capabilities:
+              drop: ["ALL"]
+---
+{{- /* Not being `component: sandbox` also leaves this out of the sandbox
+default-deny, so it carries its own. The pod needs no network — the pull is the
+kubelet's. Listing a policyType with no rules is deny-all. */}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "onyx.resourceName" (list . "sandbox-image-prepuller") }}
+  namespace: {{ $sandboxNs }}
+  labels:
+    {{- include "onyx.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandbox-image-prepuller
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "onyx.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sandbox-image-prepuller
+  policyTypes: [Ingress, Egress]
+{{- end }}

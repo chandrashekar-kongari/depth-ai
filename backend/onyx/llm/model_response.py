@@ -1,0 +1,711 @@
+"""Provider responses, normalization, and application message accumulation."""
+
+import json
+from collections.abc import Generator, Iterator, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
+from uuid import uuid4
+
+from pydantic import (
+    BaseModel,
+    Field,
+    JsonValue,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+)
+
+from onyx.llm.models import (
+    AnyThinkingBlock,
+    AssistantMessage,
+    GenerationDoneEvent,
+    GenerationEvent,
+    GenerationRequest,
+    TextContent,
+    TextDeltaEvent,
+    ThinkingContent,
+    ThinkingDeltaEvent,
+    ToolCall,
+    ToolCallDeltaEvent,
+    ToolCallEndEvent,
+    ToolCallStartEvent,
+    ToolChoiceOptions,
+    ToolDefinition,
+    Usage,
+    apply_generation_event,
+)
+from onyx.llm.tool_parsing import (
+    XmlToolCallContentFilter,
+    extract_tool_calls_from_response_text,
+    looks_like_xml_tool_call_payload,
+)
+from onyx.utils.logger import setup_logger
+from onyx.utils.postgres_sanitization import sanitize_string
+
+logger = setup_logger()
+
+if TYPE_CHECKING:
+    from litellm.types.utils import ModelResponse as LiteLLMModelResponse
+    from litellm.types.utils import ModelResponseStream as LiteLLMModelResponseStream
+
+
+class ResponseFunctionCall(BaseModel):
+    """Function fields received from the provider; streaming fields may be absent."""
+
+    arguments: str | None = None
+    name: str | None = None
+
+
+class ChatCompletionMessageToolCall(BaseModel):
+    id: str
+    type: Literal["function"] = "function"
+    function: ResponseFunctionCall
+
+
+class ChatCompletionDeltaToolCall(BaseModel):
+    id: str | None = None
+    index: int = 0
+    type: Literal["function"] = "function"
+    function: ResponseFunctionCall | None = None
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, value: JsonValue) -> JsonValue:
+        # LiteLLM continuation fragments can omit the function type.
+        return "function" if value is None else value
+
+
+class Delta(BaseModel):
+    content: str | None = None
+    reasoning_content: str | None = None
+    thinking_blocks: list[AnyThinkingBlock] | None = None
+    tool_calls: list[ChatCompletionDeltaToolCall] = Field(default_factory=list)
+
+
+class StreamingChoice(BaseModel):
+    finish_reason: str | None = None
+    index: int = 0
+    delta: Delta = Field(default_factory=Delta)
+
+
+class ModelResponseStream(BaseModel):
+    id: str
+    created: str
+    choice: StreamingChoice
+    usage: Usage | None = None
+    # Model the provider reports serving the request; differs from the requested
+    # name behind routers (openrouter/auto).
+    model: str | None = None
+
+
+class Message(BaseModel):
+    content: str | None = None
+    role: Literal["assistant"] = "assistant"
+    tool_calls: list[ChatCompletionMessageToolCall] | None = None
+    reasoning_content: str | None = None
+    thinking_blocks: list[AnyThinkingBlock] | None = None
+
+
+class Choice(BaseModel):
+    finish_reason: str | None = None
+    index: int = 0
+    message: Message = Field(default_factory=Message)
+
+
+class ModelResponse(BaseModel):
+    id: str
+    created: str
+    choice: Choice
+    usage: Usage | None = None
+    model: str | None = None
+
+
+class _CachedTokens(BaseModel):
+    cached_tokens: int | None = None
+
+
+class _ProviderUsage(BaseModel):
+    completion_tokens: int | None = None
+    prompt_tokens: int | None = None
+    total_tokens: int | None = None
+    cache_creation_input_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
+    prompt_tokens_details: _CachedTokens | None = None
+
+    def to_usage(self) -> Usage:
+        cached = self.cache_read_input_tokens
+        if cached is None and self.prompt_tokens_details is not None:
+            cached = self.prompt_tokens_details.cached_tokens
+        # NOTE: sometimes the usage data dictionary has these keys and the values are None
+        # hence the "or 0" instead of just using default values
+        return Usage(
+            completion_tokens=self.completion_tokens or 0,
+            prompt_tokens=self.prompt_tokens or 0,
+            total_tokens=self.total_tokens or 0,
+            cache_creation_input_tokens=self.cache_creation_input_tokens or 0,
+            cache_read_input_tokens=cached or 0,
+        )
+
+
+class _ProviderDelta(BaseModel):
+    content: str | None = None
+    reasoning_content: str | None = None
+    thinking_blocks: list[AnyThinkingBlock] | None = None
+    tool_calls: list[ChatCompletionDeltaToolCall] | None = None
+
+    def to_delta(self) -> Delta:
+        return Delta(
+            content=self.content,
+            reasoning_content=self.reasoning_content,
+            thinking_blocks=self.thinking_blocks,
+            tool_calls=self.tool_calls or [],
+        )
+
+
+class _ProviderChoice(BaseModel):
+    finish_reason: str | None = None
+    index: int = 0
+    delta: _ProviderDelta = Field(default_factory=_ProviderDelta)
+    message: Message = Field(default_factory=Message)
+
+    @field_validator("delta", "message", mode="before")
+    @classmethod
+    def normalize_payload(cls, value: object) -> object:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            return value
+        thinking_blocks = value.get("thinking_blocks")
+        if not isinstance(thinking_blocks, list) or not thinking_blocks:
+            return value
+        # Providers can return incomplete thinking blocks.
+        blocks: list[dict[str, object]] = []
+        for block in thinking_blocks:
+            if not isinstance(block, dict):
+                logger.warning(
+                    "Dropping malformed thinking block of type %s", type(block).__name__
+                )
+                continue
+            if block.get("type") == "redacted_thinking":
+                blocks.append(
+                    {"type": "redacted_thinking", "data": block.get("data") or ""}
+                )
+            else:
+                blocks.append(
+                    {
+                        "type": "thinking",
+                        "thinking": block.get("thinking") or "",
+                        "signature": block.get("signature"),
+                    }
+                )
+        return {**value, "thinking_blocks": blocks or None}
+
+
+class _ProviderResponse(BaseModel):
+    id: str | int
+    created: str | int
+    choices: list[_ProviderChoice] = Field(default_factory=list)
+    usage: _ProviderUsage | None = None
+
+
+def served_model_from_litellm_response(response_data: dict[str, Any]) -> str | None:
+    """Model name the provider served, from a dumped LiteLLM response or chunk.
+
+    LiteLLM's stream wrapper overwrites each chunk's model with the requested
+    name; the OpenRouter chunk_parser patch keeps the served one in
+    provider_specific_fields.
+    """
+    provider_fields: dict[str, Any] = (
+        response_data.get("provider_specific_fields") or {}
+    )
+    model: Any = provider_fields.get("routed_model") or response_data.get("model")
+    return model if isinstance(model, str) and model else None
+
+
+def from_litellm_model_response_stream(
+    response: "LiteLLMModelResponseStream",
+) -> ModelResponseStream:
+    response_data = response.model_dump()
+    data = _ProviderResponse.model_validate(response_data)
+    # OpenAI (and other providers) emit a final usage-only chunk with an empty
+    # `choices` array when stream_options.include_usage is set. Treat it as an
+    # empty-delta chunk that still carries usage rather than failing the stream.
+    choice = data.choices[0] if data.choices else _ProviderChoice()
+    return ModelResponseStream(
+        id=str(data.id),
+        created=str(data.created),
+        choice=StreamingChoice(
+            finish_reason=choice.finish_reason,
+            index=choice.index,
+            delta=choice.delta.to_delta(),
+        ),
+        usage=data.usage.to_usage() if data.usage is not None else None,
+        model=served_model_from_litellm_response(response_data),
+    )
+
+
+def from_litellm_model_response(
+    response: "LiteLLMModelResponse",
+) -> ModelResponse:
+    """Collapse a response's ``choices`` into the single answer they describe.
+
+    ``choices`` normally holds one entry per requested completion, and Onyx only
+    ever requests one. litellm's OpenAI-responses bridge (non-streamed) is the
+    exception: it emits one choice per message content part, then one holding
+    every tool call. Reading ``choices[0]`` drops the tool calls, and on
+    gpt-5.4+ it can return a preamble instead of the answer.
+
+    Upstream: BerriAI/litellm#37299, open PRs #33931 and #41123 (unfixed in
+    1.102.1). Once a single choice comes back, this is a pass-through.
+
+    Merging is safe because Onyx never sets ``n``: more than one choice always
+    means a split answer, never alternative answers.
+    """
+    response_data = response.model_dump()
+    data = _ProviderResponse.model_validate(response_data)
+    if not data.choices:
+        raise ValueError("LiteLLM response must include at least one choice.")
+    choice = data.choices[0]
+    if len(data.choices) > 1:
+        # Kept as sent, repeats included. gpt-5.4+ sometimes re-sends a message
+        # item, but a choice carries no item id, so a resend cannot be told apart
+        # from text that really repeats. The streamed path keeps resends too
+        # (litellm#41117 is open), so both transports return the same text.
+        messages = [item.message for item in data.choices]
+        # The bridge appends the tool-call choice after the text ones, so the last
+        # stated finish_reason is the one describing how the answer ended.
+        finish_reasons = [
+            item.finish_reason for item in data.choices if item.finish_reason
+        ]
+        choice = _ProviderChoice(
+            index=0,
+            finish_reason=finish_reasons[-1] if finish_reasons else None,
+            message=Message(
+                role=messages[0].role,
+                content="".join(
+                    message.content for message in messages if message.content
+                )
+                or None,
+                reasoning_content="\n\n".join(
+                    message.reasoning_content
+                    for message in messages
+                    if message.reasoning_content
+                )
+                or None,
+                tool_calls=[
+                    call for message in messages for call in message.tool_calls or []
+                ]
+                or None,
+                thinking_blocks=[
+                    block
+                    for message in messages
+                    for block in message.thinking_blocks or []
+                ]
+                or None,
+            ),
+        )
+    return ModelResponse(
+        id=str(data.id),
+        created=str(data.created),
+        choice=Choice(
+            finish_reason=choice.finish_reason,
+            index=choice.index,
+            message=choice.message,
+        ),
+        usage=data.usage.to_usage() if data.usage is not None else None,
+        model=served_model_from_litellm_response(response_data),
+    )
+
+
+@runtime_checkable
+class Closable(Protocol):
+    def close(self) -> None: ...
+
+
+_ARGUMENTS = TypeAdapter(dict[str, JsonValue])
+_ENCODED_ARGUMENTS = TypeAdapter(dict[str, JsonValue] | str)
+_JSON_VALUE = TypeAdapter(JsonValue)
+
+
+def _schema_types(schema: dict[str, JsonValue]) -> set[str]:
+    declared = schema.get("type")
+    types: set[str] = set()
+    if isinstance(declared, str):
+        types.add(declared)
+    elif isinstance(declared, list):
+        types.update(value for value in declared if isinstance(value, str))
+    for keyword in ("anyOf", "oneOf"):
+        options = schema.get(keyword)
+        if isinstance(options, list):
+            for option in options:
+                if isinstance(option, dict):
+                    types.update(_schema_types(option))
+    return types
+
+
+def _normalize_arguments(
+    arguments: dict[str, JsonValue], definition: ToolDefinition | None
+) -> dict[str, JsonValue]:
+    if definition is None:
+        return arguments
+    properties = definition.parameters.get("properties")
+    if not isinstance(properties, dict):
+        return arguments
+    normalized = arguments.copy()
+    for name, value in arguments.items():
+        schema = properties.get(name)
+        if not isinstance(value, str) or not isinstance(schema, dict):
+            continue
+        accepted_types = _schema_types(schema)
+        if "string" in accepted_types or not accepted_types.intersection(
+            {"array", "object"}
+        ):
+            continue
+        # Only structured fields accept JSON strings; string fields retain literal text.
+        try:
+            decoded = _JSON_VALUE.validate_json(value)
+        except ValidationError:
+            logger.debug("Tool field %s is not encoded JSON", name, exc_info=True)
+            continue
+        if ("array" in accepted_types and isinstance(decoded, list)) or (
+            "object" in accepted_types and isinstance(decoded, dict)
+        ):
+            normalized[name] = decoded
+    return normalized
+
+
+def _finish_tool_call(
+    call: ToolCall, arguments: str, definition: ToolDefinition | None
+) -> None:
+    try:
+        decoded = _ENCODED_ARGUMENTS.validate_json(sanitize_string(arguments or "{}"))
+        if isinstance(decoded, str):
+            decoded = _ARGUMENTS.validate_json(decoded)
+        call.arguments = _normalize_arguments(decoded, definition)
+        call.arguments_complete = True
+        call.raw_arguments = None
+    except ValidationError:
+        logger.debug("Tool arguments are not a JSON object", exc_info=True)
+        call.arguments = {}
+        call.argument_error = "Tool arguments are not a valid JSON object."
+
+
+def to_assistant_message(
+    response: ModelResponse, request: GenerationRequest
+) -> AssistantMessage:
+    """Convert a complete provider response without creating stream events."""
+    source = response.choice.message
+    message = AssistantMessage(
+        stop_reason=response.choice.finish_reason,
+        usage=response.usage.model_copy() if response.usage else None,
+    )
+    if source.reasoning_content or source.thinking_blocks:
+        message.content.append(
+            ThinkingContent(
+                text=source.reasoning_content or "",
+                blocks=[block.model_copy() for block in source.thinking_blocks]
+                if source.thinking_blocks
+                else None,
+            )
+        )
+    if source.content:
+        message.content.append(TextContent(text=source.content))
+    definitions = {tool.name: tool for tool in request.tools}
+    for source_call in source.tool_calls or []:
+        if not source_call.function.name:
+            logger.warning(
+                "Discarding a tool call without a name in a completed response"
+            )
+            continue
+        arguments = source_call.function.arguments or ""
+        call = ToolCall(
+            id=source_call.id or str(uuid4()),
+            name=source_call.function.name,
+            arguments={},
+            raw_arguments=arguments,
+            arguments_complete=False,
+        )
+        _finish_tool_call(call, arguments, definitions.get(call.name))
+        message.content.append(call)
+    if request.tools:
+        message = recover_tool_calls(message, request)
+    return message
+
+
+class _PendingToolCall:
+    def __init__(self, content_index: int, call: ToolCall) -> None:
+        self.content_index = content_index
+        self.call = call
+        self.finalized = False
+
+
+class MessageAccumulator:
+    """Maintain ordered assistant content and incremental tool arguments."""
+
+    def __init__(self, tools: Sequence[ToolDefinition] = ()) -> None:
+        self.tools = {tool.name: tool for tool in tools}
+        self.message = AssistantMessage()
+        self.calls: dict[int, _PendingToolCall] = {}
+        self.active_text: int | None = None
+        self._unnamed_calls: dict[int, list[ChatCompletionDeltaToolCall]] = {}
+        self.chunk_count = 0
+
+    def _add_text(
+        self, content: TextContent | ThinkingContent
+    ) -> list[GenerationEvent]:
+        if self.active_text is None or type(
+            self.message.content[self.active_text]
+        ) is not type(content):
+            self.active_text = len(self.message.content)
+        event = (
+            ThinkingDeltaEvent(
+                content_index=self.active_text,
+                text=content.text,
+                blocks=[block.model_copy(deep=True) for block in content.blocks]
+                if content.blocks
+                else None,
+            )
+            if isinstance(content, ThinkingContent)
+            else TextDeltaEvent(content_index=self.active_text, text=content.text)
+        )
+        apply_generation_event(self.message, event)
+        return [event]
+
+    def add(self, chunk: ModelResponseStream) -> list[GenerationEvent]:
+        self.chunk_count += 1
+        delta = chunk.choice.delta
+        events: list[GenerationEvent] = []
+        if delta.reasoning_content or delta.thinking_blocks:
+            events.extend(
+                self._add_text(
+                    ThinkingContent(
+                        text=delta.reasoning_content or "", blocks=delta.thinking_blocks
+                    )
+                )
+            )
+        if delta.content:
+            events.extend(self._add_text(TextContent(text=delta.content)))
+        for call in delta.tool_calls:
+            pending = self.calls.get(call.index)
+            if pending is None and (call.function is None or not call.function.name):
+                self._unnamed_calls.setdefault(call.index, []).append(
+                    call.model_copy(deep=True)
+                )
+                continue
+            self.active_text = None
+            fragments: list[str] = []
+            if pending is None:
+                buffered = self._unnamed_calls.pop(call.index, [])
+                block = ToolCall(
+                    id=next((part.id for part in buffered if part.id), None)
+                    or call.id
+                    or f"fallback_{uuid4().hex}",
+                    name=call.function.name or "" if call.function else "",
+                    arguments={},
+                    raw_arguments="",
+                    arguments_complete=False,
+                )
+                pending = _PendingToolCall(len(self.message.content), block)
+                self.calls[call.index] = pending
+                fragments.extend(
+                    part.function.arguments or ""
+                    for part in buffered
+                    if part.function is not None
+                )
+                self.message.content.append(block)
+                events.append(
+                    ToolCallStartEvent(
+                        content_index=pending.content_index,
+                        tool_call_id=block.id,
+                        tool_name=block.name,
+                    )
+                )
+            pending.finalized = False
+            if call.function is not None:
+                fragments.append(call.function.arguments or "")
+            if arguments_delta := "".join(fragments):
+                pending.call.raw_arguments = (
+                    pending.call.raw_arguments or ""
+                ) + arguments_delta
+                events.append(
+                    ToolCallDeltaEvent(
+                        content_index=pending.content_index,
+                        arguments_delta=arguments_delta,
+                    )
+                )
+        if chunk.choice.finish_reason:
+            self.message.stop_reason = chunk.choice.finish_reason
+        if chunk.usage is not None:
+            self.message.usage = chunk.usage
+        return events
+
+    def _add_recovered_calls(self, calls: Sequence[ToolCall]) -> list[GenerationEvent]:
+        self.active_text = None
+        events: list[GenerationEvent] = []
+        for call in calls:
+            block = ToolCall(
+                id=call.id, name=call.name, arguments={}, arguments_complete=False
+            )
+            pending = _PendingToolCall(len(self.message.content), block)
+            # Recovery already parsed and normalized these arguments.
+            self.calls[len(self.calls)] = pending
+            self.message.content.append(block)
+            events.append(
+                ToolCallStartEvent(
+                    content_index=pending.content_index,
+                    tool_call_id=block.id,
+                    tool_name=block.name,
+                )
+            )
+            block.arguments = call.arguments.copy()
+            events.append(
+                ToolCallDeltaEvent(
+                    content_index=pending.content_index,
+                    arguments_delta=json.dumps(call.arguments),
+                )
+            )
+        return events
+
+    def consume(
+        self, stream: Iterator[ModelResponseStream], request: GenerationRequest
+    ) -> Generator[GenerationEvent, None, None]:
+        """Stream provider text as events, then recover calls written as text."""
+        ids: dict[int, str] = {}
+        recovery_enabled = (
+            bool(request.tools)
+            and request.options.tool_choice != ToolChoiceOptions.NONE
+        )
+        recover = recovery_enabled
+        raw_text: list[str] = []
+        raw_thinking: list[str] = []
+        # Without tool-call recovery, XML-like text is part of the answer.
+        content_filter = XmlToolCallContentFilter() if recovery_enabled else None
+        usage: Usage | None = None
+        stop_reason: str | None = None
+
+        def add_filtered(chunk: ModelResponseStream) -> list[GenerationEvent]:
+            chunk = chunk.model_copy(deep=True)
+            for call in chunk.choice.delta.tool_calls:
+                call.id = ids.setdefault(call.index, call.id or str(uuid4()))
+            if content_filter is not None and chunk.choice.delta.content:
+                chunk.choice.delta.content = content_filter.process(
+                    chunk.choice.delta.content
+                )
+            return self.add(chunk)
+
+        try:
+            for chunk in stream:
+                delta = chunk.choice.delta
+                if recover:
+                    raw_text.append(delta.content or "")
+                    raw_thinking.append(delta.reasoning_content or "")
+                if chunk.usage is not None:
+                    usage = chunk.usage
+                    self.message.usage = usage
+                if chunk.choice.finish_reason:
+                    stop_reason = chunk.choice.finish_reason
+                yield from add_filtered(chunk)
+                if recover and self.calls:
+                    recover = False
+                    raw_text.clear()
+                    raw_thinking.clear()
+
+            recovered: AssistantMessage | None = None
+            if recover and not self.calls:
+                recovered = recover_tool_calls(
+                    AssistantMessage(
+                        content=[
+                            TextContent(text="".join(raw_text)),
+                            ThinkingContent(text="".join(raw_thinking)),
+                        ]
+                    ),
+                    request,
+                )
+            tail = content_filter.flush() if content_filter is not None else ""
+            if tail:
+                yield from self._add_text(TextContent(text=tail))
+            if not self.calls and recovered is not None and recovered.tool_calls:
+                yield from self._add_recovered_calls(recovered.tool_calls)
+            self.message.usage = usage
+            self.message.stop_reason = stop_reason
+        finally:
+            if isinstance(stream, Closable):
+                stream.close()
+
+    def finalize(self) -> None:
+        """Finalize owned tool arguments without making a message snapshot."""
+        if self._unnamed_calls:
+            logger.warning(
+                "Discarding tool calls without names at indices %s",
+                sorted(self._unnamed_calls),
+            )
+            self._unnamed_calls.clear()
+        for pending in self.calls.values():
+            if pending.finalized:
+                continue
+            if pending.call.raw_arguments is None:
+                pending.call.arguments_complete = True
+            else:
+                _finish_tool_call(
+                    pending.call,
+                    pending.call.raw_arguments,
+                    self.tools.get(pending.call.name),
+                )
+            pending.finalized = True
+
+    def end(self) -> list[GenerationEvent]:
+        self.active_text = None
+        self.finalize()
+        events: list[GenerationEvent] = [
+            ToolCallEndEvent(
+                content_index=pending.content_index,
+                tool_call=pending.call.model_copy(deep=True),
+            )
+            for pending in self.calls.values()
+        ]
+        events.append(
+            GenerationDoneEvent(
+                usage=self.message.usage.model_copy(deep=True)
+                if self.message.usage
+                else None,
+                stop_reason=self.message.stop_reason,
+            )
+        )
+        return events
+
+
+def recover_tool_calls(
+    message: AssistantMessage, request: GenerationRequest
+) -> AssistantMessage:
+    """Recover provider text tool payloads when native calls are absent."""
+    if message.tool_calls or request.options.tool_choice == ToolChoiceOptions.NONE:
+        return message
+    should_try = (
+        request.options.tool_choice == ToolChoiceOptions.REQUIRED
+        or bool(message.thinking and not message.text)
+        or looks_like_xml_tool_call_payload(message.text)
+        or looks_like_xml_tool_call_payload(message.thinking)
+    )
+    if not should_try:
+        return message
+    calls = extract_tool_calls_from_response_text(
+        message.text, request.tools
+    ) or extract_tool_calls_from_response_text(message.thinking, request.tools)
+    if not calls:
+        return message
+    tools = {tool.name: tool for tool in request.tools}
+    for call in calls:
+        call.arguments = _normalize_arguments(call.arguments, tools.get(call.name))
+    # Preserve signed thinking for provider replay; hide only XML call payloads.
+    content: list[TextContent | ThinkingContent | ToolCall] = []
+    for block in message.content:
+        if isinstance(block, TextContent) and looks_like_xml_tool_call_payload(
+            block.text
+        ):
+            content_filter = XmlToolCallContentFilter()
+            visible_text = content_filter.process(block.text) + content_filter.flush()
+            if visible_text:
+                content.append(TextContent(text=visible_text))
+        else:
+            content.append(block)
+    content.extend(calls)
+    return message.model_copy(update={"content": content})

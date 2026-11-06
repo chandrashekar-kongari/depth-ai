@@ -1,0 +1,111 @@
+// ExpandableContentWrapper
+import React, { useState } from "react";
+import { useTranslations } from "next-intl";
+import { SvgDownloadCloud, SvgFold, SvgMaximize2, SvgX } from "@opal/icons";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button, Text } from "@opal/components";
+import { FileDescriptor } from "@/app/app/types";
+import { cn } from "@opal/utils";
+import PreviewModal from "@/sections/modals/PreviewModal";
+import { MinimalDepthDocument } from "@/lib/search/types";
+
+export interface ExpandableContentWrapperProps {
+  fileDescriptor: FileDescriptor;
+  close: () => void;
+  ContentComponent: React.ComponentType<ContentComponentProps>;
+}
+
+export interface ContentComponentProps {
+  fileDescriptor: FileDescriptor;
+  expanded?: boolean;
+}
+
+export default function ExpandableContentWrapper({
+  fileDescriptor,
+  close,
+  ContentComponent,
+}: ExpandableContentWrapperProps) {
+  const t = useTranslations("common.expandableContent");
+  const [expanded, setExpanded] = useState(false);
+
+  const toggleExpand = () => setExpanded((prev) => !prev);
+
+  const downloadFile = () => {
+    const a = document.createElement("a");
+    a.href = `api/chat/file/${fileDescriptor.id}`;
+    a.download = fileDescriptor.name || "download.csv";
+    a.setAttribute("download", fileDescriptor.name || "download.csv");
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const Content = (
+    <div className="w-message-default max-w-full rounded-lg! overflow-y-hidden h-full">
+      <CardHeader className="w-full bg-background-tint-02 top-0 p-3">
+        <div className="flex justify-between items-center">
+          <Text font="main-ui-action" color="text-03" maxLines={1}>
+            {fileDescriptor.name || t("file.untitledFallback")}
+          </Text>
+          <div className="flex flex-row items-center justify-end gap-1">
+            <Button
+              prominence="tertiary"
+              size="sm"
+              onClick={downloadFile}
+              icon={SvgDownloadCloud}
+              tooltip={t("downloadButton.tooltip")}
+            />
+            <Button
+              prominence="tertiary"
+              size="sm"
+              onClick={toggleExpand}
+              icon={expanded ? SvgFold : SvgMaximize2}
+              tooltip={
+                expanded
+                  ? t("minimizeButton.tooltip")
+                  : t("fullScreenButton.tooltip")
+              }
+            />
+            <Button
+              prominence="tertiary"
+              size="sm"
+              onClick={close}
+              icon={SvgX}
+              tooltip={t("hideButton.tooltip")}
+            />
+          </div>
+        </div>
+      </CardHeader>
+      <Card
+        className={cn(
+          "rounded-none! p-0 relative mx-auto w-full",
+          expanded ? "max-h-[600px]" : "max-h-[300px] h-full"
+        )}
+      >
+        <CardContent className="p-0">
+          <ContentComponent
+            fileDescriptor={fileDescriptor}
+            expanded={expanded}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const presentingDocument: MinimalDepthDocument = {
+    document_id: fileDescriptor.id,
+    semantic_identifier: fileDescriptor.name ?? null,
+  };
+
+  return (
+    <>
+      {expanded && (
+        <PreviewModal
+          presentingDocument={presentingDocument}
+          onClose={() => setExpanded(false)}
+        />
+      )}
+      {!expanded && Content}
+    </>
+  );
+}

@@ -1,0 +1,484 @@
+"""
+Test suite for ExternalGroupPermissionSyncAttempt CRUD operations.
+
+Tests the basic CRUD operations for external group permission sync attempts,
+including creation, status updates, progress tracking, and querying.
+Supports both connector-specific and global group sync attempts.
+"""
+
+from datetime import datetime, timedelta, timezone
+
+import pytest
+from sqlalchemy.orm import Session
+
+from ee.onyx.background.celery.tasks.external_group_syncing.tasks import (
+    is_external_group_sync_due,
+)
+from onyx.configs.constants import DocumentSource
+from onyx.connectors.models import InputType
+from onyx.db.connector_edit_requests import request_retry_delay
+from onyx.db.enums import (
+    AccessType,
+    ConnectorCredentialPairStatus,
+    PermissionSyncStatus,
+)
+from onyx.db.models import (
+    Connector,
+    ConnectorCredentialPair,
+    Credential,
+    ExternalGroupPermissionSyncAttempt,
+)
+from onyx.db.permission_sync_attempt import (
+    PermissionSyncAttemptLostError,
+    complete_external_group_sync_attempt,
+    create_external_group_sync_attempt,
+    get_external_group_sync_attempt,
+    get_external_group_sync_retry_after,
+    mark_external_group_sync_attempt_failed,
+    mark_external_group_sync_attempt_in_progress,
+)
+from tests.external_dependency_unit.conftest import create_test_user
+
+
+def _create_test_connector_credential_pair(
+    db_session: Session, source: DocumentSource = DocumentSource.GOOGLE_DRIVE
+) -> ConnectorCredentialPair:
+    """Create a test connector credential pair for testing."""
+    user = create_test_user(db_session, "test_user")
+
+    connector = Connector(
+        name=f"Test {source.value} Connector",
+        source=source,
+        input_type=InputType.LOAD_STATE,
+        connector_specific_config={},
+        refresh_freq=None,
+        prune_freq=None,
+        indexing_start=datetime.now(timezone.utc),
+    )
+    db_session.add(connector)
+    db_session.flush()
+
+    credential = Credential(
+        credential_json={},
+        user_id=user.id,
+        admin_public=True,
+    )
+    db_session.add(credential)
+    db_session.flush()
+    # Expire the credential so it reloads from DB with SensitiveValue wrapper
+    db_session.expire(credential)
+
+    cc_pair = ConnectorCredentialPair(
+        connector_id=connector.id,
+        credential_id=credential.id,
+        name="Test CC Pair",
+        status=ConnectorCredentialPairStatus.ACTIVE,
+        access_type=AccessType.PUBLIC,
+    )
+    db_session.add(cc_pair)
+    db_session.commit()
+
+    return cc_pair
+
+
+class TestExternalGroupPermissionSyncAttempt:
+    def test_create_external_group_sync_attempt_with_cc_pair(
+        self, db_session: Session
+    ) -> None:
+        """Test creating a new external group sync attempt for a specific connector."""
+        cc_pair = _create_test_connector_credential_pair(db_session)
+
+        attempt_id = create_external_group_sync_attempt(
+            connector_credential_pair_id=cc_pair.id,
+            db_session=db_session,
+        )
+
+        assert attempt_id is not None
+        assert isinstance(attempt_id, int)
+
+        # Verify the attempt was created with correct defaults
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert attempt.connector_credential_pair_id == cc_pair.id
+        assert attempt.status == PermissionSyncStatus.NOT_STARTED
+        assert attempt.total_users_processed == 0
+        assert attempt.total_groups_processed == 0
+        assert attempt.total_group_memberships_synced == 0
+        assert attempt.time_started is None
+        assert attempt.time_finished is None
+        assert attempt.time_created is not None
+
+    def test_create_global_external_group_sync_attempt(
+        self, db_session: Session
+    ) -> None:
+        """Test creating a new global external group sync attempt."""
+        attempt_id = create_external_group_sync_attempt(
+            connector_credential_pair_id=None,  # Global sync
+            db_session=db_session,
+        )
+
+        assert attempt_id is not None
+        assert isinstance(attempt_id, int)
+
+        # Verify the attempt was created as global
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert attempt.connector_credential_pair_id is None
+        assert attempt.status == PermissionSyncStatus.NOT_STARTED
+
+    def test_get_external_group_sync_attempt(self, db_session: Session) -> None:
+        """Test retrieving an external group sync attempt by ID."""
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+
+        # Test basic retrieval
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert attempt.id == attempt_id
+
+        # Test with eager loading
+        attempt_with_connector = get_external_group_sync_attempt(
+            db_session, attempt_id, eager_load_connector=True
+        )
+        assert attempt_with_connector is not None
+        assert attempt_with_connector.connector_credential_pair is not None
+        assert attempt_with_connector.connector_credential_pair.id == cc_pair.id
+
+        # Test non-existent ID
+        non_existent_attempt = get_external_group_sync_attempt(db_session, 99999)
+        assert non_existent_attempt is None
+
+    def test_mark_external_group_sync_attempt_in_progress(
+        self, db_session: Session
+    ) -> None:
+        """Test marking an external group sync attempt as in progress."""
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+
+        # Mark as in progress
+        updated_attempt = mark_external_group_sync_attempt_in_progress(
+            attempt_id, db_session
+        )
+
+        assert updated_attempt.status == PermissionSyncStatus.IN_PROGRESS
+        assert updated_attempt.time_started is not None
+        assert updated_attempt.time_finished is None
+
+        # Verify it fails if already in progress
+        with pytest.raises(RuntimeError, match="not in NOT_STARTED status"):
+            mark_external_group_sync_attempt_in_progress(attempt_id, db_session)
+
+    def test_mark_external_group_sync_attempt_failed(self, db_session: Session) -> None:
+        """Test marking an external group sync attempt as failed."""
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+
+        # Mark as failed with error message (should work even without starting)
+        error_msg_1 = "External group sync service unavailable"
+        mark_external_group_sync_attempt_failed(
+            attempt_id, db_session, error_message=error_msg_1
+        )
+
+        # Verify the status and timestamps
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert attempt.status == PermissionSyncStatus.FAILED
+        assert attempt.time_started is not None  # Should be set if not already set
+        assert attempt.time_finished is not None
+        assert attempt.error_message == error_msg_1
+        # Default-omitted full_exception_trace should be None — guards
+        # the optional-kwarg signature so synthesized-string callers
+        # (e.g. ``_fail_external_group_sync_attempt``) keep working.
+        assert attempt.full_exception_trace is None
+
+        # Test with error message
+        attempt_id_2 = create_external_group_sync_attempt(cc_pair.id, db_session)
+        error_msg = "Connection timeout to external service"
+        mark_external_group_sync_attempt_failed(
+            attempt_id_2, db_session, error_message=error_msg
+        )
+
+        # Verify the error message was stored
+        attempt_2 = get_external_group_sync_attempt(db_session, attempt_id_2)
+        assert attempt_2 is not None
+        assert attempt_2.status == PermissionSyncStatus.FAILED
+        assert attempt_2.error_message == error_msg
+
+    def test_mark_external_group_sync_attempt_failed_persists_traceback(
+        self, db_session: Session
+    ) -> None:
+        """Tracebacks captured in ``except`` blocks must round-trip
+        through the failure helper so the connector-detail UI can
+        surface the full Python stack instead of just a single-line
+        summary."""
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+
+        error_msg = "External group sync service unavailable"
+        full_trace = (
+            "Traceback (most recent call last):\n"
+            '  File "tasks.py", line 456, in connector_external_group_sync_generator_task\n'
+            "    sync_groups()\n"
+            "RuntimeError: simulated failure\n"
+        )
+        mark_external_group_sync_attempt_failed(
+            attempt_id,
+            db_session,
+            error_message=error_msg,
+            full_exception_trace=full_trace,
+        )
+
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert attempt.status == PermissionSyncStatus.FAILED
+        assert attempt.error_message == error_msg
+        assert attempt.full_exception_trace == full_trace
+
+    def test_status_enum_methods(self, db_session: Session) -> None:
+        """Test the status enum helper methods."""
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+
+        # Test NOT_STARTED status
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert not attempt.status.is_terminal()
+        assert not attempt.status.is_successful()
+
+        # Test IN_PROGRESS status
+        mark_external_group_sync_attempt_in_progress(attempt_id, db_session)
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert not attempt.status.is_terminal()
+        assert not attempt.status.is_successful()
+
+        # Test SUCCESS status via complete function
+        complete_external_group_sync_attempt(
+            db_session=db_session,
+            attempt_id=attempt_id,
+            total_users_processed=100,
+            total_groups_processed=10,
+            total_group_memberships_synced=500,
+            errors_encountered=0,
+        )
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert attempt.status.is_terminal()
+        assert attempt.status.is_successful()
+
+        # Test FAILED status (create new attempt)
+        failed_attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+        mark_external_group_sync_attempt_failed(
+            failed_attempt_id, db_session, error_message="Test failure"
+        )
+        failed_attempt = get_external_group_sync_attempt(db_session, failed_attempt_id)
+        assert failed_attempt is not None
+        assert failed_attempt.status.is_terminal()
+        assert not failed_attempt.status.is_successful()
+
+        # Test COMPLETED_WITH_ERRORS status via complete function (create new attempt)
+        error_attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+        mark_external_group_sync_attempt_in_progress(error_attempt_id, db_session)
+        complete_external_group_sync_attempt(
+            db_session=db_session,
+            attempt_id=error_attempt_id,
+            total_users_processed=100,
+            total_groups_processed=10,
+            total_group_memberships_synced=500,
+            errors_encountered=5,
+        )
+        error_attempt = get_external_group_sync_attempt(db_session, error_attempt_id)
+        assert error_attempt is not None
+        assert error_attempt.status.is_terminal()
+        assert (
+            error_attempt.status.is_successful()
+        )  # Completed with errors is still "successful"
+
+    def test_complete_external_group_sync_attempt_success(
+        self, db_session: Session
+    ) -> None:
+        """Test completing an external group sync attempt without errors."""
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+
+        # Mark as in progress first
+        mark_external_group_sync_attempt_in_progress(attempt_id, db_session)
+
+        # Complete without errors
+        completed_attempt = complete_external_group_sync_attempt(
+            db_session=db_session,
+            attempt_id=attempt_id,
+            total_users_processed=500,
+            total_groups_processed=25,
+            total_group_memberships_synced=1200,
+            errors_encountered=0,
+        )
+
+        assert completed_attempt.status == PermissionSyncStatus.SUCCESS
+        assert completed_attempt.total_users_processed == 500
+        assert completed_attempt.total_groups_processed == 25
+        assert completed_attempt.total_group_memberships_synced == 1200
+        assert completed_attempt.time_finished is not None
+
+    def test_complete_external_group_sync_attempt_with_errors(
+        self, db_session: Session
+    ) -> None:
+        """Test completing an external group sync attempt with errors."""
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+
+        # Mark as in progress first
+        mark_external_group_sync_attempt_in_progress(attempt_id, db_session)
+
+        # Complete with errors
+        completed_attempt = complete_external_group_sync_attempt(
+            db_session=db_session,
+            attempt_id=attempt_id,
+            total_users_processed=500,
+            total_groups_processed=25,
+            total_group_memberships_synced=1200,
+            errors_encountered=10,
+        )
+
+        assert completed_attempt.status == PermissionSyncStatus.COMPLETED_WITH_ERRORS
+        assert completed_attempt.total_users_processed == 500
+        assert completed_attempt.total_groups_processed == 25
+        assert completed_attempt.total_group_memberships_synced == 1200
+        assert completed_attempt.time_finished is not None
+
+    def test_complete_external_group_sync_attempt_rejects_second_call(
+        self, db_session: Session
+    ) -> None:
+        """A finished attempt is no longer IN_PROGRESS, so a second complete
+        (e.g. from a worker that lost the attempt) is rejected."""
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+        mark_external_group_sync_attempt_in_progress(attempt_id, db_session)
+
+        first_complete = complete_external_group_sync_attempt(
+            db_session=db_session,
+            attempt_id=attempt_id,
+            total_users_processed=200,
+            total_groups_processed=10,
+            total_group_memberships_synced=600,
+            errors_encountered=0,
+        )
+        assert first_complete.status == PermissionSyncStatus.SUCCESS
+        assert first_complete.total_users_processed == 200
+
+        with pytest.raises(PermissionSyncAttemptLostError):
+            complete_external_group_sync_attempt(
+                db_session=db_session,
+                attempt_id=attempt_id,
+                total_users_processed=300,
+                total_groups_processed=15,
+                total_group_memberships_synced=600,
+                errors_encountered=5,
+            )
+
+    def test_external_group_sync_attempt_not_stuck_on_early_failure(
+        self, db_session: Session
+    ) -> None:
+        """Test that attempts transition to FAILED on early validation failures.
+
+        This tests the bug fix where attempts could get stuck in NOT_STARTED status
+        if validation checks failed after the attempt was created but before it was
+        marked as IN_PROGRESS.
+        """
+        cc_pair = _create_test_connector_credential_pair(db_session)
+
+        # Create an attempt (simulating the start of a sync task)
+        attempt_id = create_external_group_sync_attempt(cc_pair.id, db_session)
+
+        # Verify it starts in NOT_STARTED
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert attempt.status == PermissionSyncStatus.NOT_STARTED
+        assert attempt.error_message is None
+
+        # Simulate an early validation failure (e.g., missing sync config)
+        # In the actual code, this would be called by _fail_external_group_sync_attempt()
+        error_msg = "No group sync config found for source"
+        mark_external_group_sync_attempt_failed(
+            attempt_id, db_session, error_message=error_msg
+        )
+
+        # Verify the attempt transitions to FAILED (not stuck in NOT_STARTED)
+        attempt = get_external_group_sync_attempt(db_session, attempt_id)
+        assert attempt is not None
+        assert attempt.status == PermissionSyncStatus.FAILED
+        assert attempt.error_message == error_msg
+        assert attempt.time_started is not None  # Should be set even on early failure
+        assert attempt.time_finished is not None
+        assert attempt.status.is_terminal()
+        assert not attempt.status.is_successful()
+
+
+def _add_finished_attempt(
+    db_session: Session,
+    cc_pair_id: int,
+    status: PermissionSyncStatus,
+    finished_at: datetime,
+) -> None:
+    db_session.add(
+        ExternalGroupPermissionSyncAttempt(
+            connector_credential_pair_id=cc_pair_id,
+            status=status,
+            time_created=finished_at - timedelta(seconds=10),
+            time_started=finished_at - timedelta(seconds=10),
+            time_finished=finished_at,
+        )
+    )
+    db_session.commit()
+
+
+class TestExternalGroupSyncBackoff:
+    def test_retry_delay_grows_with_consecutive_failures(
+        self, db_session: Session
+    ) -> None:
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        assert get_external_group_sync_retry_after(cc_pair.id, db_session) is None
+
+        base = datetime.now(timezone.utc) - timedelta(hours=1)
+        _add_finished_attempt(db_session, cc_pair.id, PermissionSyncStatus.FAILED, base)
+        assert get_external_group_sync_retry_after(
+            cc_pair.id, db_session
+        ) == base + request_retry_delay(1)
+
+        latest = base + timedelta(minutes=1)
+        _add_finished_attempt(
+            db_session, cc_pair.id, PermissionSyncStatus.FAILED, latest
+        )
+        assert get_external_group_sync_retry_after(
+            cc_pair.id, db_session
+        ) == latest + request_retry_delay(2)
+        assert request_retry_delay(2) > request_retry_delay(1)
+
+    def test_success_clears_backoff(self, db_session: Session) -> None:
+        cc_pair = _create_test_connector_credential_pair(db_session)
+        base = datetime.now(timezone.utc) - timedelta(hours=1)
+        _add_finished_attempt(db_session, cc_pair.id, PermissionSyncStatus.FAILED, base)
+        _add_finished_attempt(
+            db_session,
+            cc_pair.id,
+            PermissionSyncStatus.SUCCESS,
+            base + timedelta(minutes=1),
+        )
+        assert get_external_group_sync_retry_after(cc_pair.id, db_session) is None
+
+    def test_paused_pair_is_not_due(self, db_session: Session) -> None:
+        cc_pair = _create_test_connector_credential_pair(
+            db_session, source=DocumentSource.CONFLUENCE
+        )
+        cc_pair.access_type = AccessType.SYNC
+        db_session.commit()
+        assert is_external_group_sync_due(cc_pair)
+
+        for status in (
+            ConnectorCredentialPairStatus.PAUSED,
+            ConnectorCredentialPairStatus.INVALID,
+            ConnectorCredentialPairStatus.DELETING,
+        ):
+            cc_pair.status = status
+            db_session.commit()
+            assert not is_external_group_sync_due(cc_pair)

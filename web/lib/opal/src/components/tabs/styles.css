@@ -1,0 +1,153 @@
+@reference "#reference.css";
+
+/* ---------------------------------------------------------------------------
+   Tabs
+
+   Three visual variants: contained (default), pill, underline.
+   Variant is propagated via data-variant attributes on both the list and
+   each trigger so CSS descendant selectors drive all variant-specific styles.
+   --------------------------------------------------------------------------- */
+
+/* ── List ───────────────────────────────────────────────────────────────────── */
+
+.opal-tabs-list {
+  @apply relative w-full rounded-08;
+}
+
+.opal-tabs-list[data-variant="contained"] {
+  display: grid;
+  @apply bg-background-tint-03;
+}
+
+.opal-tabs-list[data-variant="pill"],
+.opal-tabs-list[data-variant="underline"] {
+  @apply relative flex items-center overflow-hidden bg-transparent rounded-none;
+}
+
+/* The row of tabs, which the surface and indicator are positioned in. Pill
+   keeps a 5px rail below its tabs for the indicator. Underline has none: its
+   indicator lies over the bottom of the tabs. */
+.opal-tabs-row {
+  @apply relative flex items-center gap-2;
+}
+
+.opal-tabs-list[data-variant="pill"] .opal-tabs-row {
+  padding-bottom: 5px;
+}
+
+/* ── Trigger ────────────────────────────────────────────────────────────────── */
+
+/* Above the sliding surface, which paints the active state behind them. The
+   trigger is an Interactive surface: its state sets the two interactive
+   foregrounds, which its label (a Content) reads, and which fade on change. */
+.opal-tabs-trigger {
+  @apply relative z-1 inline-flex items-center justify-center whitespace-nowrap rounded-08;
+}
+
+/* Only the text responds to hover and press. A tab never paints its own
+   background, whatever its Interactive state; the sliding surface is the
+   only one. */
+.opal-tabs-trigger.interactive {
+  @apply bg-transparent!;
+}
+
+/* Minimum heights, border included; taller content grows the tab. Contained:
+   2.25rem with 0.5rem vertical padding. Pill: 1.75rem with 0.375rem.
+   Underline: 2.25rem, no vertical padding, the indicator over its bottom. */
+.opal-tabs-trigger[data-variant="contained"] {
+  @apply min-h-9 px-2 py-2 border border-transparent;
+}
+
+.opal-tabs-trigger[data-variant="pill"] {
+  @apply min-h-7 px-1 py-1.5;
+}
+
+.opal-tabs-trigger[data-variant="underline"] {
+  @apply min-h-9 px-1;
+}
+
+/* Text colours come from Interactive's default tertiary styles: text-03 at
+   rest, text-04 on hover and for the selected tab (it holds the hover state),
+   then pressed and disabled. The pill's selected label sits on the dark
+   surface, so it stays inverted; the list and :not() raise it above the hover
+   and pressed rules. */
+.opal-tabs-list[data-variant="pill"]
+  .interactive.opal-tabs-trigger[data-state="active"]:not([data-disabled]) {
+  --interactive-foreground: var(--text-inverted-05);
+  --interactive-foreground-icon: var(--text-inverted-05);
+}
+
+/* Keyboard focus paints a tab's hover state and, unlike other Interactive
+   surfaces, a border-04 ring. The list sets `data-focus-ring` while the
+   keyboard moves between tabs (see TabsList), so a click paints neither and
+   Escape clears both; Interactive's own `:focus-visible` paint is undone
+   outside it. */
+.opal-tabs-list:not([data-focus-ring])
+  .opal-tabs-trigger.interactive[data-variant][data-state="inactive"]:focus-visible:not(
+    :hover,
+    [data-disabled]
+  ) {
+  --interactive-foreground: var(--text-03);
+  --interactive-foreground-icon: var(--text-03);
+}
+.opal-tabs-list[data-focus-ring]
+  .opal-tabs-trigger.interactive[data-variant][data-state="inactive"]:focus:not(
+    [data-disabled]
+  ) {
+  --interactive-foreground: var(--text-04);
+  --interactive-foreground-icon: var(--text-04);
+}
+.opal-tabs-list[data-focus-ring]
+  .opal-tabs-trigger.interactive[data-variant]:focus {
+  outline: 2px solid var(--border-04);
+  outline-offset: -2px;
+}
+
+/* ── Pill / underline indicator ─────────────────────────────────────────────── */
+
+.opal-tabs-pill-baseline {
+  @apply absolute bottom-0 start-0 h-px bg-border-02 pointer-events-none;
+}
+/* left-0, not start-0: the hook measures offsets from the list's physical
+   left edge, in either direction. */
+.opal-tabs-pill-indicator {
+  @apply absolute bottom-0 left-0 z-10 pointer-events-none bg-background-tint-inverted-03;
+  height: 2px;
+  will-change: transform, width;
+}
+
+/* ── Active surface ─────────────────────────────────────────────────────────── */
+
+/* Sits on the active tab and slides to the next one. Contained: the raised
+   white card. Pill: the filled background. */
+/* left-0, not start-0: offsets are measured from the physical left edge. */
+.opal-tabs-surface {
+  @apply absolute top-0 left-0 z-0 pointer-events-none rounded-08;
+  will-change: transform, width, height;
+}
+
+.opal-tabs-surface[data-variant="contained"] {
+  @apply bg-background-neutral-00 border border-border-01;
+  box-shadow: var(--shadow-box-00);
+}
+
+.opal-tabs-surface[data-variant="pill"] {
+  @apply bg-background-tint-inverted-03;
+}
+
+/* Slide once placed; hold still on the first placement. */
+.opal-tabs-surface[data-measured],
+.opal-tabs-pill-indicator[data-measured] {
+  transition:
+    transform 200ms ease-out,
+    width 200ms ease-out,
+    height 200ms ease-out,
+    opacity 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opal-tabs-surface,
+  .opal-tabs-pill-indicator {
+    transition: none !important;
+  }
+}

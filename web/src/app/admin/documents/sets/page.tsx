@@ -1,0 +1,486 @@
+"use client";
+
+import { useAdminRouteTitle } from "@/lib/adminNavLabels";
+import { useTranslations } from "next-intl";
+import { PageLoader } from "@opal/loaders";
+import { PageSelector } from "@/components/PageSelector";
+import {
+  SvgAlertTriangle,
+  SvgCheckCircle,
+  SvgClock,
+  SvgEdit,
+  SvgInfo,
+  SvgLock,
+  SvgPlusCircle,
+} from "@opal/icons";
+import {
+  Table,
+  TableHead,
+  TableRow,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
+import { Button, Divider, InputTypeIn, Text } from "@opal/components";
+import { escapeMarkdown, markdown } from "@opal/utils";
+import { Spacer } from "@opal/components";
+import { DocumentSetSummary, Permission } from "@/lib/types";
+import { useState } from "react";
+import { useDocumentSets } from "./hooks";
+import useFilter from "@/hooks/useFilter";
+import { can } from "@/lib/permissions/resource-actions";
+import { usePermissionAuthority } from "@/lib/permissions/hooks";
+import { ConnectorTitle } from "@/components/admin/connectors/ConnectorTitle";
+import { deleteDocumentSet } from "./lib";
+import { IllustrationContent, SettingsLayouts, toast } from "@opal/layouts";
+import SvgNoResult from "@opal/illustrations/no-result";
+import { ADMIN_ROUTES } from "@/lib/admin-routes";
+import { FiUnlock } from "react-icons/fi";
+import { DeleteButton } from "@/components/DeleteButton";
+import { useRouter } from "next/navigation";
+import { TableHeader } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@opal/components";
+import { SourceIcon } from "@/components/SourceIcon";
+import Link from "next/link";
+import { useSettings } from "@/lib/settings/hooks";
+
+const route = ADMIN_ROUTES.DOCUMENT_SETS;
+
+const numToDisplay = 50;
+
+// Search covers the set name and its connector names. Joining with "\n" keeps a
+// match inside one field, since a single-line search input cannot contain one.
+function documentSetSearchText(documentSet: DocumentSetSummary): string {
+  return [
+    documentSet.name,
+    ...documentSet.cc_pair_summaries.map((ccPair) => ccPair.name),
+    ...documentSet.federated_connector_summaries.map(
+      (federatedConnector) => federatedConnector.name
+    ),
+  ].join("\n");
+}
+
+// Component to display federated connectors with consistent styling
+const FederatedConnectorTitle = ({
+  federatedConnector,
+  showMetadata = true,
+  isLink = true,
+}: {
+  federatedConnector: any;
+  showMetadata?: boolean;
+  isLink?: boolean;
+}) => {
+  const t = useTranslations("admin.documents");
+  const sourceType = federatedConnector.source.replace(/^federated_/, "");
+
+  const mainSectionClassName = "text-blue-500 dark:text-blue-100 flex w-fit";
+  const mainDisplay = (
+    <>
+      <SourceIcon sourceType={sourceType as any} iconSize={16} />
+      <div className="ms-1 my-auto text-xs font-medium truncate">
+        {federatedConnector.name}
+      </div>
+      <Badge variant="outline" className="text-xs ms-2">
+        {t("sets.federatedBadge.label")}
+      </Badge>
+    </>
+  );
+
+  return (
+    <div className="my-auto max-w-full">
+      {isLink ? (
+        <Link
+          className={mainSectionClassName}
+          href={`/admin/federated/${federatedConnector.id}`}
+        >
+          {mainDisplay}
+        </Link>
+      ) : (
+        <div className={mainSectionClassName}>{mainDisplay}</div>
+      )}
+      {showMetadata && Object.keys(federatedConnector.entities).length > 0 && (
+        <div className="text-[10px] mt-0.5 text-gray-600 dark:text-gray-400">
+          {Object.entries(federatedConnector.entities)
+            .filter(
+              ([_, value]) =>
+                value &&
+                (Array.isArray(value) ? value.length > 0 : String(value).trim())
+            )
+            .map(([key, value]) => (
+              <div key={key} className="truncate">
+                <i>{key}:</i>{" "}
+                {Array.isArray(value) ? value.join(", ") : String(value)}
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const EditRow = ({
+  documentSet,
+  isEditable,
+}: {
+  documentSet: DocumentSetSummary;
+  isEditable: boolean;
+}) => {
+  const t = useTranslations("admin.documents");
+  const router = useRouter();
+
+  if (!isEditable) {
+    return (
+      <div className="text-text-darker font-medium my-auto p-1">
+        {documentSet.name}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex">
+      <Tooltip
+        tooltip={
+          !documentSet.is_up_to_date
+            ? t("sets.editRow.syncing.tooltip")
+            : undefined
+        }
+      >
+        <button
+          type="button"
+          className={`
+              text-text-darker font-medium my-auto p-1 hover:bg-accent-background flex items-center select-none
+              ${documentSet.is_up_to_date ? "cursor-pointer" : "cursor-default"}
+            `}
+          style={{ wordBreak: "normal", overflowWrap: "break-word" }}
+          // Not `disabled`: a disabled button fires no pointer events, which
+          // would hide the tooltip that explains why it cannot be used.
+          aria-disabled={!documentSet.is_up_to_date}
+          onClick={() => {
+            if (!documentSet.is_up_to_date) return;
+            router.push(`/admin/documents/sets/${documentSet.id}`);
+          }}
+        >
+          <SvgEdit className="me-2 shrink-0" size={16} />
+          <span className="font-medium">{documentSet.name}</span>
+        </button>
+      </Tooltip>
+    </div>
+  );
+};
+
+interface DocumentSetTableProps {
+  documentSets: DocumentSetSummary[];
+  page: number;
+  onPageChange: (page: number) => void;
+  refresh: () => void;
+}
+
+const DocumentSetTable = ({
+  documentSets,
+  page,
+  onPageChange,
+  refresh,
+}: DocumentSetTableProps) => {
+  const t = useTranslations("admin.documents");
+  // The federated connector page's writes need global MANAGE_CONNECTORS, which a
+  // document-set manager may not hold.
+  const { isGlobalHolder: canManageConnectors } = usePermissionAuthority(
+    Permission.MANAGE_CONNECTORS
+  );
+
+  // editable rows first, then by name — editability now rides on each row's
+  // permissions map, so no second fetch + set-diff is needed.
+  const sortedDocumentSets = [...documentSets].sort((a, b) => {
+    const editDiff = Number(can(b, "edit")) - Number(can(a, "edit"));
+    return editDiff !== 0 ? editDiff : a.name.localeCompare(b.name);
+  });
+
+  return (
+    <div>
+      <Table className="overflow-visible mt-2">
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("sets.table.name.header")}</TableHead>
+            <TableHead>{t("sets.table.connectors.header")}</TableHead>
+            <TableHead>{t("sets.table.status.header")}</TableHead>
+            <TableHead>{t("sets.table.public.header")}</TableHead>
+            <TableHead>{t("sets.table.delete.header")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sortedDocumentSets
+            .slice((page - 1) * numToDisplay, page * numToDisplay)
+            .map((documentSet) => {
+              const isEditable = can(documentSet, "edit");
+              return (
+                <TableRow key={documentSet.id}>
+                  <TableCell className="whitespace-normal break-all">
+                    <div className="flex gap-x-1 text-emphasis">
+                      <EditRow
+                        documentSet={documentSet}
+                        isEditable={isEditable}
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      {/* Regular Connectors */}
+                      {documentSet.cc_pair_summaries.map(
+                        (ccPairSummary, ind) => {
+                          return (
+                            <div
+                              className={
+                                ind !== documentSet.cc_pair_summaries.length - 1
+                                  ? "mb-3"
+                                  : ""
+                              }
+                              key={ccPairSummary.id}
+                            >
+                              <div className="text-blue-500 dark:text-blue-100 flex w-fit">
+                                <SourceIcon
+                                  sourceType={ccPairSummary.source}
+                                  iconSize={16}
+                                />
+                                <div className="ms-1 my-auto text-xs font-medium truncate">
+                                  {ccPairSummary.name ||
+                                    t("sets.connector.unnamed.label")}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                      )}
+
+                      {/* Federated Connectors */}
+                      {documentSet.federated_connector_summaries &&
+                        documentSet.federated_connector_summaries.length >
+                          0 && (
+                          <>
+                            {documentSet.cc_pair_summaries.length > 0 && (
+                              <div className="mb-3" />
+                            )}
+                            {documentSet.federated_connector_summaries.map(
+                              (federatedConnector, ind) => {
+                                return (
+                                  <div
+                                    className={
+                                      ind !==
+                                      documentSet.federated_connector_summaries
+                                        .length -
+                                        1
+                                        ? "mb-3"
+                                        : ""
+                                    }
+                                    key={`federated-${federatedConnector.id}`}
+                                  >
+                                    <FederatedConnectorTitle
+                                      federatedConnector={federatedConnector}
+                                      showMetadata={true}
+                                      isLink={canManageConnectors}
+                                    />
+                                  </div>
+                                );
+                              }
+                            )}
+                          </>
+                        )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {documentSet.is_up_to_date ? (
+                      <Badge variant="success" icon={SvgCheckCircle}>
+                        {t("sets.status.upToDate.label")}
+                      </Badge>
+                    ) : documentSet.cc_pair_summaries.length > 0 ||
+                      (documentSet.federated_connector_summaries &&
+                        documentSet.federated_connector_summaries.length >
+                          0) ? (
+                      <Badge variant="in_progress" icon={SvgClock}>
+                        {t("sets.status.syncing.label")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" icon={SvgAlertTriangle}>
+                        {t("sets.status.deleting.label")}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {documentSet.is_public ? (
+                      <Badge
+                        variant={isEditable ? "success" : "default"}
+                        icon={FiUnlock}
+                      >
+                        {t("sets.access.public.label")}
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant={isEditable ? "private" : "default"}
+                        icon={SvgLock}
+                      >
+                        {t("sets.access.private.label")}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {can(documentSet, "delete") ? (
+                      <DeleteButton
+                        onClick={async () => {
+                          const response = await deleteDocumentSet(
+                            documentSet.id
+                          );
+                          if (response.ok) {
+                            toast.success(
+                              t("sets.deleteScheduled.toast", {
+                                name: documentSet.name,
+                              })
+                            );
+                          } else {
+                            const errorMsg = (await response.json()).detail;
+                            toast.error(
+                              t("sets.deleteFailed.toast", { detail: errorMsg })
+                            );
+                          }
+                          refresh();
+                        }}
+                      />
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+        </TableBody>
+      </Table>
+
+      <div className="mt-3 flex">
+        <div className="mx-auto">
+          <PageSelector
+            totalPages={Math.ceil(sortedDocumentSets.length / numToDisplay)}
+            currentPage={page}
+            onPageChange={onPageChange}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+function Main() {
+  const t = useTranslations("admin.documents");
+  const { appName } = useSettings();
+  const [page, setPage] = useState(1);
+  const {
+    data: documentSets,
+    isLoading: isDocumentSetsLoading,
+    error: documentSetsError,
+    refreshDocumentSets,
+  } = useDocumentSets();
+  // The listing returns every set the user can see in one response, so this
+  // filter covers all pages; the table paginates the filtered result.
+  const {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    filtered: filteredDocumentSets,
+  } = useFilter(documentSets ?? [], documentSetSearchText);
+
+  if (isDocumentSetsLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[400px]">
+        <PageLoader />
+      </div>
+    );
+  }
+
+  if (documentSetsError || !documentSets) {
+    return (
+      <div>
+        {t("sets.loadError.message", { detail: String(documentSetsError) })}
+      </div>
+    );
+  }
+
+  // A delete or a background refresh can shrink the list below the current page.
+  // Store the clamped page, not just render it, so a later refresh that grows the
+  // list again does not jump back to the old page. Setting state during render
+  // makes React re-render before the table sees the stale page.
+  const lastPage = Math.max(
+    1,
+    Math.ceil(filteredDocumentSets.length / numToDisplay)
+  );
+  if (page > lastPage) {
+    setPage(lastPage);
+  }
+
+  return (
+    <div className="mb-8">
+      <Text as="p">
+        {markdown(t("sets.description", { appName: escapeMarkdown(appName) }))}
+      </Text>
+      <Spacer rem={0.75} />
+
+      <div className="mb-3"></div>
+
+      <div className="flex mb-6">
+        <Button
+          icon={SvgPlusCircle}
+          prominence="secondary"
+          href="/admin/documents/sets/new"
+        >
+          {t("sets.newButton.label")}
+        </Button>
+      </div>
+
+      {documentSets.length > 0 && (
+        <>
+          <Divider />
+          <Text as="h1" font="heading-h3-muted" color="text-05">
+            {t("sets.table.title")}
+          </Text>
+          <Spacer rem={0.5} />
+          <InputTypeIn
+            searchIcon
+            placeholder={t("sets.search.placeholder")}
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
+          />
+          {filteredDocumentSets.length > 0 ? (
+            <DocumentSetTable
+              documentSets={filteredDocumentSets}
+              page={page}
+              onPageChange={setPage}
+              refresh={refreshDocumentSets}
+            />
+          ) : (
+            <IllustrationContent
+              illustration={SvgNoResult}
+              title={t("sets.noResults.title")}
+              description={t("sets.noResults.description", {
+                query: searchQuery,
+              })}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function Page() {
+  const adminRouteTitle = useAdminRouteTitle();
+  return (
+    <SettingsLayouts.Root>
+      <SettingsLayouts.Header
+        icon={route.icon}
+        title={adminRouteTitle(route)}
+        divider
+      />
+      <SettingsLayouts.Body>
+        <Main />
+      </SettingsLayouts.Body>
+    </SettingsLayouts.Root>
+  );
+}

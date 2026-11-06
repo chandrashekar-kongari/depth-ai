@@ -1,0 +1,56 @@
+import type { ErrorResponseBody } from "@/lib/fetcher";
+
+export interface ConnectorFileInfo {
+  file_id: string;
+  file_name: string;
+  file_size?: number;
+  upload_date?: string;
+}
+
+export interface ConnectorFilesResponse {
+  files: ConnectorFileInfo[];
+  /** Every file of the connector, not just the ones in `files`. */
+  total_items: number;
+}
+
+/** Files per page wherever a connector's file list is listed. */
+export const CONNECTOR_FILES_PAGE_SIZE = 20;
+
+export interface FileUploadResponse {
+  file_paths: string[];
+  file_names: string[];
+  zip_metadata_file_id: string | null;
+}
+
+export async function updateConnectorFiles(
+  connectorId: number,
+  fileIdsToRemove: string[],
+  filesToAdd: File[]
+): Promise<void> {
+  const formData = new FormData();
+
+  // Add files to remove as JSON
+  formData.append("file_ids_to_remove", JSON.stringify(fileIdsToRemove));
+
+  // Add new files
+  filesToAdd.forEach((file) => {
+    formData.append("files", file);
+  });
+
+  const response = await fetch(
+    `/api/manage/admin/connector/${connectorId}/files/update`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    const error: ErrorResponseBody = await response.json();
+    throw new Error(
+      `Failed to update connector files (${response.status}): ${
+        error.detail || "Unknown error"
+      }`
+    );
+  }
+}

@@ -1,0 +1,1405 @@
+"use client";
+
+import { parseErrorDetail } from "@/lib/fetcher";
+
+import {
+  useBetaTag,
+  usePlans,
+  useTierAtLeast,
+  useTierLockedOptions,
+} from "@/lib/tiers/hooks";
+import { getSourceMetadata } from "@/lib/connectors/utils";
+import { useAdminRouteTitle } from "@/lib/adminNavLabels";
+import { markdown } from "@opal/utils";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { Formik, Form } from "formik";
+import { mutate } from "swr";
+import { SWR_KEYS } from "@/lib/swr-keys";
+import { SettingsLayouts, toast } from "@opal/layouts";
+import { Section } from "@/layouts/general-layouts";
+import { Collapsible } from "@opal/components";
+import InputTextAreaField from "@/refresh-components/form/InputTextAreaField";
+import {
+  InputSingleSelect,
+  InputTextArea,
+  InputTypeIn,
+  type SelectOption,
+} from "@opal/components";
+import {
+  SvgAddLines,
+  SvgExternalLink,
+  SvgRefreshCw,
+  SvgRevert,
+  SvgChevronDown,
+} from "@opal/icons";
+import { ADMIN_ROUTES } from "@/lib/admin-routes";
+import {
+  Content,
+  ContentAction,
+  InputHorizontal,
+  InputVertical,
+} from "@opal/layouts";
+import { useSettings } from "@/lib/settings/hooks";
+import useCCPairs from "@/hooks/useCCPairs";
+import { QueryHistoryType, Settings, toSettings } from "@/lib/settings/types";
+import { LanguageSelect } from "@/lib/app/components";
+import { useAvailableTools } from "@/lib/tools/hooks";
+import {
+  SEARCH_TOOL_ID,
+  IMAGE_GENERATION_TOOL_ID,
+  WEB_SEARCH_TOOL_ID,
+  PYTHON_TOOL_ID,
+  OPEN_URL_TOOL_ID,
+  CODING_AGENT_TOOL_ID,
+} from "@/lib/tools/constants";
+import {
+  EmptyMessageCard,
+  Button,
+  Divider,
+  Text,
+  Card,
+  MessageCard,
+  Tooltip,
+} from "@opal/components";
+import { Modal } from "@opal/components";
+import GenericConfirmModal from "@/sections/modals/GenericConfirmModal";
+import { InputSwitch } from "@opal/components";
+import { Disabled, Hoverable } from "@opal/core";
+import { Tier } from "@/lib/tiers/types";
+import {
+  ChatNamingModelSetting,
+  SearchDecisionModelSetting,
+} from "@/views/admin/ChatTaskModelSettings";
+
+import { useDefaultAssistantConfiguration } from "@/lib/agents/hooks";
+
+const route = ADMIN_ROUTES.CHAT_PREFERENCES;
+
+type FileLimitFieldName =
+  | "user_file_max_upload_size_mb"
+  | "file_token_count_threshold_k";
+
+interface NumericLimitFieldProps {
+  name: FileLimitFieldName;
+  initialValue: string;
+  defaultValue: string;
+  saveSettings: (updates: Partial<Settings>) => Promise<void>;
+  maxValue?: number;
+  allowZero?: boolean;
+}
+
+function NumericLimitField({
+  name,
+  initialValue: initialValueProp,
+  defaultValue,
+  saveSettings,
+  maxValue,
+  allowZero = false,
+}: NumericLimitFieldProps) {
+  const t = useTranslations("admin.chatPreferences");
+  const [value, setValue] = useState(initialValueProp);
+  const savedValue = useRef(initialValueProp);
+  const restoringRef = useRef(false);
+
+  const parsed = parseInt(value, 10);
+  const isOverMax =
+    maxValue !== undefined && !isNaN(parsed) && parsed > maxValue;
+
+  const handleRestore = () => {
+    restoringRef.current = true;
+    savedValue.current = defaultValue;
+    setValue(defaultValue);
+    void saveSettings({ [name]: parseInt(defaultValue, 10) });
+  };
+
+  const handleBlur = () => {
+    // The restore button triggers a blur — skip since handleRestore already saved.
+    if (restoringRef.current) {
+      restoringRef.current = false;
+      return;
+    }
+
+    const parsed = parseInt(value, 10);
+    const isValid = !isNaN(parsed) && (allowZero ? parsed >= 0 : parsed > 0);
+
+    // Revert invalid input (empty, NaN, negative).
+    if (!isValid) {
+      if (allowZero) {
+        // Empty/invalid means "no limit" — persist 0 and clear the field.
+        setValue("");
+        void saveSettings({ [name]: 0 });
+        savedValue.current = "";
+      } else {
+        setValue(savedValue.current);
+      }
+      return;
+    }
+
+    // Block save when the value exceeds the hard ceiling.
+    if (maxValue !== undefined && parsed > maxValue) {
+      return;
+    }
+
+    // For allowZero fields, 0 means "no limit" — clear the display
+    // so the "No limit" placeholder is visible, but still persist 0.
+    if (allowZero && parsed === 0) {
+      setValue("");
+      if (savedValue.current !== "") {
+        void saveSettings({ [name]: 0 });
+        savedValue.current = "";
+      }
+      return;
+    }
+
+    const normalizedDisplay = String(parsed);
+
+    // Update the display to the canonical form (e.g. strip leading zeros).
+    if (value !== normalizedDisplay) {
+      setValue(normalizedDisplay);
+    }
+
+    // Persist only when the value actually changed.
+    if (normalizedDisplay !== savedValue.current) {
+      void saveSettings({ [name]: parsed });
+      savedValue.current = normalizedDisplay;
+    }
+  };
+
+  return (
+    <Hoverable.Root group="numericLimit" width="full">
+      <InputTypeIn
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={
+          allowZero
+            ? t("fileLimits.noLimit.placeholder")
+            : t("fileLimits.default.placeholder", { value: defaultValue })
+        }
+        variant={isOverMax ? "error" : undefined}
+        rightChildren={
+          (value || "") !== defaultValue ? (
+            <Hoverable.Item group="numericLimit" variant="appear-on-hover">
+              <Button
+                icon={SvgRefreshCw}
+                tooltip={t("fileLimits.restoreDefault.tooltip")}
+                prominence="internal"
+                onClick={handleRestore}
+              />
+            </Hoverable.Item>
+          ) : undefined
+        }
+        onBlur={handleBlur}
+      />
+    </Hoverable.Root>
+  );
+}
+
+interface FileSizeLimitFieldsProps {
+  saveSettings: (updates: Partial<Settings>) => Promise<void>;
+  initialUploadSizeMb: string;
+  defaultUploadSizeMb: string;
+  initialTokenThresholdK: string;
+  defaultTokenThresholdK: string;
+  maxAllowedUploadSizeMb?: number;
+}
+
+function FileSizeLimitFields({
+  saveSettings,
+  initialUploadSizeMb,
+  defaultUploadSizeMb,
+  initialTokenThresholdK,
+  defaultTokenThresholdK,
+  maxAllowedUploadSizeMb,
+}: FileSizeLimitFieldsProps) {
+  const t = useTranslations("admin.chatPreferences");
+
+  return (
+    <div className="flex gap-4 w-full items-start pt-2">
+      <div className="flex-1">
+        <InputVertical
+          title={t("fileLimits.size.title")}
+          suffix={t("fileLimits.size.suffix")}
+          subDescription={
+            maxAllowedUploadSizeMb
+              ? t("fileLimits.size.maxDescription", {
+                  // String, not number, so ICU does not add digit grouping.
+                  max: String(maxAllowedUploadSizeMb),
+                })
+              : undefined
+          }
+          withLabel
+        >
+          <NumericLimitField
+            name="user_file_max_upload_size_mb"
+            initialValue={initialUploadSizeMb}
+            defaultValue={defaultUploadSizeMb}
+            saveSettings={saveSettings}
+            maxValue={maxAllowedUploadSizeMb}
+          />
+        </InputVertical>
+      </div>
+      <div className="flex-1">
+        <InputVertical
+          title={t("fileLimits.tokens.title")}
+          withLabel
+          suffix={t("fileLimits.tokens.suffix")}
+        >
+          <NumericLimitField
+            name="file_token_count_threshold_k"
+            initialValue={initialTokenThresholdK}
+            defaultValue={defaultTokenThresholdK}
+            saveSettings={saveSettings}
+            allowZero
+          />
+        </InputVertical>
+      </div>
+    </div>
+  );
+}
+
+// Retention presets offered directly in the dropdown, matching the Figma
+// design. Any other (positive) value is surfaced via "Custom Retention". The
+// backend stores maximum_chat_retention_days as a free-form number of days, so
+// these are purely UI (365 is labelled "1 year").
+const RETENTION_PRESET_DAYS = [7, 30, 60, 90, 365] as const;
+// FE-only guard: the backend imposes no upper bound, so cap absurd input.
+const MAX_RETENTION_DAYS = 36500; // ~100 years
+const CUSTOM_RETENTION_VALUE = "custom";
+const FOREVER_RETENTION_VALUE = "forever";
+
+// Pure predicate — lives at module scope so it can be referenced inside
+// useEffect without an exhaustive-deps suppression.
+const valueIsCustomRetention = (v: number | null): v is number =>
+  v !== null && !RETENTION_PRESET_DAYS.some((days) => days === v);
+
+// True only when the string is one or more digits within the allowed range.
+// parseInt alone would silently accept "1.5" → 1 or "7abc" → 7, so guard with
+// a digits-only check before persisting.
+const isValidCustomRetention = (raw: string): boolean =>
+  /^\d+$/.test(raw) &&
+  parseInt(raw, 10) > 0 &&
+  parseInt(raw, 10) <= MAX_RETENTION_DAYS;
+
+// A "reduction" shortens the retention window, making more chats eligible for
+// permanent deletion — so it warrants a confirmation. null = Forever (∞).
+const isRetentionReduction = (
+  current: number | null,
+  next: number | null
+): boolean => {
+  if (next === null) return false; // Forever is never a reduction
+  if (current === null) return true; // Forever → finite shortens retention
+  return next < current;
+};
+
+interface RetentionFieldProps {
+  value: number | null;
+  disabled?: boolean;
+  onSave: (value: number | null) => void;
+}
+
+// Chat-retention control: a preset dropdown where "Custom Retention" converts
+// the dropdown in place into a numeric "days" input (with revert + reopen
+// affordances). The persisted shape (number | null) is unchanged, so any
+// existing value — preset or not — round-trips correctly.
+function RetentionField({
+  value,
+  disabled = false,
+  onSave,
+}: RetentionFieldProps) {
+  const t = useTranslations("admin.chatPreferences");
+  // Retention needs Enterprise: below it, the choices stay on show, locked
+  // under an upgrade link.
+  const enterpriseTier = useTierAtLeast(Tier.ENTERPRISE);
+  const lockForEnterprise = useTierLockedOptions(Tier.ENTERPRISE);
+  const tInputSelect = useTranslations("common.inputSelect");
+  const retentionPresets = useMemo(
+    () => [
+      { days: 7, label: t("retention.presets.days7") },
+      { days: 30, label: t("retention.presets.days30") },
+      { days: 60, label: t("retention.presets.days60") },
+      { days: 90, label: t("retention.presets.days90") },
+      { days: 365, label: t("retention.presets.year1") },
+    ],
+    [t]
+  );
+  const [showCustom, setShowCustom] = useState(valueIsCustomRetention(value));
+  const [customDays, setCustomDays] = useState(
+    valueIsCustomRetention(value) ? String(value) : ""
+  );
+  // A pending reduction awaiting confirmation (always a positive number; null
+  // means nothing is pending).
+  const [pendingValue, setPendingValue] = useState<number | null>(null);
+
+  const customInputRef = useRef<HTMLInputElement>(null);
+  const focusCustomOnShowRef = useRef(false);
+  // "More" focuses and clicks the select's trigger once the select is back
+  // on screen: the Opal select has no controlled-open prop, and a button
+  // trigger opens on click, not on focus.
+  const selectWrapperRef = useRef<HTMLDivElement>(null);
+  const reopenPresetsRef = useRef(false);
+  // True while the presets are open in place of a stored custom value. The
+  // select gives no close signal, so while it is set, a pointer down outside
+  // the field and its list, or Escape, returns to the custom input.
+  const [presetsReopened, setPresetsReopened] = useState(false);
+  // Set when a preset is chosen from the dropdown, so leaving the dropdown
+  // doesn't bounce a still-custom value back into the input (see onBlur).
+  const pickedPresetRef = useRef(false);
+
+  const syncToValue = (v: number | null) => {
+    setShowCustom(valueIsCustomRetention(v));
+    setCustomDays(valueIsCustomRetention(v) ? String(v) : "");
+  };
+
+  // Re-sync when the stored value changes externally (e.g. another admin),
+  // but only when our local state matches the last value we persisted.
+  const lastSavedRef = useRef(value);
+  useEffect(() => {
+    if (value === lastSavedRef.current) return;
+    lastSavedRef.current = value;
+    syncToValue(value);
+  }, [value]);
+
+  // Focus the custom input only when the user explicitly picks "Custom
+  // Retention" (never on initial mount for an already-custom value).
+  useEffect(() => {
+    if (showCustom && focusCustomOnShowRef.current) {
+      customInputRef.current?.focus();
+      focusCustomOnShowRef.current = false;
+    }
+  }, [showCustom]);
+
+  useEffect(() => {
+    if (!showCustom && reopenPresetsRef.current) {
+      const trigger = selectWrapperRef.current?.querySelector("input");
+      trigger?.focus();
+      trigger?.click();
+      reopenPresetsRef.current = false;
+    }
+  }, [showCustom]);
+
+  useEffect(() => {
+    if (!presetsReopened) return;
+    const revert = () => {
+      setPresetsReopened(false);
+      if (valueIsCustomRetention(value)) setShowCustom(true);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (selectWrapperRef.current?.contains(target)) return;
+      // A pick in the portalled list lands in handleSelectChange instead.
+      if (target.closest('[role="listbox"]')) return;
+      revert();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") revert();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [presetsReopened, value]);
+
+  // Only read while in select mode. A stored custom value (transiently visible
+  // here after "More") maps to no option, so the select is left empty and the
+  // trigger shows the placeholder until the user picks.
+  // Below Enterprise a stored custom value cannot change, so the locked list
+  // shows it as "Custom Retention" rather than the editable input.
+  const selectValue =
+    value === null
+      ? FOREVER_RETENTION_VALUE
+      : valueIsCustomRetention(value)
+        ? enterpriseTier
+          ? ""
+          : CUSTOM_RETENTION_VALUE
+        : String(value);
+
+  const persist = (next: number | null) => {
+    lastSavedRef.current = next;
+    onSave(next);
+  };
+
+  // Route every save through here so reductions (preset or custom) are
+  // confirmed before touching the persisted value.
+  const requestPersist = (next: number | null) => {
+    if (next === value) return;
+    if (isRetentionReduction(value, next)) {
+      setPendingValue(next);
+      return;
+    }
+    persist(next);
+  };
+
+  const handleSelectChange = (next: string) => {
+    setPresetsReopened(false);
+    // Re-picking the selected preset unselects it; the field keeps its value.
+    if (next === "") return;
+    if (next === CUSTOM_RETENTION_VALUE) {
+      focusCustomOnShowRef.current = true;
+      setShowCustom(true);
+      return;
+    }
+    pickedPresetRef.current = true;
+    setShowCustom(false);
+    requestPersist(
+      next === FOREVER_RETENTION_VALUE ? null : parseInt(next, 10)
+    );
+  };
+
+  // Leaving the reopened dropdown without picking a preset returns to the
+  // custom input (the stored value is still custom).
+  const handleSelectBlur = () => {
+    if (!pickedPresetRef.current && valueIsCustomRetention(value)) {
+      setShowCustom(true);
+    }
+    setPresetsReopened(false);
+    pickedPresetRef.current = false;
+  };
+
+  const handleCustomBlur = () => {
+    // Empty input reverts the field to Forever.
+    if (customDays.trim() === "") {
+      setShowCustom(false);
+      requestPersist(null);
+      return;
+    }
+    // Invalid input reverts to the last persisted selection.
+    if (!isValidCustomRetention(customDays)) {
+      syncToValue(value);
+      return;
+    }
+
+    const parsed = parseInt(customDays, 10);
+    const normalized = String(parsed);
+    if (normalized !== customDays) setCustomDays(normalized);
+    requestPersist(parsed);
+  };
+
+  // Restore Default → back to Forever.
+  const handleRestoreDefault = () => {
+    setShowCustom(false);
+    requestPersist(null);
+  };
+
+  // More → leave custom mode and reopen the preset dropdown.
+  const handleReopenPresets = () => {
+    reopenPresetsRef.current = true;
+    setPresetsReopened(true);
+    setShowCustom(false);
+  };
+
+  const handleConfirmReduction = () => {
+    if (pendingValue !== null) persist(pendingValue);
+    setPendingValue(null);
+  };
+
+  const handleCancelReduction = () => {
+    // Discard the pending change and restore the UI to the persisted value.
+    setPendingValue(null);
+    syncToValue(value);
+  };
+
+  const customInvalid =
+    customDays !== "" && !isValidCustomRetention(customDays);
+
+  const presetOptions: SelectOption[] = retentionPresets.map((preset) => ({
+    value: String(preset.days),
+    title: preset.label,
+  }));
+  const foreverOption: SelectOption = {
+    value: FOREVER_RETENTION_VALUE,
+    title: t("retention.forever.label"),
+  };
+  const customOption: SelectOption = {
+    value: CUSTOM_RETENTION_VALUE,
+    title: t("retention.custom.label"),
+  };
+
+  const iconButtonProps = {
+    prominence: "tertiary",
+    size: "xs",
+    type: "button",
+    disabled,
+  } as const;
+
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      {enterpriseTier && showCustom ? (
+        <div className="flex flex-col gap-1 w-full">
+          <InputTypeIn
+            ref={customInputRef}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder={t("retention.custom.placeholder")}
+            value={customDays}
+            onChange={(e) => setCustomDays(e.target.value)}
+            onBlur={handleCustomBlur}
+            variant={
+              disabled ? "disabled" : customInvalid ? "error" : undefined
+            }
+            rightChildren={
+              <Section flexDirection="row" gap={0.5} width="fit" height="fit">
+                <Button
+                  icon={SvgRevert}
+                  tooltip={t("retention.custom.restoreTooltip")}
+                  onClick={handleRestoreDefault}
+                  {...iconButtonProps}
+                />
+                <Button
+                  icon={SvgChevronDown}
+                  tooltip={t("retention.custom.moreTooltip")}
+                  onClick={handleReopenPresets}
+                  {...iconButtonProps}
+                />
+              </Section>
+            }
+          />
+          {customInvalid && (
+            <Text font="secondary-body" color="text-03">
+              {t("retention.custom.invalidError", {
+                // String, not number, so ICU does not add digit grouping.
+                max: String(MAX_RETENTION_DAYS),
+              })}
+            </Text>
+          )}
+        </div>
+      ) : (
+        <div ref={selectWrapperRef} className="w-full">
+          <InputSingleSelect
+            value={selectValue}
+            onValueChange={handleSelectChange}
+            onBlur={handleSelectBlur}
+            disabled={disabled}
+            placeholder={tInputSelect("placeholder.fallback")}
+            options={
+              enterpriseTier
+                ? [foreverOption, ...presetOptions, { options: [customOption] }]
+                : // Below Enterprise every choice sits locked under an
+                  // upgrade link, the stored value selected.
+                  lockForEnterprise([
+                    foreverOption,
+                    ...presetOptions,
+                    customOption,
+                  ])
+            }
+          />
+        </div>
+      )}
+
+      {pendingValue !== null && (
+        <GenericConfirmModal
+          title={t("retention.reduceModal.title")}
+          message={t("retention.reduceModal.message", { days: pendingValue })}
+          confirmText={t("retention.reduceModal.confirmLabel")}
+          onClose={handleCancelReduction}
+          onConfirm={handleConfirmReduction}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function ChatPreferencesPage() {
+  const t = useTranslations("admin.chatPreferences");
+  const plans = usePlans();
+  const betaTag = useBetaTag();
+  const tInputSelect = useTranslations("common.inputSelect");
+  const adminRouteTitle = useAdminRouteTitle();
+  const router = useRouter();
+  const settings = useSettings();
+  const s = settings;
+  // Search Mode toggle is Business+; Chat Retention is Enterprise-only.
+  const businessTier = useTierAtLeast(Tier.BUSINESS);
+  const enterpriseTier = useTierAtLeast(Tier.ENTERPRISE);
+
+  // Local state for text fields (save-on-blur)
+  const [companyName, setCompanyName] = useState(s.company_name ?? "");
+  const [companyDescription, setCompanyDescription] = useState(
+    s.company_description ?? ""
+  );
+  const savedCompanyName = useRef(companyName);
+  const savedCompanyDescription = useRef(companyDescription);
+
+  // Re-sync local state when settings change externally (e.g. another admin),
+  // but only when there's no in-progress edit (local matches last-saved value).
+  useEffect(() => {
+    const incoming = s.company_name ?? "";
+    if (companyName === savedCompanyName.current && incoming !== companyName) {
+      setCompanyName(incoming);
+      savedCompanyName.current = incoming;
+    }
+  }, [s.company_name]);
+
+  useEffect(() => {
+    const incoming = s.company_description ?? "";
+    if (
+      companyDescription === savedCompanyDescription.current &&
+      incoming !== companyDescription
+    ) {
+      setCompanyDescription(incoming);
+      savedCompanyDescription.current = incoming;
+    }
+  }, [s.company_description]);
+
+  // Tools availability
+  const { tools: availableTools } = useAvailableTools();
+  const { vectorDbEnabled } = settings;
+
+  const searchTool = availableTools.find(
+    (t) => t.in_code_tool_id === SEARCH_TOOL_ID
+  );
+  const imageGenTool = availableTools.find(
+    (t) => t.in_code_tool_id === IMAGE_GENERATION_TOOL_ID
+  );
+  const webSearchTool = availableTools.find(
+    (t) => t.in_code_tool_id === WEB_SEARCH_TOOL_ID
+  );
+  const openURLTool = availableTools.find(
+    (t) => t.in_code_tool_id === OPEN_URL_TOOL_ID
+  );
+  const codeInterpreterTool = availableTools.find(
+    (t) => t.in_code_tool_id === PYTHON_TOOL_ID
+  );
+  const codingAgentTool = availableTools.find(
+    (t) => t.in_code_tool_id === CODING_AGENT_TOOL_ID
+  );
+
+  // Connectors
+  const { ccPairs } = useCCPairs();
+  const uniqueSources = Array.from(new Set(ccPairs.map((p) => p.source)));
+
+  // Default agent configuration (system prompt)
+  const {
+    data: defaultAgentConfig,
+    mutate: mutateDefaultAgent,
+    updateTools,
+  } = useDefaultAssistantConfiguration();
+  const enabledToolIds = defaultAgentConfig?.tool_ids ?? [];
+  const isToolEnabled = (toolDbId: number) => enabledToolIds.includes(toolDbId);
+  const toggleTools = async (toolDbIds: number[], enabled: boolean) => {
+    try {
+      await updateTools(toolDbIds, enabled);
+    } catch {
+      toast.error(t("toasts.toolsUpdateFailed"));
+    }
+  };
+  const toggleTool = (toolDbId: number, enabled: boolean) => {
+    void toggleTools([toolDbId], enabled);
+  };
+
+  // System prompt modal state
+  const [systemPromptModalOpen, setSystemPromptModalOpen] = useState(false);
+
+  const saveSettings = useCallback(
+    async (updates: Partial<Settings>) => {
+      const currentSettings = settings;
+      if (!currentSettings) return;
+
+      const newSettings: Settings = {
+        ...toSettings(currentSettings),
+        ...updates,
+      };
+
+      try {
+        const response = await fetch("/api/admin/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newSettings),
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            await parseErrorDetail(response, t("toasts.settingsUpdateFailed"))
+          );
+        }
+
+        router.refresh();
+        await mutate(SWR_KEYS.settings);
+      } catch (error) {
+        toast.error(t("toasts.settingsUpdateFailed"));
+      }
+    },
+    [settings, router, t]
+  );
+
+  return (
+    <>
+      <SettingsLayouts.Root>
+        <SettingsLayouts.Header
+          icon={route.icon}
+          title={adminRouteTitle(route)}
+          description={t("header.description")}
+          divider
+        />
+
+        <SettingsLayouts.Body>
+          {/* Chat */}
+          <Card border="solid" rounding={4}>
+            <Section alignItems="stretch">
+              <InputHorizontal
+                title={t("defaultLanguage.title")}
+                description={t("defaultLanguage.description")}
+                withLabel
+                fillInput
+              >
+                <LanguageSelect
+                  value={s.default_language}
+                  onChange={(language) => {
+                    void saveSettings({ default_language: language });
+                  }}
+                />
+              </InputHorizontal>
+              <ChatNamingModelSetting />
+              <InputHorizontal
+                title={t("multiModel.title")}
+                description={t("multiModel.description")}
+                withLabel
+              >
+                <InputSwitch
+                  checked={s.multi_model_chat_enabled ?? true}
+                  onCheckedChange={(checked) => {
+                    void saveSettings({ multi_model_chat_enabled: checked });
+                  }}
+                />
+              </InputHorizontal>
+              <InputHorizontal
+                title={t("deepResearch.title")}
+                description={t("deepResearch.description")}
+                withLabel
+              >
+                <InputSwitch
+                  checked={s.deep_research_enabled ?? true}
+                  onCheckedChange={(checked) => {
+                    void saveSettings({ deep_research_enabled: checked });
+                  }}
+                />
+              </InputHorizontal>
+              <InputHorizontal
+                title={t("autoScroll.title")}
+                description={t("autoScroll.description")}
+                withLabel
+              >
+                <InputSwitch
+                  checked={s.auto_scroll ?? false}
+                  onCheckedChange={(checked) => {
+                    void saveSettings({ auto_scroll: checked });
+                  }}
+                />
+              </InputHorizontal>
+              {/* Below Business, or with no connectors, the row stays as is;
+              only its switch is locked. */}
+              <InputHorizontal
+                title={t("searchMode.title")}
+                tag={!businessTier ? plans[Tier.BUSINESS].tag : betaTag}
+                description={t("searchMode.description")}
+                withLabel
+              >
+                <Tooltip
+                  tooltip={
+                    !businessTier
+                      ? plans[Tier.BUSINESS].tooltip
+                      : uniqueSources.length === 0
+                        ? t("searchMode.noConnectorsTooltip")
+                        : undefined
+                  }
+                >
+                  <div>
+                    <InputSwitch
+                      checked={
+                        businessTier ? (s.search_ui_enabled ?? true) : false
+                      }
+                      onCheckedChange={(checked) => {
+                        void saveSettings({ search_ui_enabled: checked });
+                      }}
+                      disabled={!businessTier || uniqueSources.length === 0}
+                    />
+                  </div>
+                </Tooltip>
+              </InputHorizontal>
+              <InputHorizontal
+                title={t("autoDetectFilters.title")}
+                description={t("autoDetectFilters.description")}
+                withLabel
+              >
+                <InputSwitch
+                  checked={s.auto_detect_search_filters ?? true}
+                  onCheckedChange={(checked) => {
+                    void saveSettings({ auto_detect_search_filters: checked });
+                  }}
+                />
+              </InputHorizontal>
+            </Section>
+          </Card>
+
+          {/* Search */}
+          <Card border="solid" rounding={4}>
+            <Section alignItems="stretch">
+              <SearchDecisionModelSetting />
+            </Section>
+          </Card>
+
+          <Divider paddingParallel={0} paddingPerpendicular={0} />
+
+          {/* Team context */}
+          <Section gap={4}>
+            <InputVertical
+              title={t("teamName.title")}
+              subDescription={t("teamName.description")}
+              withLabel
+            >
+              <InputTypeIn
+                placeholder={t("teamName.placeholder")}
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                onBlur={() => {
+                  if (companyName !== savedCompanyName.current) {
+                    void saveSettings({
+                      company_name: companyName || null,
+                    });
+                    savedCompanyName.current = companyName;
+                  }
+                }}
+              />
+            </InputVertical>
+
+            <InputVertical
+              title={t("teamContext.title")}
+              subDescription={t("teamContext.description")}
+              withLabel
+            >
+              <InputTextArea
+                placeholder={t("teamContext.placeholder", {
+                  appName: settings.appName,
+                })}
+                rows={4}
+                maxRows={10}
+                autoResize
+                value={companyDescription}
+                onChange={(e) => setCompanyDescription(e.target.value)}
+                onBlur={() => {
+                  if (companyDescription !== savedCompanyDescription.current) {
+                    void saveSettings({
+                      company_description: companyDescription || null,
+                    });
+                    savedCompanyDescription.current = companyDescription;
+                  }
+                }}
+              />
+            </InputVertical>
+          </Section>
+
+          <InputHorizontal
+            title={t("systemPrompt.title")}
+            description={t("systemPrompt.description")}
+          >
+            <Button
+              prominence="tertiary"
+              icon={SvgAddLines}
+              onClick={() => setSystemPromptModalOpen(true)}
+            >
+              {t("systemPrompt.modifyButton.label")}
+            </Button>
+          </InputHorizontal>
+
+          <Divider paddingParallel={0} paddingPerpendicular={0} />
+
+          <Disabled disabled={s.disable_default_assistant ?? false}>
+            <div>
+              <Section gap={6}>
+                {/* Connectors */}
+                <Section gap={3}>
+                  <Section
+                    flexDirection="row"
+                    justifyContent="between"
+                    alignItems="center"
+                    gap={1}
+                    wrap
+                  >
+                    <Section width="fit" alignItems="start">
+                      <Content
+                        title={t("connectors.title")}
+                        description={t("connectors.description")}
+                        sizePreset="main-content"
+                        variant="section"
+                      />
+                    </Section>
+                    {uniqueSources.length > 0 && (
+                      <Button
+                        href="/admin/indexing-status"
+                        prominence="tertiary"
+                        rightIcon={SvgExternalLink}
+                      >
+                        {t("connectors.manageAllButton.label")}
+                      </Button>
+                    )}
+                  </Section>
+
+                  {uniqueSources.length === 0 ? (
+                    <EmptyMessageCard
+                      sizePreset="main-ui"
+                      title={t("connectors.empty.title")}
+                    />
+                  ) : (
+                    <Section
+                      flexDirection="row"
+                      justifyContent="start"
+                      alignItems="center"
+                      gap={1}
+                      wrap
+                    >
+                      {uniqueSources.map((source) => {
+                        const meta = getSourceMetadata(source);
+                        return (
+                          <div key={source} className="w-40">
+                            <Card padding={2} border="solid">
+                              <Content
+                                icon={meta.icon}
+                                title={meta.displayName}
+                                sizePreset="main-ui"
+                              />
+                            </Card>
+                          </div>
+                        );
+                      })}
+                    </Section>
+                  )}
+                </Section>
+
+                {/* Actions & Tools */}
+                <Collapsible
+                  title={t("tools.title")}
+                  description={t("tools.description")}
+                >
+                  <Section gap={6} alignItems="stretch">
+                    <Section gap={2} alignItems="stretch">
+                      {vectorDbEnabled && searchTool && (
+                        <Card border="solid" rounding={4}>
+                          <InputHorizontal
+                            title={t("tools.internalSearch.title")}
+                            description={t("tools.internalSearch.description")}
+                            withLabel
+                          >
+                            <InputSwitch
+                              checked={isToolEnabled(searchTool.id)}
+                              onCheckedChange={(checked) =>
+                                void toggleTool(searchTool.id, checked)
+                              }
+                            />
+                          </InputHorizontal>
+                        </Card>
+                      )}
+
+                      <Disabled
+                        disabled={!imageGenTool}
+                        tooltip={t("tools.imageGeneration.disabledTooltip")}
+                      >
+                        <Card border="solid" rounding={4}>
+                          <InputHorizontal
+                            title={t("tools.imageGeneration.title")}
+                            description={t("tools.imageGeneration.description")}
+                            disabled={!imageGenTool}
+                            withLabel
+                          >
+                            <InputSwitch
+                              checked={
+                                imageGenTool
+                                  ? isToolEnabled(imageGenTool.id)
+                                  : false
+                              }
+                              onCheckedChange={(checked) =>
+                                imageGenTool &&
+                                void toggleTool(imageGenTool.id, checked)
+                              }
+                              disabled={!imageGenTool}
+                            />
+                          </InputHorizontal>
+                        </Card>
+                      </Disabled>
+
+                      <Disabled disabled={!webSearchTool}>
+                        <Card border="solid" rounding={4}>
+                          <InputHorizontal
+                            title={t("tools.webSearch.title")}
+                            description={t("tools.webSearch.description")}
+                            disabled={!webSearchTool}
+                            withLabel
+                          >
+                            <InputSwitch
+                              checked={
+                                webSearchTool
+                                  ? isToolEnabled(webSearchTool.id)
+                                  : false
+                              }
+                              onCheckedChange={(checked) =>
+                                webSearchTool &&
+                                void toggleTool(webSearchTool.id, checked)
+                              }
+                              disabled={!webSearchTool}
+                            />
+                          </InputHorizontal>
+                        </Card>
+                      </Disabled>
+
+                      <Disabled disabled={!openURLTool}>
+                        <Card border="solid" rounding={4}>
+                          <InputHorizontal
+                            title={t("tools.openUrl.title")}
+                            description={t("tools.openUrl.description")}
+                            disabled={!openURLTool}
+                            withLabel
+                          >
+                            <InputSwitch
+                              checked={
+                                openURLTool
+                                  ? isToolEnabled(openURLTool.id)
+                                  : false
+                              }
+                              onCheckedChange={(checked) =>
+                                openURLTool &&
+                                void toggleTool(openURLTool.id, checked)
+                              }
+                              disabled={!openURLTool}
+                            />
+                          </InputHorizontal>
+                        </Card>
+                      </Disabled>
+
+                      <Disabled disabled={!codeInterpreterTool}>
+                        <Card border="solid" rounding={4}>
+                          <InputHorizontal
+                            title={t("tools.codeInterpreter.title")}
+                            description={t("tools.codeInterpreter.description")}
+                            disabled={!codeInterpreterTool}
+                            withLabel
+                          >
+                            <InputSwitch
+                              checked={
+                                codeInterpreterTool
+                                  ? isToolEnabled(codeInterpreterTool.id)
+                                  : false
+                              }
+                              onCheckedChange={(checked) =>
+                                codeInterpreterTool &&
+                                void toggleTool(codeInterpreterTool.id, checked)
+                              }
+                              disabled={!codeInterpreterTool}
+                            />
+                          </InputHorizontal>
+                        </Card>
+                      </Disabled>
+
+                      <Disabled disabled={!codingAgentTool}>
+                        <Card border="solid" rounding={4}>
+                          <InputHorizontal
+                            title={t("tools.codingAgent.title")}
+                            description={t("tools.codingAgent.description")}
+                            disabled={!codingAgentTool}
+                            withLabel
+                          >
+                            <InputSwitch
+                              checked={
+                                codingAgentTool
+                                  ? isToolEnabled(codingAgentTool.id)
+                                  : false
+                              }
+                              onCheckedChange={(checked) =>
+                                codingAgentTool &&
+                                void toggleTool(codingAgentTool.id, checked)
+                              }
+                              disabled={!codingAgentTool}
+                            />
+                          </InputHorizontal>
+                        </Card>
+                      </Disabled>
+                    </Section>
+
+                    <MessageCard
+                      variant="info"
+                      title={markdown(
+                        t("tools.pluginsNote", {
+                          url: ADMIN_ROUTES.PLUGINS.path,
+                        })
+                      )}
+                    />
+                  </Section>
+                </Collapsible>
+              </Section>
+            </div>
+          </Disabled>
+
+          <Divider paddingParallel={0} paddingPerpendicular={0} />
+
+          {/* Advanced Options */}
+          <Collapsible defaultOpen={false} title={t("advanced.title")}>
+            <Section gap={4}>
+              <Card border="solid" rounding={4}>
+                <Section alignItems="stretch">
+                  {/* Below Enterprise the row stays as is; only its
+                  dropdown is locked. */}
+                  <InputHorizontal
+                    title={t("retention.title")}
+                    description={t("retention.description", {
+                      appName: settings.appName,
+                    })}
+                    tag={
+                      !enterpriseTier ? plans[Tier.ENTERPRISE].tag : undefined
+                    }
+                    withLabel
+                    fillInput
+                  >
+                    <RetentionField
+                      value={s.maximum_chat_retention_days ?? null}
+                      onSave={(maximum_chat_retention_days) =>
+                        void saveSettings({ maximum_chat_retention_days })
+                      }
+                    />
+                  </InputHorizontal>
+
+                  <InputHorizontal
+                    title={t("queryHistory.title")}
+                    description={t("queryHistory.description")}
+                    withLabel
+                    fillInput
+                  >
+                    <InputSingleSelect
+                      value={s.query_history_type ?? QueryHistoryType.NORMAL}
+                      onValueChange={(value) => {
+                        void saveSettings({
+                          query_history_type: value as QueryHistoryType,
+                        });
+                      }}
+                      defaultOption={QueryHistoryType.NORMAL}
+                      placeholder={tInputSelect("placeholder.fallback")}
+                      options={[
+                        {
+                          value: QueryHistoryType.NORMAL,
+                          title: t("queryHistory.normal.label"),
+                          description: t("queryHistory.normal.description"),
+                        },
+                        {
+                          value: QueryHistoryType.ANONYMIZED,
+                          title: t("queryHistory.anonymized.label"),
+                          description: t("queryHistory.anonymized.description"),
+                        },
+                        {
+                          value: QueryHistoryType.DISABLED,
+                          title: t("queryHistory.disabled.label"),
+                          description: t("queryHistory.disabled.description"),
+                        },
+                      ]}
+                    />
+                  </InputHorizontal>
+                </Section>
+              </Card>
+
+              <Card border="solid" rounding={4}>
+                <InputVertical
+                  title={t("fileLimits.title")}
+                  description={t("fileLimits.description")}
+                  withLabel
+                >
+                  <FileSizeLimitFields
+                    saveSettings={saveSettings}
+                    initialUploadSizeMb={
+                      (s.user_file_max_upload_size_mb ?? 0) <= 0
+                        ? (s.default_user_file_max_upload_size_mb?.toString() ??
+                          "100")
+                        : s.user_file_max_upload_size_mb!.toString()
+                    }
+                    defaultUploadSizeMb={
+                      s.default_user_file_max_upload_size_mb?.toString() ??
+                      "100"
+                    }
+                    initialTokenThresholdK={
+                      s.file_token_count_threshold_k == null
+                        ? (s.default_file_token_count_threshold_k?.toString() ??
+                          "200")
+                        : s.file_token_count_threshold_k === 0
+                          ? ""
+                          : s.file_token_count_threshold_k.toString()
+                    }
+                    defaultTokenThresholdK={
+                      s.default_file_token_count_threshold_k?.toString() ??
+                      "200"
+                    }
+                    maxAllowedUploadSizeMb={s.max_allowed_upload_size_mb}
+                  />
+                </InputVertical>
+              </Card>
+
+              <Card border="solid" rounding={4}>
+                <Section>
+                  <InputHorizontal
+                    title={t("anonymousUsers.title")}
+                    description={markdown(t("anonymousUsers.description"))}
+                    withLabel
+                  >
+                    <InputSwitch
+                      checked={s.anonymous_user_enabled ?? false}
+                      onCheckedChange={(checked) => {
+                        void saveSettings({
+                          anonymous_user_enabled: checked,
+                        });
+                      }}
+                    />
+                  </InputHorizontal>
+
+                  <InputHorizontal
+                    title={t("disableDefaultChat.title")}
+                    description={markdown(t("disableDefaultChat.description"))}
+                    withLabel
+                  >
+                    <InputSwitch
+                      id="disable_default_assistant"
+                      checked={s.disable_default_assistant ?? false}
+                      onCheckedChange={(checked) => {
+                        void saveSettings({
+                          disable_default_assistant: checked,
+                        });
+                      }}
+                    />
+                  </InputHorizontal>
+                </Section>
+              </Card>
+            </Section>
+          </Collapsible>
+        </SettingsLayouts.Body>
+      </SettingsLayouts.Root>
+
+      <Modal
+        open={systemPromptModalOpen}
+        onOpenChange={setSystemPromptModalOpen}
+      >
+        <Modal.Content width="xl" height="fit">
+          <Formik
+            initialValues={{
+              system_prompt:
+                defaultAgentConfig?.system_prompt ??
+                defaultAgentConfig?.default_system_prompt ??
+                "",
+            }}
+            onSubmit={async ({ system_prompt }) => {
+              try {
+                const response = await fetch("/api/admin/default-assistant", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ system_prompt }),
+                });
+                if (!response.ok) {
+                  throw new Error(
+                    await parseErrorDetail(
+                      response,
+                      t("toasts.systemPromptUpdateFailed")
+                    )
+                  );
+                }
+                await mutateDefaultAgent();
+                setSystemPromptModalOpen(false);
+              } catch {
+                toast.error(t("toasts.systemPromptUpdateFailed"));
+              }
+            }}
+          >
+            {({ dirty, isSubmitting, submitForm, setFieldValue }) => {
+              const defaultPrompt =
+                defaultAgentConfig?.default_system_prompt ?? "";
+
+              const handleRestore = () => {
+                void setFieldValue("system_prompt", defaultPrompt);
+              };
+
+              return (
+                <Form>
+                  <Modal.Header
+                    icon={SvgAddLines}
+                    title={t("systemPrompt.title")}
+                    description={t("systemPrompt.modal.description")}
+                    onClose={() => setSystemPromptModalOpen(false)}
+                  />
+                  <Modal.Body>
+                    <Section gap={1} alignItems="start">
+                      <Hoverable.Root group="systemPromptRestore" width="full">
+                        <InputTextAreaField
+                          name="system_prompt"
+                          placeholder={t("systemPrompt.modal.placeholder")}
+                          rows={8}
+                          maxRows={20}
+                          autoResize
+                          rightSection={
+                            <Hoverable.Item
+                              group="systemPromptRestore"
+                              variant="appear-on-hover"
+                            >
+                              <Button
+                                icon={SvgRefreshCw}
+                                tooltip={t("systemPrompt.modal.restoreTooltip")}
+                                prominence="internal"
+                                onClick={handleRestore}
+                              />
+                            </Hoverable.Item>
+                          }
+                        />
+                      </Hoverable.Root>
+                      <Text font="secondary-body" color="text-03">
+                        {markdown(
+                          t("systemPrompt.modal.placeholders.intro"),
+                          // The placeholder names are literal template tokens,
+                          // not copy, so they are passed as ICU arguments to
+                          // keep them out of the translated string.
+                          t("systemPrompt.modal.placeholders.currentDatetime", {
+                            token: "{{CURRENT_DATETIME}}",
+                          }),
+                          t(
+                            "systemPrompt.modal.placeholders.citationGuidance",
+                            { token: "{{CITATION_GUIDANCE}}" }
+                          ),
+                          t("systemPrompt.modal.placeholders.citationNote"),
+                          t("systemPrompt.modal.placeholders.reminderTag", {
+                            token: "{{REMINDER_TAG_DESCRIPTION}}",
+                          })
+                        )}
+                      </Text>
+                    </Section>
+                    <MessageCard
+                      innerPadding={1}
+                      title={t("systemPrompt.modal.caution.title")}
+                      description={t("systemPrompt.modal.caution.description")}
+                      outerPadding={1}
+                    />
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button
+                      prominence="secondary"
+                      onClick={() => setSystemPromptModalOpen(false)}
+                    >
+                      {t("systemPrompt.modal.cancelButton.label")}
+                    </Button>
+                    <Button
+                      prominence="primary"
+                      onClick={submitForm}
+                      disabled={!dirty || isSubmitting}
+                    >
+                      {t("systemPrompt.modal.saveButton.label")}
+                    </Button>
+                  </Modal.Footer>
+                </Form>
+              );
+            }}
+          </Formik>
+        </Modal.Content>
+      </Modal>
+    </>
+  );
+}

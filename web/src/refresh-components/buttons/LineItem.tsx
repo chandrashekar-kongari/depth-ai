@@ -1,0 +1,385 @@
+import React, { useState } from "react";
+import { cn, richNodes } from "@opal/utils";
+import type { IconProps } from "@opal/types";
+import { OverflowText, Text, Tooltip, type TextFont } from "@opal/components";
+import { useOverflow } from "@opal/hooks";
+import Link from "next/link";
+import type { Route } from "next";
+import { Section } from "@/layouts/general-layouts";
+import type { WithoutStyles } from "@opal/types";
+
+const rowClassNames = {
+  main: {
+    normal: "line-item-row-main",
+    emphasized: "line-item-row-main-emphasized",
+  },
+  strikethrough: {
+    normal: "line-item-row-strikethrough",
+    emphasized: "line-item-row-strikethrough-emphasized",
+  },
+  disabled: {
+    normal: "line-item-row-disabled",
+    emphasized: "line-item-row-disabled-emphasized",
+  },
+  danger: {
+    normal: "line-item-row-danger",
+    emphasized: "line-item-row-danger-emphasized",
+  },
+  action: {
+    normal: "line-item-row-action",
+    emphasized: "line-item-row-action-emphasized",
+  },
+  muted: {
+    normal: "line-item-row-muted",
+    emphasized: "line-item-row-muted-emphasized",
+  },
+  skeleton: {
+    normal: "line-item-row-skeleton",
+    emphasized: "line-item-row-skeleton-emphasized",
+  },
+} as const;
+
+const textClassNames = {
+  main: "line-item-text-main",
+  strikethrough: "line-item-text-strikethrough",
+  disabled: "line-item-text-disabled",
+  danger: "line-item-text-danger",
+  action: "line-item-text-action",
+  muted: "line-item-text-muted",
+  skeleton: "line-item-text-skeleton",
+} as const;
+
+// Label fonts per variant. The variant classes above only set the color.
+const textFonts: Record<keyof typeof textClassNames, TextFont> = {
+  main: "main-ui-muted",
+  strikethrough: "main-ui-muted",
+  disabled: "main-ui-muted",
+  danger: "main-ui-muted",
+  action: "main-ui-action",
+  muted: "main-ui-body",
+  skeleton: "secondary-body",
+};
+
+const iconClassNames = {
+  main: "line-item-icon-main",
+  strikethrough: "line-item-icon-strikethrough",
+  disabled: "line-item-icon-disabled",
+  danger: "line-item-icon-danger",
+  action: "line-item-icon-action",
+  muted: "line-item-icon-muted",
+  skeleton: "line-item-icon-skeleton",
+} as const;
+
+export interface LineItemProps extends Omit<
+  WithoutStyles<React.HTMLAttributes<HTMLDivElement>>,
+  "children"
+> {
+  /**
+   * Whether the row should behave like a standalone interactive button.
+   * Set to false when nested inside another interactive primitive
+   * (e.g. Radix Select.Item) to avoid nested focus targets.
+   */
+  interactive?: boolean;
+  // line-item variants
+  strikethrough?: boolean;
+  disabled?: boolean;
+  danger?: boolean;
+  action?: boolean;
+  muted?: boolean;
+  skeleton?: boolean;
+
+  // modifier (makes the background more pronounced when selected).
+  emphasized?: boolean;
+
+  selected?: boolean;
+  icon?: React.FunctionComponent<IconProps>;
+  strokeIcon?: boolean;
+  description?: string;
+  /** When true, the description text wraps instead of truncating. @default false */
+  wrapDescription?: boolean;
+  rightChildren?: React.ReactNode;
+  href?: string;
+  rel?: string;
+  target?: string;
+  ref?: React.Ref<HTMLDivElement>;
+  children?: React.ReactNode;
+}
+
+/**
+ * LineItem Component
+ *
+ * A versatile menu item button component designed for use in dropdowns, sidebars, and menus.
+ * Supports icons, descriptions, and multiple visual states.
+ *
+ * @example
+ * ```tsx
+ * // Basic usage
+ * <LineItem icon={SvgUser}>Profile Settings</LineItem>
+ *
+ * // With selection state
+ * <LineItem icon={SvgCheck} selected>Active Item</LineItem>
+ *
+ * // With emphasis (highlighted background)
+ * <LineItem icon={SvgFolder} selected emphasized>
+ *   Selected Folder
+ * </LineItem>
+ *
+ * // Danger variant
+ * <LineItem icon={SvgTrash} danger>Delete Account</LineItem>
+ *
+ * // With description
+ * <LineItem icon={SvgSettings} description="Manage your account settings">
+ *   Settings
+ * </LineItem>
+ *
+ * // With right content
+ * <LineItem icon={SvgKey} rightChildren={<Text as="p" color="text-03">⌘K</Text>}>
+ *   Keyboard Shortcuts
+ * </LineItem>
+ *
+ * // As a link
+ * <LineItem icon={SvgHome} href="/dashboard">Dashboard</LineItem>
+ *
+ * // Strikethrough (disabled/deprecated items)
+ * <LineItem icon={SvgArchive} strikethrough>
+ *   Archived Feature
+ * </LineItem>
+ *
+ * // Muted variant (less prominent items)
+ * <LineItem icon={SvgFolder} muted>
+ *   Secondary Item
+ * </LineItem>
+ * ```
+ *
+ * @remarks
+ * - Variants are mutually exclusive: only one of `strikethrough`, `danger`, `action`, `muted`, or `skeleton` should be used
+ * - The `selected` prop modifies text/icon colors for `main` and `danger` variants
+ * - The `emphasized` prop adds background colors when combined with `selected`
+ * - The component automatically adds a `data-selected="true"` attribute for custom styling
+ */
+export default function LineItem({
+  interactive = true,
+  selected,
+  strikethrough,
+  disabled,
+  danger,
+  action,
+  muted,
+  skeleton,
+  emphasized,
+  icon: Icon,
+  strokeIcon = true,
+  description,
+  wrapDescription,
+  children,
+  rightChildren,
+  href,
+  rel,
+  target,
+  ref,
+  ...props
+}: LineItemProps) {
+  // Determine variant (mutually exclusive, with priority order: strikethrough > disabled > danger > action > muted > main)
+  const variant = strikethrough
+    ? "strikethrough"
+    : disabled
+      ? "disabled"
+      : danger
+        ? "danger"
+        : action
+          ? "action"
+          : muted
+            ? "muted"
+            : skeleton
+              ? "skeleton"
+              : "main";
+
+  const emphasisKey = emphasized ? "emphasized" : "normal";
+
+  // OverflowText takes only strings, so rich labels measure their own clamp.
+  const [richLabel, setRichLabel] = useState<HTMLElement | null>(null);
+  const richLabelOverflowing = useOverflow(richLabel);
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (disabled) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    props.onClick?.(e);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!interactive) {
+      props.onKeyDown?.(e);
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!disabled) {
+        (e.currentTarget as HTMLDivElement).click();
+      }
+    } else if (e.key === " ") {
+      e.preventDefault();
+    }
+    props.onKeyDown?.(e);
+  };
+
+  const handleKeyUp = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!interactive) {
+      props.onKeyUp?.(e);
+      return;
+    }
+
+    if (e.key === " ") {
+      e.preventDefault();
+      if (!disabled) {
+        (e.currentTarget as HTMLDivElement).click();
+      }
+    }
+    props.onKeyUp?.(e);
+  };
+
+  const rowClassName = cn(
+    "flex flex-row w-full items-start p-2 rounded-08 group/LineItem gap-2",
+    children && description ? "items-start" : "items-center",
+    interactive && (disabled ? "cursor-not-allowed" : "cursor-pointer"),
+    rowClassNames[variant][emphasisKey]
+  );
+
+  const rowProps = {
+    ref,
+    "aria-disabled": disabled || undefined,
+    className: rowClassName,
+    "data-selected": selected,
+    ...props,
+    onClick: handleClick,
+    onKeyDown: handleKeyDown,
+    onKeyUp: handleKeyUp,
+  };
+
+  const body = (
+    <>
+      {Icon && (
+        <div
+          className={cn(
+            "flex flex-col justify-center items-center h-4 min-w-4",
+            !!(children && description) && "mt-0.5"
+          )}
+        >
+          <Icon
+            className={cn("h-4 w-4", strokeIcon && iconClassNames[variant])}
+          />
+        </div>
+      )}
+      <Section alignItems="start" gap={0}>
+        {children ? (
+          <>
+            <Section flexDirection="row" gap={2}>
+              {/* The variant class sets the color (and hover/selected states),
+                  so it sits on a wrapper and the text inherits it. */}
+              <div className={cn("w-full min-w-0", textClassNames[variant])}>
+                {typeof children === "string" ? (
+                  <OverflowText
+                    as="p"
+                    font={textFonts[variant]}
+                    color="inherit"
+                  >
+                    {children}
+                  </OverflowText>
+                ) : (
+                  <Tooltip
+                    tooltip={children}
+                    suppressed={!richLabelOverflowing}
+                    side="top"
+                    align="start"
+                  >
+                    <Text
+                      as="p"
+                      font={textFonts[variant]}
+                      color="inherit"
+                      maxLines={1}
+                      ref={setRichLabel}
+                    >
+                      {richNodes(children)}
+                    </Text>
+                  </Tooltip>
+                )}
+              </div>
+              {rightChildren && (
+                <Section alignItems="end" width="fit">
+                  {rightChildren}
+                </Section>
+              )}
+            </Section>
+            {description &&
+              (wrapDescription ? (
+                <div className="w-full">
+                  <Text
+                    as="p"
+                    font="secondary-body"
+                    color="text-03"
+                    textPosition="text-start"
+                  >
+                    {description}
+                  </Text>
+                </div>
+              ) : (
+                <div className="w-full min-w-0">
+                  <OverflowText as="p" font="secondary-body" color="text-03">
+                    {description}
+                  </OverflowText>
+                </div>
+              ))}
+          </>
+        ) : description ? (
+          <Section flexDirection="row" gap={2}>
+            {wrapDescription ? (
+              <div className="w-full">
+                <Text
+                  as="p"
+                  font="secondary-body"
+                  color="text-03"
+                  textPosition="text-start"
+                >
+                  {description}
+                </Text>
+              </div>
+            ) : (
+              <div className="w-full min-w-0">
+                <OverflowText as="p" font="secondary-body" color="text-03">
+                  {description}
+                </OverflowText>
+              </div>
+            )}
+            {rightChildren && (
+              <Section alignItems="end" width="fit">
+                {rightChildren}
+              </Section>
+            )}
+          </Section>
+        ) : null}
+      </Section>
+    </>
+  );
+
+  // A non-interactive row sits inside another interactive primitive, which
+  // already carries the semantics and the keyboard handling.
+  const content = interactive ? (
+    <div role="button" tabIndex={0} {...rowProps}>
+      {body}
+    </div>
+  ) : (
+    <div role="presentation" {...rowProps}>
+      {body}
+    </div>
+  );
+
+  if (!href) return content;
+  return (
+    <Link href={href as Route} rel={rel} target={target}>
+      {content}
+    </Link>
+  );
+}

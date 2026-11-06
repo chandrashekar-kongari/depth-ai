@@ -1,0 +1,36 @@
+# Apply after docker-compose.onyx-lite.yml. Build the backend/web from this checkout.
+services:
+  api_server:
+    environment:
+      DEPTH_REVIEW_ENABLED: "true"
+      DISABLE_TELEMETRY: "true"
+
+  review_worker:
+    image: ${ONYX_BACKEND_IMAGE:-onyxdotapp/onyx-backend:${IMAGE_TAG:-latest}}
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+      target: runtime
+    command: python -m onyx.engineering.worker
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST:-relational_db}
+      DISABLE_VECTOR_DB: "true"
+      FILE_STORE_BACKEND: postgres
+      CACHE_BACKEND: postgres
+      AUTH_BACKEND: postgres
+      DEPTH_REVIEW_ENABLED: "true"
+      DEPTH_REVIEW_API_BASE: ${DEPTH_REVIEW_API_BASE:-}
+      DEPTH_REVIEW_MODEL: ${DEPTH_REVIEW_MODEL:-}
+      DISABLE_TELEMETRY: "true"
+      # Review spans contain metadata only. Disable remote exporters too.
+      BRAINTRUST_API_KEY: ""
+      LANGFUSE_SECRET_KEY: ""
+      LANGFUSE_PUBLIC_KEY: ""
+      SENTRY_DSN: ""
+    depends_on:
+      api_server:
+        condition: service_healthy
+    restart: unless-stopped

@@ -1,0 +1,162 @@
+import { FormikProps, ErrorMessage } from "formik";
+import { useTranslations } from "next-intl";
+import { InputSingleComboBox, Text } from "@opal/components";
+import { Chip } from "@opal/components";
+import { Disabled } from "@opal/core";
+export type GenericMultiSelectFormType<T extends string> = {
+  [K in T]: number[];
+};
+
+interface GenericItem {
+  id: number;
+  name: string;
+}
+
+interface GenericMultiSelectProps<
+  T extends string,
+  F extends GenericMultiSelectFormType<T>,
+> {
+  formikProps: FormikProps<F>;
+  fieldName: T;
+  label: string;
+  subtext?: string;
+  items: GenericItem[] | undefined;
+  isLoading: boolean;
+  error: any;
+  emptyMessage: string;
+  disabled?: boolean;
+  disabledMessage?: string;
+}
+
+export function GenericMultiSelect<
+  T extends string,
+  F extends GenericMultiSelectFormType<T>,
+>({
+  formikProps,
+  fieldName,
+  label,
+  subtext,
+  items,
+  isLoading,
+  error,
+  emptyMessage,
+  disabled = false,
+  disabledMessage,
+}: GenericMultiSelectProps<T, F>) {
+  const t = useTranslations("common.genericMultiSelect");
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2 w-full">
+        <Text as="p" font="main-ui-action" color="text-05">
+          {label}
+        </Text>
+        <div className="animate-pulse bg-background-neutral-02 h-10 w-full rounded-08" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-2 w-full">
+        <Text as="p" font="main-ui-action" color="text-05">
+          {label}
+        </Text>
+        <Text as="p" color="status-error-05">
+          {t("loadFailed.text", { label: label.toLowerCase() })}
+        </Text>
+      </div>
+    );
+  }
+
+  if (!items || items.length === 0) {
+    return (
+      <div className="flex flex-col gap-2 w-full">
+        <Text as="p" font="main-ui-action" color="text-05">
+          {label}
+        </Text>
+        <Text as="p" color="text-03">
+          {emptyMessage}
+        </Text>
+      </div>
+    );
+  }
+
+  const selectedIds = (formikProps.values[fieldName] as number[]) || [];
+  const selectedItems = items.filter((item) => selectedIds.includes(item.id));
+
+  const handleSelect = (itemId: number) => {
+    if (disabled) return;
+    const currentIds = (formikProps.values[fieldName] as number[]) || [];
+    if (!currentIds.includes(itemId)) {
+      formikProps.setFieldValue(fieldName, [...currentIds, itemId]);
+    }
+  };
+
+  const handleRemove = (itemId: number) => {
+    if (disabled) return;
+    const currentIds = (formikProps.values[fieldName] as number[]) || [];
+    formikProps.setFieldValue(
+      fieldName,
+      currentIds.filter((id) => id !== itemId)
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      <Text as="p" font="main-ui-action" color="text-05">
+        {label}
+      </Text>
+
+      {subtext && (
+        <Text as="p" color="text-03">
+          {(disabled ? disabledMessage : subtext) ?? ""}
+        </Text>
+      )}
+
+      <Disabled disabled={disabled}>
+        <div>
+          <InputSingleComboBox
+            placeholder={t("search.placeholder")}
+            value=""
+            onChange={() => {}}
+            onValueChange={(selectedValue) => {
+              const numValue = parseInt(selectedValue, 10);
+              if (!isNaN(numValue)) {
+                handleSelect(numValue);
+              }
+            }}
+            options={items
+              .filter((item) => !selectedIds.includes(item.id))
+              .map((item) => ({
+                title: item.name,
+                value: String(item.id),
+              }))}
+            searchIcon
+            data-testid={`${fieldName}-search-input`}
+          />
+        </div>
+      </Disabled>
+
+      {selectedItems.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedItems.map((item) => (
+            <Chip
+              key={item.id}
+              title={item.name}
+              disabled={disabled}
+              onRemove={() => handleRemove(item.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      <ErrorMessage name={fieldName} component="div">
+        {(msg) => (
+          <Text as="p" color="status-error-05">
+            {msg}
+          </Text>
+        )}
+      </ErrorMessage>
+    </div>
+  );
+}

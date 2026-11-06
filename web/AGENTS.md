@@ -1,0 +1,138 @@
+# Frontend Standards
+
+Standards for `web/` and `desktop/`. Every Opal component and layout has a `README.md` beside it.
+Read that README instead of guessing props.
+
+## Where components come from
+
+Use, in priority order:
+
+1. `web/lib/opal/src/` (`@opal/*`): the design system.
+2. `web/src/refresh-components/`: production components not yet in Opal.
+3. `web/src/sections/` (feature composites; entity cards in `sections/cards/`) and `web/src/layouts/`.
+
+Never import from `web/src/components/`. It is legacy and being deleted. The one exception is
+`createLogoIcon` in `src/components/icons/icons.tsx`.
+
+- Admin and settings pages: `SettingsLayouts.{Root,Header,Body}` from `@opal/layouts`.
+- Icon + title + description: `Content` or `ContentAction` from `@opal/layouts`. Empty states and
+  error pages: `IllustrationContent`.
+- Buttons: `Button` from `@opal/components`. No raw `<button>`.
+- Inputs: Opal or refresh-components. No raw `<input>`, `<textarea>`, or `<select>`.
+- Text: `Text` from `@opal/components` with `font` and `color` props. No naked text nodes. For
+  one-line text that shows a tooltip when cut, use `OverflowText`.
+- Icons: only `@opal/icons`. Never `lucide-react` or `react-icons`. If an icon is missing, import
+  it from Figma with the Figma MCP tool and add it to `lib/opal/src/icons/`.
+- Hover-reveal: `Hoverable` from `@opal/core`. If you must hand-write it, add `no-hover:opacity-100`
+  so touch devices still show the item.
+- `@opal/core` primitives (`Interactive`, `Disabled`) build components. App code does not use them.
+- Layout: `Section` from `@opal/layouts`, never a `<div>`/`<span>` with `flex`, `inline-flex`,
+  `grid`, `items-*`, `justify-*` or `gap-*` (oxlint `opal/no-layout-div`). `Content`, `ContentAction`,
+  `Card`, `InputHorizontal`/`InputVertical` and `Divider` cover the rest.
+- On `Section`, set spacing and size with props: `gap={n}`, `padding={n}`, `width`, `height`.
+  Section sets `gap` and `padding` as inline styles, so `p-*`, `px-*` and `gap-*` classes are silently
+  ignored (oxlint `opal/no-section-utility-classes`). Use margin classes for asymmetric spacing.
+
+oxlint enforces the import, icon and raw-element rules. Files that broke them when the rules
+landed are in the design-system baseline in `.oxlintrc.json`, where they only warn. Files with
+layout divs when `opal/no-layout-div` landed are in the layout baseline. Remove a file
+from the baseline once it is clean. Never add one. `opal/no-replaced-refresh-import` warns on each
+refresh-components import that Opal replaces. Migrate a file to Opal when you edit it. The
+`.agents/hooks/opal_migrate_on_edit.py` hook reports these problems to the agent after each edit.
+
+## Rules with a reason
+
+- **No `dark:` Tailwind modifier.** The tokens already define both themes, and overrides break dark
+  mode. Only `createLogoIcon` may use it.
+- **No built-in Tailwind colors** (`bg-gray-100`, `text-blue-600`). Use the token classes:
+  `text-0X`, `background-neutral-0X`, `background-tint-0X`, `border-0X`, `action-selection-0X`,
+  `action-danger-0X`, `status-{info,success,warning,error}-0X`, `theme-*`. Tokens live in
+  `web/lib/shared/tokens/`.
+- **Text props accept markdown.** Type any prop rendered as visible text (`title`, `description`,
+  `label`) as `string | RichStr` from `@opal/types` and render it with `Text`. Callers opt in with
+  `markdown()` from `@opal/utils`. Plain strings are never parsed.
+- **Size props default to `"md"`** when the prop type is `SizeVariants` from `@opal/types` or a
+  subset of it.
+- **Padding over margin.** Use a component's `padding` prop before wrapping it in a `<div>`. If a
+  library component has no such prop, add one to the component instead of adding a wrapper.
+- **Inputs sit 1rem from their container's edge.** Build the 1rem from two 0.5rem steps, not from
+  absolute positioning:
+  - Give the container 0.5rem, for example `Modal.Body padding={2}`.
+  - A naked input (no card around it): wrap it in `InputPadder`, which adds the other 0.5rem. Put
+    `InputDivider` between naked groups.
+  - A covered input: to group inputs visually, put them in a white, borderless `<Card padding={2}>`.
+    The card adds 0.5rem, and the input's own 0.5rem internal padding adds the rest. Do not wrap
+    inputs inside the card in `InputPadder`.
+- **Open popups inside the click.** Call `window.open("about:blank")` in the event handler, then
+  set its `location` after the `await`. Popup blockers and the desktop app block a `window.open`
+  that runs after an `await`.
+- **Data fetching:** `useSWR`, on the client, inside the component that needs the data, with a
+  loader while pending. Do not fetch at the top of the page and pass data down.
+
+## Style
+
+- Absolute imports only: `@/` for `src/`, `@opal/` for Opal. No `../` paths.
+- Components are `function` declarations, not arrow functions.
+- Put the props interface (`FooProps`) in the same file as the component. Put shared types in a
+  co-located `types.ts`. `interfaces.ts` is the old name; rename it when you touch one.
+- Class names: `cn` from `@opal/utils`, never template strings.
+- Hooks: feature hooks go in `web/src/lib/<feature>/hooks.ts`. UI hooks with no app knowledge go
+  in Opal. `web/src/hooks/` is the last resort.
+
+## i18n (next-intl)
+
+- No hard-coded user-facing strings under `src/`. The oxlint rule `i18n/no-raw-jsx-text` fails on
+  them. Use `useTranslations("<namespace>")` on the client or `await getTranslations(...)` on the
+  server.
+- `web/src/i18n/messages/en.json` is the source of truth. When you add or change a key, add your
+  best translation to every other locale file in that directory. Missing or extra keys fail
+  `types:check`. ICU shape must match across locales (`src/i18n/__tests__/catalog.test.ts`).
+- The `i18n-copy-changes` pre-commit hook requires each changed English message to have a changed translation in every locale.
+  It uses the pre-commit range base when supplied. Otherwise, it checks working edits against HEAD or clean checkouts against HEAD^.
+  Main push checks use the push event’s previous commit. The hook does not assess translation quality.
+  Run `python3 tools/i18n/check_copy_changes.py --base origin/main` from the repository root to check a branch.
+- Keys are stable identifiers: `<namespace>.<section>.<element>.<role>` in camelCase, for example
+  `settings.appearance.colorMode.title`. Rewording the English never changes the key.
+- Use ICU for arguments and plurals. Never concatenate translated fragments.
+- Use title case for English setting titles: field labels and the titles of settings sections and
+  cards (`Include Pull Requests`, `Categories to Index`). Keep articles, short conjunctions and
+  prepositions in lowercase, except as the first or last word. Do not change brand or acronym casing
+  (`GitHub`, `API`). Use sentence case for placeholders, descriptions, messages and errors. A
+  placeholder prompts the action and does not repeat the field's title (`Add a display name`, not
+  `Display name`). A change in letter case only needs no new translation; the `i18n-copy-changes`
+  hook ignores it.
+- Dates and numbers: `useFormatter` and `useLocale`, not hard-coded `"en-US"`.
+- New styles use logical properties (`ms-`, `pe-`, `start-`) instead of `ml-`, `pr-`, `left-`.
+
+### Opal i18n
+
+Opal has no next-intl. A label an Opal component renders itself (a built-in placeholder, empty
+state, aria-label — anything not passed in by the caller) rides the `OpalStrings` contract:
+
+1. Add a typed key to `OpalStrings` in `web/lib/opal/src/strings.tsx`, with an English default in
+   `defaultOpalStrings` right below. Prefix component-scoped keys with the component name
+   (`comboBoxNoOptions`, `keyValueDuplicateKey`). A string with arguments is a function-valued
+   entry (`(count) => string`).
+2. Read it in the component with `useOpalStrings()` from `@opal/strings`.
+3. Map it in `web/src/i18n/OpalStringsBridge.tsx` from the `opal.*` catalog namespace
+   (`t("comboBox.noOptions")`) — the bridge wraps the app in `layout.tsx` and feeds Opal the
+   host translations.
+4. Add the key under `opal.<component>.<name>` in `en.json` and every other locale file.
+
+Never hard-code a user-facing string inside an Opal component, and never import next-intl there —
+the contract keeps Opal host-agnostic while the app supplies real translations.
+
+## Tests
+
+- Craft: keep one test file per source file. Group related cases with section comments and scoped `describe` blocks.
+- Component tests (Jest + React Testing Library): `web/tests/README.md`.
+- E2E (Playwright): `web/tests/e2e/README.md` holds the hard rules (Page Object Model, locator
+  priority).
+- Run an e2e test with `cd web && bun run playwright <TEST_NAME>`. Do not use `bunx` or `npx`;
+  they can fetch an unpinned Playwright.
+- `ods type-coverage typescript --check` type-checks `web/` and gates type coverage (the share of
+  identifiers whose type is not `any`, tests excluded). Each `as T` or `<T>x` cast and each `x!`
+  non-null assertion also counts as uncovered, except `as const` and `as unknown`. Coverage must
+  not drop below the floors in `web/.type-coverage-baseline.yaml`. The `typescript-check`
+  pre-commit hook runs it. After you remove `any` types, casts or non-null assertions, raise the
+  floors with `ods type-coverage typescript --update`.
