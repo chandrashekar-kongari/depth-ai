@@ -54,6 +54,7 @@ class CommentReviewTool(Tool):
         "Check each marked change on a BEFORE drawing against the AFTER drawing. "
         "BEFORE may contain handwritten replacement values, crossed-out dimensions, arrows, circles, or graphic redlines without written instructions. "
         "Infer clear changes from drawing context; report ambiguous marks as unclear. "
+        "By default also compare the revisions for changes without linked comments and supported additional defects. "
         "Pass commented_sheet_file_id for the marked-up PDF, PNG, JPEG, or WEBP. "
         "Pass revised_sheet_file_id for the new sheet in those formats. "
         "Check the file names and roles before calling; do not reverse the original with comments and the corrected revision. "
@@ -130,7 +131,7 @@ class CommentReviewTool(Tool):
                     },
                     "include_extra_issues": {
                         "type": "boolean",
-                        "description": "Set true only when the user explicitly asks to scan for additional unrelated issues.",
+                        "description": "Defaults to true. Compare both revisions for unrequested changes and additional defects. Set false when the user restricts the review to marked comments or named checks.",
                     },
                     "dxf_file_id": {
                         "type": "string",

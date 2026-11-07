@@ -80,9 +80,10 @@ The new sheet is the revision. The default assistant includes **Comment Review**
 An agent that already has Drawing Review gets this action too.
 
 Ask the agent to verify the changes after you attach both sheets. The first sheet is the marked-up sheet.
-The second sheet is the new sheet. You can name features, values, and tolerances to verify.
-For example, ask "Only check PDF page 2. Verify that the bracket width is 130 and skip unrelated issues."
-The agent passes these instructions to the review with the two files.
+The second sheet is the new sheet. You can name features, values, and tolerances to verify. For example,
+ask "Only check PDF page 2.
+Verify that the bracket width is 130 and skip unrelated issues." The agent passes these instructions to the review with
+the two files.
 
 Keep the file roles clear: the original contains review comments, and the revised sheet contains the corrections.
 The action rejects likely reversed PDF roles when only the revised input contains native comments.
@@ -100,12 +101,26 @@ An unexplained circle, illegible replacement, or uncertain feature match still n
 
 Ask the agent to check each comment. The answer has one row per comment.
 
-- **Open.** The new sheet does not show the requested change. The row says what must change.
+- **Open.** The new sheet does not satisfy the request. This includes a known mismatch with an unknown original value.
 - **Solved, correct.** The requested change is on the new sheet and it matches the comment.
 - **Solved, incorrect.** The new sheet changed that area, but the change does not match the comment.
 - **Unclear.** The pages do not show enough to decide.
 
-The answer also lists short problems on the new sheet that no comment asked for. That list is not the full checklist.
+By default, chat compares both revisions for other changes and supported problems.
+**Change without a linked request** identifies a change that no review comment explains.
+It is not automatically a defect. These rows show the before and after evidence.
+They do not count under **Needs attention**.
+Ask to check only marked comments or named features to skip this additional comparison.
+The private review queue keeps additional comparison disabled.
+
+A clear request needs no complete sentence. Marks can use any color. The reviewer connects a value to its bracket,
+leader, or affected callout before comparing the revised feature.
+An unreadable original value does not make a readable revised mismatch unclear.
+Conflicting comments need clarification unless an explicit instruction establishes their priority.
+
+When native text omits a target, visual evidence receives a separate verification pass.
+Unconfirmed observations retain their evidence and the specific reason they remain unclear.
+Visual evidence does not create an exact text highlight or establish a CAD measurement.
 
 On a wide screen, one PDF opens beside the conversation. Drag the divider to resize either pane. On smaller screens,
 switch between **Conversation** and **Document**. The desktop drawing view starts with the PDF toolbar.
@@ -244,8 +259,13 @@ The drawing action uses the **Captioning LLM**, independently of the chat model.
 Choose an installed vision-capable local model, such as `qwen3-vl:8b-instruct`, for that role.
 New results show the vision model and the number of review passes for each finding.
 
-The reviewer shows each finding as it becomes available. Ask for additional issues if you want a separate scan.
-The vision review has a time limit and reports any remaining work it could not check.
+The reviewer shows each comment finding as it becomes available. Other changes and issues follow the comment checks.
+The vision review has a five-minute time limit and reports any remaining work it could not check.
+Request extraction uses the marked original only. Verification uses both revisions.
+Extraction uncertainty receives verification before the reviewer decides that a request remains unclear.
+Annotation close-ups supplement the full page when native annotation locations are available.
+Numeric requests retain their associated supervisor value.
+A different grounded revised value cannot receive a passing result.
 Unclear results can receive up to three visual passes,
 using the full page and overlapping crops within the review time limit.
 A supported verdict can remain separate from an unresolved location. The review does not claim every issue is fixed.

@@ -12893,7 +12893,10 @@
         },
         "unclearStatus": {
           "label": "Unclear"
-        }
+        },
+        "otherFindings": "기타 변경 사항 및 문제",
+        "unrequestedChange": "연결된 요청이 없는 변경",
+        "changeEvidence": "변경 전: {before}. 변경 후: {after}."
       },
       "imageTool": {
         "defaultStatus": {

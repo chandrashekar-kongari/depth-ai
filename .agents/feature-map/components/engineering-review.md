@@ -62,7 +62,7 @@ The tools framework owns historical chat result persistence and rendering.
 9. `legacy-contracts` **Old tool names, result types and checkpoint discriminators stay unchanged.** The new workflow adds records outside chat.
 10. `private-boundary` **Endpoint checks do not replace network controls.** Unit tests do not qualify model quality or offline operation.
 
-11. `revised-evidence-grounding` **Private verification receives full revision text and requires verbatim evidence.** This checks quote provenance, not engineering correctness. Extra-issue generation is disabled pending qualification.
+11. `revised-evidence-grounding` **Private verification receives full revision text. Native evidence requires a source match; visual evidence requires a separate target and observation check.** This checks quote provenance, not engineering correctness. Extra-issue generation is disabled pending qualification.
 
 12. `context-forwarding` **The private adapter sends an 8,192-token context to Ollama.** A client input budget alone does not change the server context; both limits must agree.
 
@@ -100,6 +100,11 @@ Existing drawing/comment/DXF tests protect chat compatibility. The route manifes
 
 The chat reviewer uses the VISION model flow, not the selected chat model. Drawing results record the actual vision model.
 Native text-line indexing uses pdfplumber and reports its explicit limits; the first-80-word restriction is removed.
+Request extraction receives BEFORE-only stage instructions; missing AFTER is not an extraction ambiguity.
+Extraction uncertainty is forwarded to paired verification rather than skipping that request.
+Native annotation close-ups supplement full-page request discovery. Associated scalar requests survive omitted visual value fields.
+Grounded scalar mismatches cannot pass the numeric request. Explicit observed values can replace prose evidence only through an exact native span match.
+The review budget is five minutes; per-call limits remain bounded.
 Unclear judgements receive at most three evidence-changing visual passes. Repeated unclear output stops retries.
 The verdict and location remain distinct; supported geometry is not implied by a located text excerpt.
 Original locations resolve native comment text independently of the revised evidence.
@@ -126,5 +131,10 @@ Chat-specific surfaces and borders are scoped; admin and plugin management do no
 
 Before-page images accompany after-page verification. Circled dimensions with clearly associated replacement
 values can establish a request without a sentence, leader, or strike-through. Ambiguous marks stay in the queue.
-Short numeric after evidence is accepted only when it exactly matches one identified native span and its page text.
-Other evidence keeps its six-character default.
+Short numeric AFTER evidence requires an exact identified native span. Repeated labels require an explicit matching span ID.
+Without a span ID, a short callout must be unique. Other native evidence keeps its six-character default.
+Visual-only evidence receives a separate model check of target identity, observation, and verdict; it does not create a native text anchor.
+A known unmet requirement stays open when its baseline value is unknown. Failed text matching preserves the observation and discrepancy.
+Chat compares both revisions for additional changes and defects by default. A restricted comment-only review can disable this scan.
+Additional findings distinguish neutral changes from defects; changes require before/after evidence and do not count as errors.
+Partial comparison failures preserve completed findings and report incomplete coverage. The private queue keeps this scan disabled.

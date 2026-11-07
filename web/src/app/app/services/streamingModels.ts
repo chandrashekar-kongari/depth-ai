@@ -422,6 +422,9 @@ export interface DrawingExtraIssue {
   page: number;
   title: string;
   detail: string;
+  kind?: "defect" | "change";
+  before_evidence?: string;
+  after_evidence?: string;
   span_id: string | null;
   box: DrawingMarkBox | null;
   page_level: boolean;

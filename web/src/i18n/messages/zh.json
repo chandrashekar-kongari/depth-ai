@@ -12893,7 +12893,10 @@
         },
         "unclearStatus": {
           "label": "Unclear"
-        }
+        },
+        "otherFindings": "其他变更和问题",
+        "unrequestedChange": "没有关联请求的变更",
+        "changeEvidence": "变更前：{before}。变更后：{after}。"
       },
       "imageTool": {
         "defaultStatus": {

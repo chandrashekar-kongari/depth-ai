@@ -415,6 +415,7 @@ def test_optional_extra_failure_retains_pdf_verdicts() -> None:
         ("08\n100", "80", False, None, CommentVerdict.SOLVED_CORRECT),
         ("180\n100", "180", False, "pitch", CommentVerdict.UNCLEAR),
         ("80\n80", "80", True, None, CommentVerdict.UNCLEAR),
+        ("80\n80", "80", True, "pitch", CommentVerdict.SOLVED_CORRECT),
     ],
 )
 def test_short_dimension_evidence_requires_an_exact_unique_after_span(
@@ -529,7 +530,12 @@ def test_ambiguous_visual_mark_remains_in_queue_without_a_guessed_verdict() -> N
                         }
                     ]
                 }
-            )
+            ),
+            _verdict(
+                "unclear",
+                "none",
+                "No replacement value or requested operation is visible.",
+            ),
         ]
     )
     with patch(
@@ -546,7 +552,7 @@ def test_ambiguous_visual_mark_remains_in_queue_without_a_guessed_verdict() -> N
         )
     assert result.comments[0].verdict == CommentVerdict.UNCLEAR
     assert "No replacement value" in result.comments[0].remaining
-    assert llm.invoke.call_count == 1
+    assert llm.invoke.call_count == 2
 
 
 def test_delegated_review_preserves_scope_and_recovers_from_pdf_text_failure() -> None:
@@ -655,3 +661,281 @@ def test_review_deadline_returns_explicit_incomplete_result() -> None:
     assert result.reviewed_pages == 0
     assert result.comments[0].verdict == CommentVerdict.UNCLEAR
     assert "time limit" in result.report
+
+
+@pytest.mark.parametrize("confirmed", [True, False])
+def test_visual_mismatch_keeps_evidence_without_fabricating_text_anchor(
+    confirmed: bool,
+) -> None:
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _judge_comment,
+    )
+
+    row = comment_from_extraction(
+        ExtractedComment(
+            text="86", request="Set overall height to 86", requested_value="86"
+        ),
+        comment_id="c1",
+        page=1,
+        spans={},
+    )
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "status": "open",
+                    "evidence": "60",
+                    "remaining": "Set overall height to 86; it shows 60.",
+                    "evidence_source": "visual",
+                    "target_description": "Overall height between top and bottom edges",
+                }
+            ),
+            json.dumps(
+                {
+                    "same_target": confirmed,
+                    "observed_evidence": "60",
+                    "supported_status": "open",
+                }
+            ),
+        ]
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        verdict = _judge_comment(
+            llm,
+            b"after",
+            filename="after.pdf",
+            page_number=1,
+            page_count=1,
+            comment=row,
+            spans=[SheetSpan("title", 1, "VIEW A", 0.1, 0.1, 0.2, 0.1)],
+            dxf_summary=None,
+            revised_page_text="VIEW A",
+            original_image_data=b"before",
+            expected_value="86",
+        )
+    assert verdict is not None
+    assert verdict.status == (
+        CommentVerdict.OPEN if confirmed else CommentVerdict.UNCLEAR
+    )
+    assert verdict.evidence == "60"
+    assert verdict.span_id is None
+    assert "86" in verdict.remaining
+    assert llm.invoke.call_count == 2
+
+
+def test_text_failure_preserves_observation_and_specific_discrepancy() -> None:
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _judge_comment,
+    )
+
+    row = comment_from_extraction(
+        ExtractedComment(text="86", request="Set height to 86"),
+        comment_id="c1",
+        page=1,
+        spans={},
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        verdict = _judge_comment(
+            _llm([_verdict("open", "60", "Height must be 86.")]),
+            b"after",
+            filename="after.pdf",
+            page_number=1,
+            page_count=1,
+            comment=row,
+            spans=[],
+            dxf_summary=None,
+            revised_page_text="VIEW A",
+            original_image_data=b"before",
+        )
+    assert verdict is not None and verdict.status == CommentVerdict.UNCLEAR
+    assert verdict.evidence == "60"
+    assert "Height must be 86" in verdict.remaining
+
+
+def test_other_changes_receive_both_revisions_and_retain_partial_results() -> None:
+    import time
+
+    from onyx.llm.models import ImageContentPart
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _scan_extra_issues,
+    )
+
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "issues": [
+                        {
+                            "kind": "change",
+                            "title": "Finish changed",
+                            "detail": "Finish changed without a linked request.",
+                            "before_evidence": "PAINT",
+                            "after_evidence": "ANODIZE",
+                        }
+                    ],
+                    "coverage_limits": [],
+                }
+            ),
+            "invalid response",
+        ]
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        issues, incomplete = _scan_extra_issues(
+            llm,
+            _pages(2),
+            _pages(2),
+            [],
+            "after.pdf",
+            "",
+            set(),
+            time.monotonic() + 30,
+        )
+    assert incomplete
+    assert len(issues) == 1 and issues[0].kind == "change"
+    assert issues[0].before_evidence == "PAINT"
+    assert issues[0].after_evidence == "ANODIZE"
+    for call in llm.invoke.call_args_list:
+        content = call.args[0].messages[1].content
+        assert sum(isinstance(part, ImageContentPart) for part in content) == 2
+
+
+def test_other_changes_without_baseline_evidence_are_not_reported_as_verified() -> None:
+    import time
+
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _scan_extra_issues,
+    )
+
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "issues": [
+                        {
+                            "kind": "change",
+                            "title": "New hole",
+                            "after_evidence": "hole",
+                        }
+                    ]
+                }
+            )
+        ]
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        issues, incomplete = _scan_extra_issues(
+            llm,
+            _pages(1),
+            _pages(1),
+            [],
+            "after.pdf",
+            "",
+            set(),
+            time.monotonic() + 30,
+        )
+    assert incomplete and not issues
+
+
+def test_associated_native_numeric_request_survives_missing_model_value() -> None:
+    from onyx.tools.tool_implementations.drawing_review.markup_inventory import (
+        merge_markups,
+    )
+
+    items = merge_markups(
+        [ExtractedComment(text="86")],
+        [
+            ExtractedComment(
+                text="height mark", request="Set overall height", native_ids=["n1"]
+            )
+        ],
+    )
+    assert len(items) == 1 and items[0].requested_value == "86"
+
+
+def test_grounded_wrong_value_cannot_pass_numeric_request() -> None:
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _enforce_numeric_request,
+    )
+
+    draft = _enforce_numeric_request(
+        VerdictDraft(status=CommentVerdict.SOLVED_CORRECT, evidence="60"), "86"
+    )
+    assert draft.status == CommentVerdict.OPEN
+    assert "Requested 86" in draft.remaining and "shows 60" in draft.remaining
+
+
+def test_observed_scalar_grounds_prose_without_accepting_an_unrelated_span() -> None:
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _judge_comment,
+    )
+
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "status": "solved_correct",
+                    "evidence": "The dimension was changed to 60.",
+                    "observed_value": "60",
+                    "span_id": "height",
+                }
+            )
+        ]
+    )
+    row = comment_from_extraction(
+        ExtractedComment(text="86", request="Set height to 86"),
+        comment_id="c1",
+        page=1,
+        spans={},
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        verdict = _judge_comment(
+            llm,
+            b"after",
+            filename="after.pdf",
+            page_number=1,
+            page_count=1,
+            comment=row,
+            spans=[SheetSpan("height", 1, "60", 0.1, 0.2, 0.1, 0.1)],
+            dxf_summary=None,
+            expected_value="86",
+            revised_page_text="60",
+        )
+    assert verdict is not None and verdict.status == CommentVerdict.OPEN
+    assert verdict.evidence == "60"
+
+
+def test_native_recovery_reads_the_selected_span_instead_of_model_prose() -> None:
+    from onyx.llm.models import ImageContentPart, ImageUrlDetail
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _recover_native_callout,
+    )
+
+    row = comment_from_extraction(
+        ExtractedComment(text="requested value", request="Set marked height"),
+        comment_id="c1",
+        page=1,
+        spans={},
+    )
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "span_id": "height",
+                    "target_description": "Right view overall height",
+                    "status": "open",
+                    "remaining": [],
+                }
+            )
+        ]
+    )
+    recovered = _recover_native_callout(
+        llm,
+        [ImageContentPart(image_url=ImageUrlDetail(url="data:image/png;base64,test"))],
+        "data:image/png;base64,test",
+        row,
+        [SheetSpan("height", 1, "45", 0.1, 0.1, 0.1, 0.1)],
+        filename="after.pdf",
+        page_number=1,
+        deadline=None,
+    )
+    assert recovered is not None and recovered.evidence == "45"
+    assert recovered.status == CommentVerdict.OPEN

@@ -1,0 +1,9 @@
+[mcp_servers.Figma]
+url = "https://mcp.figma.com/mcp"
+
+[mcp_servers.Linear]
+url = "https://mcp.linear.app/mcp"
+
+[mcp_servers.Playwright]
+command = "npx"
+args = ["@playwright/mcp"]

@@ -143,12 +143,15 @@ class DrawingComment(BaseModel):
 
 
 class DrawingExtraIssue(BaseModel):
-    """A problem on the new sheet that no comment asked for."""
+    """An additional defect or a change without a linked request."""
 
     id: str
     page: int
     title: str
     detail: str
+    kind: Literal["defect", "change"] = "defect"
+    before_evidence: str = ""
+    after_evidence: str = ""
     span_id: str | None = None
     box: DrawingMarkBox | None = None
     page_level: bool = False
@@ -167,7 +170,7 @@ class CommentReviewArguments(BaseModel):
     dxf_file_id: str | None = None
     review_instructions: str = Field(default="", max_length=8000)
     original_pages: list[int] = Field(default_factory=list, max_length=100)
-    include_extra_issues: bool = False
+    include_extra_issues: bool = True
 
 
 class CommentReviewResult(BaseModel):

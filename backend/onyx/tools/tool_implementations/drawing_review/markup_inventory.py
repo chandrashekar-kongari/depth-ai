@@ -1,5 +1,7 @@
 """Associate visual interpretations with native marks without losing their source boxes."""
 
+import re
+
 from onyx.tools.tool_implementations.drawing_review.comment_queue import (
     ExtractedComment,
 )
@@ -39,12 +41,21 @@ def merge_markups(
             if index in emitted:
                 continue
             primary = native[min(associations[index])]
+            requested_value = visual[index].requested_value
+            if (
+                requested_value is None
+                and len(associations[index]) == 1
+                and not visual[index].ambiguity.strip()
+                and re.fullmatch(r"[+-]?\d+(?:\.\d+)?", primary.text.strip())
+            ):
+                requested_value = primary.text.strip()
             result.append(
                 visual[index].model_copy(
                     update={
                         "text": primary.text,
                         "box": primary.box,
                         "span_id": primary.span_id or visual[index].span_id,
+                        "requested_value": requested_value,
                     }
                 )
             )

@@ -137,7 +137,7 @@ export function CommentReviewView({
                 request: issue.detail,
                 evidence: issue.detail,
                 remaining: issue.detail,
-                verdict: "open",
+                verdict: issue.kind === "change" ? undefined : "open",
                 anchors: review.revised_sheet_file_id
                   ? {
                       [review.revised_sheet_file_id]: {
@@ -221,7 +221,7 @@ function CommentQueue({
   const attention =
     comments.filter(
       (item) => item.verdict === "open" || item.verdict === "solved_incorrect"
-    ).length + extra.length;
+    ).length + extra.filter((item) => item.kind !== "change").length;
   const unclear = comments.filter((item) => item.verdict === "unclear").length;
   const addressed = comments.filter(
     (item) => item.verdict === "solved_correct"
@@ -239,7 +239,11 @@ function CommentQueue({
   );
   const filteredExtra =
     filter === "all" || filter === "attention"
-      ? extra.filter((item) => matches(item.title + " " + item.detail))
+      ? extra.filter(
+          (item) =>
+            (filter === "all" || item.kind !== "change") &&
+            matches(item.title + " " + item.detail)
+        )
       : [];
 
   return (
@@ -491,7 +495,7 @@ function CommentQueue({
       })}
       {filteredExtra.length > 0 ? (
         <Text font="secondary-body" color="text-04">
-          {t("otherIssues.text")}
+          {t("otherFindings")}
         </Text>
       ) : null}
       {filteredExtra.map((issue) => (
@@ -550,9 +554,22 @@ function ExtraIssueRow({
         <Text font="secondary-body" color="text-04">
           {issue.title}
         </Text>
+        {issue.kind === "change" ? (
+          <Text font="secondary-body" color="text-03">
+            {t("unrequestedChange")}
+          </Text>
+        ) : null}
         <Text font="secondary-body" color="text-03">
           {t("issueDetail.text", { detail: issue.detail, page: issue.page })}
         </Text>
+        {issue.before_evidence && issue.after_evidence ? (
+          <Text font="secondary-body" color="text-03">
+            {t("changeEvidence", {
+              before: issue.before_evidence,
+              after: issue.after_evidence,
+            })}
+          </Text>
+        ) : null}
         <Text font="secondary-body" color="text-03">
           {pdfT("locationUnconfirmed")}
         </Text>

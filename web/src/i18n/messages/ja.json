@@ -12893,7 +12893,10 @@
         },
         "unclearStatus": {
           "label": "Unclear"
-        }
+        },
+        "otherFindings": "その他の変更と問題",
+        "unrequestedChange": "関連する依頼のない変更",
+        "changeEvidence": "変更前: {before}。変更後: {after}。"
       },
       "imageTool": {
         "defaultStatus": {

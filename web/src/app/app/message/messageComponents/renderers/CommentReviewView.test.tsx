@@ -57,6 +57,35 @@ function FocusState() {
     </output>
   );
 }
+it("shows unrequested changes without counting them as defects", async () => {
+  const user = setupUser();
+  render(
+    <CommentReviewView
+      review={{
+        ...review,
+        extra_issues: [
+          {
+            id: "change1",
+            page: 1,
+            title: "Finish changed",
+            detail: "No linked request.",
+            kind: "change",
+            before_evidence: "PAINT",
+            after_evidence: "ANODIZE",
+            box: null,
+            page_level: true,
+            span_id: null,
+          },
+        ],
+      }}
+      part="queue"
+    />
+  );
+  expect(screen.getByText("Change without a linked request")).toBeVisible();
+  expect(screen.getByText("Before: PAINT. After: ANODIZE.")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Needs attention (0)" }));
+  expect(screen.queryByText("Finish changed")).not.toBeInTheDocument();
+});
 it("gives each finding two revision buttons and creates a fresh navigation request on every click", async () => {
   const user = setupUser();
   render(

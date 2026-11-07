@@ -12893,7 +12893,10 @@
         },
         "unclearStatus": {
           "label": "Unclear"
-        }
+        },
+        "otherFindings": "Weitere Änderungen und Probleme",
+        "unrequestedChange": "Änderung ohne zugeordnete Anforderung",
+        "changeEvidence": "Vorher: {before}. Nachher: {after}."
       },
       "imageTool": {
         "defaultStatus": {
