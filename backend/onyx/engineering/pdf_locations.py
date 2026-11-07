@@ -58,7 +58,21 @@ def locate_callouts(data: bytes, queries: list[LocationQuery]) -> list[TextLocat
             page = pdf.pages[page_number - 1]
             # CropBox and intrinsic rotation are already in pdfplumber's displayed coordinates.
             crop = page.crop(page.cropbox)
-            lines = crop.extract_text_lines(return_chars=False)
+            upright = crop.filter(lambda obj: obj.get("upright", True))
+            lines = upright.extract_text_lines(return_chars=False)
+            for positive, direction in ((True, "btt"), (False, "ttb")):
+                rotated = crop.filter(
+                    lambda obj, positive=positive: (
+                        obj.get("object_type") == "char"
+                        and not obj.get("upright", True)
+                        and (obj["matrix"][1] >= 0) == positive
+                    )
+                )
+                lines.extend(
+                    rotated.extract_words(
+                        line_dir_rotated="ltr", char_dir_rotated=direction
+                    )
+                )
             for query in page_queries:
                 if query.role == "original":
                     annotations = [
@@ -95,7 +109,10 @@ def locate_callouts(data: bytes, queries: list[LocationQuery]) -> list[TextLocat
                     )
                     continue
                 candidates: list[tuple[str, Anchor]] = []
-                request_number = nominal_number(query.request)
+                request_numbers = {
+                    float(value)
+                    for value in re.findall(r"\d+(?:\.\d+)?", query.request)
+                }
                 evidence = normalized(query.evidence)
                 for line in lines:
                     text = str(line["text"]).strip()
@@ -114,8 +131,8 @@ def locate_callouts(data: bytes, queries: list[LocationQuery]) -> list[TextLocat
                         continue
                     if (
                         dimension
-                        and request_number is not None
-                        and nominal_number(text) != request_number
+                        and request_numbers
+                        and nominal_number(text) not in request_numbers
                     ):
                         continue
                     x0, top, x1, bottom = (
@@ -171,8 +188,8 @@ def locate_callouts(data: bytes, queries: list[LocationQuery]) -> list[TextLocat
                     )
                     if 6 <= len(excerpt) <= 400 and (
                         not excerpt_is_dimension
-                        or request_number is None
-                        or nominal_number(excerpt) == request_number
+                        or not request_numbers
+                        or nominal_number(excerpt) in request_numbers
                     ):
                         pattern = (
                             r"(?<!\w)"

@@ -50,11 +50,13 @@ def verify_note_replacement(
     return None
 
 
-def has_verbatim_evidence(evidence: str, page_text: str) -> bool:
+def has_verbatim_evidence(
+    evidence: str, page_text: str, *, min_excerpt_length: int = 6
+) -> bool:
     """Normalize layout whitespace, while retaining signs, units and numeric values."""
     excerpt = " ".join(evidence.strip().strip('"').split())
     source = " ".join(page_text.split())
-    if len(excerpt) < 6:
+    if len(excerpt) < min_excerpt_length:
         return False
     for match in re.finditer(re.escape(excerpt), source):
         before = source[match.start() - 1] if match.start() else ""
@@ -80,7 +82,9 @@ def ground_review_highlights(
         if comment.revised_span_id and (
             span is None
             or span.page != comment.revised_page
-            or not has_verbatim_evidence(span.text, comment.evidence)
+            or not has_verbatim_evidence(
+                span.text, comment.evidence, min_excerpt_length=1
+            )
         ):
             comment = comment.model_copy(
                 update={

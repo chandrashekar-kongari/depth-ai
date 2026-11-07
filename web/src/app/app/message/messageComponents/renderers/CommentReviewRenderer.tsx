@@ -20,7 +20,7 @@ function reviewState(packets: CommentReviewToolPacket[]) {
   const started = packets.some(
     (packet) => packet.obj.type === PacketType.COMMENT_REVIEW_START
   );
-  const deltaPacket = packets.find(
+  const deltaPacket = packets.findLast(
     (packet) => packet.obj.type === PacketType.COMMENT_REVIEW_DELTA
   );
   const delta =
@@ -64,9 +64,8 @@ export const CommentReviewRenderer: MessageRenderer<
 
   if (
     renderType !== RenderType.FULL ||
-    isRunning ||
     delta === null ||
-    wideComments
+    (wideComments && !isRunning)
   ) {
     return children([
       {
@@ -86,12 +85,12 @@ export const CommentReviewRenderer: MessageRenderer<
     {
       icon: SvgFileText,
       status,
-      supportsCollapsible: true,
+      supportsCollapsible: !isRunning,
       content: (
         <DrawingReviewLayoutProvider
           active
           mode="comments"
-          reviewKey={delta.comments.map((comment) => comment.id).join(",")}
+          reviewKey={`${delta.commented_sheet_file_id}:${delta.revised_sheet_file_id}`}
         >
           <CommentReviewView review={delta} />
         </DrawingReviewLayoutProvider>

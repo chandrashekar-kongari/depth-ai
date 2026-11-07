@@ -14,6 +14,8 @@ def review_with_crops(
     image_data: bytes,
     judge: Callable[[bytes], VerdictDraft | None],
     accepted: Callable[[VerdictDraft], bool] | None = None,
+    *,
+    retry: Callable[[bytes, VerdictDraft | None], VerdictDraft | None] | None = None,
 ) -> tuple[VerdictDraft | None, int]:
     check_cancelled()
     accept = accepted or (lambda draft: draft.status != CommentVerdict.UNCLEAR)
@@ -25,7 +27,7 @@ def review_with_crops(
         image = Image.open(BytesIO(image_data)).convert("RGB")
     except (OSError, ValueError):
         return best, attempts
-    previous = best.model_dump_json() if best else None
+    previous = best
     for bounds in [
         (0, 0, image.width, int(image.height * 0.65)),
         (0, int(image.height * 0.35), image.width, image.height),
@@ -33,7 +35,8 @@ def review_with_crops(
         check_cancelled()
         buffer = BytesIO()
         image.crop(bounds).save(buffer, format="PNG")
-        candidate = judge(buffer.getvalue())
+        crop = buffer.getvalue()
+        candidate = retry(crop, previous) if retry is not None else judge(crop)
         attempts += 1
         if candidate is not None:
             if (
@@ -44,8 +47,7 @@ def review_with_crops(
                 best = candidate
             if accept(candidate):
                 break
-            signature = candidate.model_dump_json()
-            if signature == previous:
+            if candidate == previous and retry is None:
                 break
-            previous = signature
+        previous = candidate
     return best, attempts

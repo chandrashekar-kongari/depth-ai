@@ -309,8 +309,11 @@ function CommentQueue({
       ) : null}
       {filtered.map((comment) => {
         const number = comments.indexOf(comment) + 1;
+        const titleSource = /^\s*[+-]?\d+(?:\.\d+)?\s*$/.test(comment.text)
+          ? comment.request
+          : comment.text;
         const title =
-          comment.text.split(/\n|Required change:/i)[0]?.trim() || comment.text;
+          titleSource.split(/\n|Required change:/i)[0]?.trim() || comment.text;
         const open = expanded[comment.id] ?? false;
         return (
           <Card

@@ -1,4 +1,6 @@
 import { render, screen, setupUser } from "@tests/setup/test-utils";
+import { CommentReviewRenderer } from "@/app/app/message/messageComponents/renderers/CommentReviewRenderer";
+import { RenderType } from "@/app/app/message/messageComponents/types";
 import { CommentReviewView } from "@/app/app/message/messageComponents/renderers/CommentReviewView";
 import {
   DrawingReviewLayoutProvider,
@@ -124,4 +126,27 @@ it("searches evidence while retaining the original finding number", async () => 
     screen.getByRole("button", { name: "Details for finding 1" })
   ).toBeVisible();
   expect(screen.queryByText("Missing datum")).not.toBeInTheDocument();
+});
+
+it("shows the latest findings before the tool section ends", () => {
+  const onComplete = jest.fn();
+  const placement = { turn_index: 0, tab_index: 0 };
+  render(
+    <CommentReviewRenderer
+      state={{}}
+      renderType={RenderType.FULL}
+      animate={false}
+      stopPacketSeen={false}
+      onComplete={onComplete}
+      packets={[
+        { placement, obj: { type: "comment_review_start" } },
+        { placement, obj: { ...review, comments: [], extra_issues: [] } },
+        { placement, obj: review },
+      ]}
+    >
+      {(steps) => <>{steps[0]?.content}</>}
+    </CommentReviewRenderer>
+  );
+  expect(screen.getByText("Bore tolerance")).toBeInTheDocument();
+  expect(onComplete).not.toHaveBeenCalled();
 });

@@ -740,7 +740,8 @@ def _create_file_tool_metadata_message(
     if COMMENT_REVIEW_TOOL_NAME in offered:
         lines: list[str] = [
             "These files are attached. When the user asks to verify, check, or review "
-            "them, call verify_drawing_comments. Do not answer from the file text. "
+            "them, call verify_drawing_comments with review_instructions describing what to find "
+            "and verify. Do not answer from the file text. "
             "The first PDF or image is commented_sheet_file_id. "
             "The second PDF or image is revised_sheet_file_id. "
             "Both sheet inputs accept PDF; PDF plus PDF does not require a DXF. "

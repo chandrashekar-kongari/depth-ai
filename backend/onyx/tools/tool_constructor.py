@@ -426,7 +426,6 @@ def _construct_tools_impl(
                 cfg = file_reader_tool_config or FileReaderToolConfig()
                 tool_dict[db_tool_model.id] = [
                     CommentReviewTool(
-                        owner_id=user.id,
                         tool_id=db_tool_model.id,
                         user_file_ids=cfg.user_file_ids,
                         chat_file_ids=cfg.chat_file_ids,

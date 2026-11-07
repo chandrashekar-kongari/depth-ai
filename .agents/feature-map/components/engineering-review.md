@@ -56,7 +56,7 @@ The tools framework owns historical chat result persistence and rendering.
 3. `single-tenant-worker` **The worker and API share one database, schema and file store.** The worker refuses multi-tenant mode.
 4. `lease-fence` **Only the current lease holder may publish.** Cancel invalidates the token. Expired owners cannot renew it.
 5. `bounded-recovery` **Claims skip locked rows.** Interrupted runs restart from inputs, up to three attempts.
-6. `native-priority` **Native annotations take priority per page.** Mixed native/flattened comments require manual checking, stated in results.
+6. `native-priority` **Native annotations are retained.** With vision configured, every before page is also scanned for graphic/handwritten requests. Failed discovery reports incomplete coverage.
 7. `confirmed-order` **Page matching is confirmed identity order.** Reject unequal page counts and oversized packages.
 8. `human-decisions` **AI proposals and human decisions stay separate.** Decision versions prevent lost updates.
 9. `legacy-contracts` **Old tool names, result types and checkpoint discriminators stay unchanged.** The new workflow adds records outside chat.
@@ -105,8 +105,7 @@ The verdict and location remain distinct; supported geometry is not implied by a
 Original locations resolve native comment text independently of the revised evidence.
 The chat tool rejects likely reversed PDF roles when only the revised input contains native comments.
 An empty comment review raises an actionable tool error, rather than returning a successful zero-finding result.
-Accepted results have owner-scoped, 24-hour CacheBackend checkpoints keyed by inputs, model, comment and pipeline version.
-The reviewer publishes per-comment progress. Unclear results are not cached as complete.
+Each run evaluates the inputs afresh and publishes per-comment progress.
 
 Read-only PDF/page navigation is independent of workspace saving and inference. The SDK handles scroll coordinates,
 rotation and crop transforms. A transient page-relative ring lasts two seconds after visibility confirmation.
@@ -121,3 +120,11 @@ Layout widths are a local preference, not engineering document state. A finding 
 Review rows have status/search filters and expandable evidence; revision actions remain visible when collapsed.
 PDF tools use an explicit annotation mode and action/zoom popovers. EmbedPDF remains responsible for rendering and geometry.
 Chat-specific surfaces and borders are scoped; admin and plugin management do not use the chat styling.
+
+
+### Visual change interpretation
+
+Before-page images accompany after-page verification. Circled dimensions with clearly associated replacement
+values can establish a request without a sentence, leader, or strike-through. Ambiguous marks stay in the queue.
+Short numeric after evidence is accepted only when it exactly matches one identified native span and its page text.
+Other evidence keeps its six-character default.

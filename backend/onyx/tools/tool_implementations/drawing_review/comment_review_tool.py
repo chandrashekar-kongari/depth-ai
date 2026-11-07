@@ -1,6 +1,6 @@
 """Check each comment on a marked sheet against a new sheet."""
 
-import hashlib
+import json
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -10,8 +10,7 @@ from onyx.agents.tools import ToolInvocation, ToolProgress
 from onyx.db.engine.sql_engine import get_session_with_current_tenant
 from onyx.db.user_file import get_file_id_by_user_file_id, get_user_file_metadata
 from onyx.engineering.checks import ground_review_highlights
-from onyx.engineering.processing import ReviewInputError, pdf_comments, pdf_texts
-from onyx.engineering.review_checkpoint import ReviewCheckpoint
+from onyx.engineering.processing import pdf_comments, pdf_texts
 from onyx.file_processing.dxf import format_measured_section, parse_dxf
 from onyx.file_processing.extract_file_text import get_file_ext
 from onyx.file_processing.file_types import OnyxFileExtensions
@@ -22,7 +21,9 @@ from onyx.llm.models import ToolDefinition, ToolResult
 from onyx.tools.interface import Tool, parse_tool_arguments
 from onyx.tools.models import (
     CommentReviewArguments,
+    CommentReviewResult,
     DrawingComment,
+    DrawingReviewBrief,
     ToolCallException,
     ToolContext,
 )
@@ -50,7 +51,9 @@ class CommentReviewTool(Tool):
     NAME = "verify_drawing_comments"
     DISPLAY_NAME = "Comment Review"
     DESCRIPTION = (
-        "Check each comment on a marked-up drawing against a new drawing. "
+        "Check each marked change on a BEFORE drawing against the AFTER drawing. "
+        "BEFORE may contain handwritten replacement values, crossed-out dimensions, arrows, circles, or graphic redlines without written instructions. "
+        "Infer clear changes from drawing context; report ambiguous marks as unclear. "
         "Pass commented_sheet_file_id for the marked-up PDF, PNG, JPEG, or WEBP. "
         "Pass revised_sheet_file_id for the new sheet in those formats. "
         "Check the file names and roles before calling; do not reverse the original with comments and the corrected revision. "
@@ -68,10 +71,8 @@ class CommentReviewTool(Tool):
         tool_id: int,
         user_file_ids: list[UUID],
         chat_file_ids: list[UUID],
-        owner_id: UUID | None = None,
     ) -> None:
         self._id = tool_id
-        self._owner_id = owner_id
         self._user_file_ids = set(user_file_ids)
         self._chat_file_ids = set(chat_file_ids)
         self._chat_file_id_strings = {str(file_id) for file_id in chat_file_ids}
@@ -118,6 +119,19 @@ class CommentReviewTool(Tool):
                             "Check each comment against this sheet."
                         ),
                     },
+                    "review_instructions": {
+                        "type": "string",
+                        "description": "Describe what to find and verify. Preserve the user's scope, target features, values, tolerances, and evidence requirements.",
+                    },
+                    "original_pages": {
+                        "type": "array",
+                        "items": {"type": "integer", "minimum": 1},
+                        "description": "Original PDF page numbers, only when the user explicitly restricts the review to those pages. Omit to review all pages.",
+                    },
+                    "include_extra_issues": {
+                        "type": "boolean",
+                        "description": "Set true only when the user explicitly asks to scan for additional unrelated issues.",
+                    },
                     "dxf_file_id": {
                         "type": "string",
                         "description": (
@@ -126,11 +140,15 @@ class CommentReviewTool(Tool):
                         ),
                     },
                 },
-                "required": ["commented_sheet_file_id", "revised_sheet_file_id"],
+                "required": [
+                    "commented_sheet_file_id",
+                    "revised_sheet_file_id",
+                    "review_instructions",
+                ],
             },
         )
 
-    def _run(self, invocation: ToolInvocation, context: ToolContext) -> ToolResult:  # noqa: ARG002
+    def _run(self, invocation: ToolInvocation, context: ToolContext) -> ToolResult:
         arguments = parse_tool_arguments(CommentReviewArguments, invocation.arguments)
         commented_id = _present(arguments.commented_sheet_file_id)
         revised_id = _present(arguments.revised_sheet_file_id)
@@ -161,37 +179,80 @@ class CommentReviewTool(Tool):
             )
             return ToolResult(details=result, content=result.report)
 
+        brief = DrawingReviewBrief(
+            user_request=context.user_request[:12000],
+            instructions=arguments.review_instructions.strip(),
+            original_pages=sorted(set(arguments.original_pages)),
+            include_extra_issues=arguments.include_extra_issues,
+        )
+        if any(
+            page < 1 or page > len(commented_pages.pages)
+            for page in brief.original_pages
+        ):
+            raise ToolCallException(
+                message="Requested original pages are unavailable",
+                llm_facing_message="Check the requested original PDF page numbers. "
+                f"Only original pages 1 through {len(commented_pages.pages)} are available for review.",
+            )
+
         native_comments = None
         revised_text = None
+        diagnostics: list[dict[str, str]] = []
         if commented_name.lower().endswith(".pdf") and commented_pages.total <= 8:
             try:
                 _, native_comments = run_in_isolated_process(
                     pdf_comments, commented_bytes, timeout=30
                 )
-            except ReviewInputError:
-                native_comments = None
+            except Exception:
+                logger.warning(
+                    "Original annotation extraction failed; using visual discovery",
+                    exc_info=True,
+                )
+                diagnostics.append(
+                    {
+                        "code": "original_annotation_extraction_failed",
+                        "recovery": "visual_markup_discovery",
+                    }
+                )
         if revised_name.lower().endswith(".pdf") and revised_pages.total <= 8:
-            revised_text = run_in_isolated_process(pdf_texts, revised_bytes, timeout=30)
+            try:
+                revised_text = run_in_isolated_process(
+                    pdf_texts, revised_bytes, timeout=30
+                )
+            except Exception:
+                logger.warning(
+                    "Revised text extraction failed; using indexed spans and visual evidence",
+                    exc_info=True,
+                )
+                diagnostics.append(
+                    {
+                        "code": "revised_text_extraction_failed",
+                        "recovery": "indexed_spans_and_visual_review",
+                    }
+                )
+                invocation.update(
+                    ToolProgress(
+                        content="Revised text extraction failed. Checking indexed spans and drawing images."
+                    )
+                )
+            indexed_text: dict[int, list[str]] = {}
+            for span in revised_pages.spans:
+                indexed_text.setdefault(span.page, []).append(span.text)
+            revised_text = revised_text or {}
+            for page, lines in indexed_text.items():
+                if not revised_text.get(page, "").strip():
+                    revised_text[page] = "\n".join(lines)
 
+        revised_comments = {}
         if native_comments == {} and revised_name.lower().endswith(".pdf"):
             try:
                 _, revised_comments = run_in_isolated_process(
                     pdf_comments, revised_bytes, timeout=30
                 )
-            except ReviewInputError:
-                revised_comments = {}
-            if revised_comments:
-                logger.warning("Comment review rejected likely reversed sheet roles")
-                raise ToolCallException(
-                    message="Drawing sheet roles appear reversed",
-                    llm_facing_message=(
-                        f"'{commented_name}' was passed as the marked original but has no native review comments. "
-                        f"'{revised_name}' was passed as the revised sheet and contains native review comments. "
-                        "The file roles appear reversed. Check the file names and retry with "
-                        f"commented_sheet_file_id='{revised_id}' and revised_sheet_file_id='{commented_id}' "
-                        "if these are the original reviewed sheet and corrected revision. "
-                        "No review was completed. PDFs are supported; no DXF or conversion is required."
-                    ),
+            except Exception:
+                logger.warning(
+                    "Could not check revised annotations for reversed roles",
+                    exc_info=True,
                 )
 
         logger.info(
@@ -205,36 +266,30 @@ class CommentReviewTool(Tool):
 
         vision_llm = get_default_llm_with_vision(temperature=0)
         measured = self._measured(dxf_id) if dxf_id is not None else None
-        checkpoint = None
-        if (
-            self._owner_id is not None
-            and vision_llm is not None
-            and isinstance(vision_llm.config.model_name, str)
-        ):
-            source_hash = hashlib.sha256(
-                commented_bytes + revised_bytes + (measured or "").encode()
-            ).hexdigest()
-            checkpoint = ReviewCheckpoint(
-                f"{self._owner_id}:{source_hash}:{vision_llm.config.model_name}"
-            )
-        reviewed = 0
-        total = (
-            sum(len(items) for items in native_comments.values())
-            if native_comments and len(native_comments) == len(commented_pages.pages)
-            else None
-        )
+        findings: list[DrawingComment] = []
+        model_name = vision_llm.config.model_name if vision_llm else None
 
-        def save_progress(comment: DrawingComment) -> None:
-            nonlocal reviewed
-            if checkpoint:
-                checkpoint.write(comment)
-            reviewed += 1
-            progress = (
-                f"Reviewed {reviewed} of {total} comments"
-                if total is not None
-                else f"Reviewed {reviewed} comments"
+        def report_progress(comment: DrawingComment) -> None:
+            findings.append(comment)
+            progress = f"Reviewed {len(findings)} comments"
+            snapshot = CommentReviewResult(
+                status=progress,
+                report="",
+                comments=list(findings),
+                vision_model=model_name,
+                commented_sheet_file_id=commented_id,
+                commented_sheet_filename=commented_name,
+                revised_sheet_file_id=revised_id,
+                revised_sheet_filename=revised_name,
+                commented_page_count=commented_pages.total,
+                revised_page_count=revised_pages.total,
             )
-            invocation.update(ToolProgress(content=progress))
+            invocation.update(
+                ToolProgress(
+                    content=progress,
+                    details=ground_review_highlights(snapshot, revised_pages.spans),
+                )
+            )
 
         result = verify_sheet_comments(
             commented_pages,
@@ -242,16 +297,26 @@ class CommentReviewTool(Tool):
             commented_name=commented_name,
             revised_name=revised_name,
             dxf_summary=measured,
-            checkpoint_read=checkpoint.read if checkpoint else None,
-            checkpoint_write=save_progress,
+            on_comment_reviewed=report_progress,
             llm=vision_llm,
             native_comments=native_comments,
             revised_text_by_page=revised_text,
+            brief=brief,
             commented_sheet_file_id=commented_id,
             revised_sheet_file_id=revised_id,
         )
         result = ground_review_highlights(result, revised_pages.spans)
         if not result.comments:
+            if native_comments == {} and revised_comments:
+                raise ToolCallException(
+                    message="Drawing sheet roles appear reversed",
+                    llm_facing_message=(
+                        f"No reviewable marks were found in '{commented_name}', while '{revised_name}' contains embedded review comments. "
+                        "The roles may be reversed. Check the filenames and retry with "
+                        f"commented_sheet_file_id='{revised_id}' and revised_sheet_file_id='{commented_id}' if appropriate. "
+                        "No review was completed. PDFs are supported; no DXF or conversion is required."
+                    ),
+                )
             logger.warning("Comment review produced zero comments; no review completed")
             raise ToolCallException(
                 message="No drawing comments could be reviewed",
@@ -268,7 +333,10 @@ class CommentReviewTool(Tool):
             result = result.model_copy(
                 update={"vision_model": vision_llm.config.model_name}
             )
-        return ToolResult(details=result, content=result.report)
+        content = result.report
+        if diagnostics:
+            content += "\n\nReview recovery diagnostics: " + json.dumps(diagnostics)
+        return ToolResult(details=result, content=content)
 
     def _load_sheet(self, raw_file_id: str, role: str) -> tuple[bytes, str]:
         data, filename = self._load_original(raw_file_id)

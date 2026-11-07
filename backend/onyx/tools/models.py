@@ -154,10 +154,20 @@ class DrawingExtraIssue(BaseModel):
     page_level: bool = False
 
 
+class DrawingReviewBrief(BaseModel):
+    user_request: str = ""
+    instructions: str = Field(default="", max_length=8000)
+    original_pages: list[int] = Field(default_factory=list, max_length=100)
+    include_extra_issues: bool = False
+
+
 class CommentReviewArguments(BaseModel):
     commented_sheet_file_id: str | None = None
     revised_sheet_file_id: str | None = None
     dxf_file_id: str | None = None
+    review_instructions: str = Field(default="", max_length=8000)
+    original_pages: list[int] = Field(default_factory=list, max_length=100)
+    include_extra_issues: bool = False
 
 
 class CommentReviewResult(BaseModel):
@@ -324,6 +334,7 @@ class ToolContext(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    user_request: str = ""
     user_memory_context: UserMemoryContext | None = None
     user_info: str | None = None
     citation_mapping: dict[int, str] = Field(default_factory=dict)

@@ -21,6 +21,7 @@ from onyx.file_processing.image_summarization import (
 from onyx.llm.factory import get_default_llm_with_vision
 from onyx.llm.interfaces import LLM, GenerationContext
 from onyx.llm.models import (
+    GenerationOptions,
     GenerationRequest,
     ImageContentPart,
     ImageUrlDetail,
@@ -358,15 +359,23 @@ def _load_standards(
 
 
 def _invoke(
-    llm: LLM, messages: list[Message], filename: str, page_number: int
+    llm: LLM,
+    messages: list[Message],
+    filename: str,
+    page_number: int,
+    *,
+    max_tokens: int | None = None,
+    timeout: float = IMAGE_SUMMARIZATION_TIMEOUT,
 ) -> str | None:
     try:
         response = llm.invoke(
-            GenerationRequest(messages=messages),
+            GenerationRequest(
+                messages=messages, options=GenerationOptions(max_tokens=max_tokens)
+            ),
             context=GenerationContext(
                 flow=LLMFlow.DRAWING_REVIEW,
                 content_mode=TraceContentMode.METADATA_ONLY,
-                total_timeout_s=IMAGE_SUMMARIZATION_TIMEOUT,
+                total_timeout_s=timeout,
             ),
         )
     except Exception:

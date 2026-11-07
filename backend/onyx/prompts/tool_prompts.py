@@ -93,20 +93,26 @@ If the observed section says no company standard was used, repeat that.
 COMMENT_REVIEW_GUIDANCE = """
 ## verify_drawing_comments
 Call verify_drawing_comments when the user asks to verify, check, or review attached PDF or image sheets.
-Also call it when the user gives a marked-up drawing and a new drawing.
+Also call it when the user gives a BEFORE marked-up drawing and an AFTER revised drawing.
+Marks may be handwritten replacement values, crossed-out dimensions, arrows, circles, or redlines;
+explicit text explaining the change is not required. Compare the marked feature with the AFTER PDF.
+Keep ambiguous intent or unreadable marks unclear instead of inventing a request or declaring success.
 The first attached PDF or image is the marked-up sheet. Pass it as commented_sheet_file_id.
 The second attached PDF or image is the new sheet. Pass it as revised_sheet_file_id.
+Pass review_instructions with what the user wants to find and verify, including named features,
+values, tolerances, and scope. Pass original_pages only for explicit PDF page restrictions.
+Set include_extra_issues to true only if the user explicitly requests a scan for unrelated issues.
 Do not answer from the extracted file text. The tool checks each comment.
 Both sheet inputs accept PDF. PDF plus PDF works without any DXF.
 Pass dxf_file_id only for an optional source .dxf file. Never pass it as revised_sheet_file_id.
 An AttributeError or missing model field is an internal processing failure, not a file-format error.
 Never recommend converting a PDF to DXF to fix a tool failure. Report the actual failure and that the review is incomplete.
-Use only returned verdicts. Never claim that a PDF was marked when the review failed.
+Use only returned verdicts. If the review reaches its time limit, report partial results without rerunning the same review. Never claim that a PDF was marked when the review failed.
 File ids come from the drawing file list or from an attached image tag. Do not invent a file id.
 Answer with one row per comment. Say whether the comment is open, solved and correct, solved and incorrect, or unclear.
 For an open comment, say what must change. For a solved and incorrect comment, say what is wrong.
 A number in a comment is not a measurement. Only a DXF dimension entity is a measurement.
-Also list problems on the new sheet that no comment asked for. Keep that list short.
+List unrelated problems only when the review returns them and they are within the user’s scope.
 The review does not certify the drawing. Do not claim ASME, ISO, or company-standard compliance.
 """.lstrip()
 

@@ -79,7 +79,10 @@ Use this check when you have a marked-up sheet and a new sheet. The marked-up sh
 The new sheet is the revision. The default assistant includes **Comment Review**.
 An agent that already has Drawing Review gets this action too.
 
-Say "verify" after you attach both sheets. The first sheet is the marked-up sheet. The second sheet is the new sheet.
+Ask the agent to verify the changes after you attach both sheets. The first sheet is the marked-up sheet.
+The second sheet is the new sheet. You can name features, values, and tolerances to verify.
+For example, ask "Only check PDF page 2. Verify that the bracket width is 130 and skip unrelated issues."
+The agent passes these instructions to the review with the two files.
 
 Keep the file roles clear: the original contains review comments, and the revised sheet contains the corrections.
 The action rejects likely reversed PDF roles when only the revised input contains native comments.
@@ -87,7 +90,13 @@ If no comments can be extracted, the action reports an incomplete review. It doe
 
 Attach both sheets. A comment is a cloud, a balloon, a redline, or a note. The sheet is a PDF, PNG, JPEG, or WEBP.
 A DXF of the new drawing is optional. Use the DXF when a comment is about a dimension.
-A number in a comment is not a measurement.
+A number in a comment is not an independent geometry measurement. It can specify a requested callout value.
+A written instruction is optional:
+a circled dimension with a clearly associated red replacement number can define a change. For example,
+circled **90** with nearby red **80** requests **90 → 80** on that dimension.
+A circled overall width **120** with red **100** below requests **120 → 100** on the overall-width dimension.
+The reviewer compares the before and after images and checks the corresponding feature in the after PDF.
+An unexplained circle, illegible replacement, or uncertain feature match still needs confirmation.
 
 Ask the agent to check each comment. The answer has one row per comment.
 
@@ -125,8 +134,10 @@ Each PDF must have 1–8 pages and must be at most 20 MiB.
 Confirm that both PDFs contain the same sheets in the same order. Different page counts fail validation.
 Reordered sheets need correction before upload.
 
-The worker reads native PDF annotations before using vision. On pages with native annotations,
-flattened comments need manual checking. A missing private model leaves unsupported comments as **Needs review**.
+The worker retains native PDF annotations and, when vision is configured,
+also scans before-page images for additional graphic or handwritten marks.
+Failed visual discovery is reported as incomplete coverage.
+A missing private model leaves unsupported comments as **Needs review**.
 An exact note replacement check verifies text only. It does not measure geometry.
 
 Select a review to compare the PDFs and their evidence highlights. Record an engineer decision for each proposal,
@@ -233,14 +244,13 @@ The drawing action uses the **Captioning LLM**, independently of the chat model.
 Choose an installed vision-capable local model, such as `qwen3-vl:8b-instruct`, for that role.
 New results show the vision model and the number of review passes for each finding.
 
-The reviewer processes each known comment. Unclear results can receive up to three visual passes,
-using the full page and overlapping crops. Repeated unclear output stops the loop early.
+The reviewer shows each finding as it becomes available. Ask for additional issues if you want a separate scan.
+The vision review has a time limit and reports any remaining work it could not check.
+Unclear results can receive up to three visual passes,
+using the full page and overlapping crops within the review time limit.
 A supported verdict can remain separate from an unresolved location. The review does not claim every issue is fixed.
 
-Accepted comment results use owner-scoped application-cache checkpoints for 24 hours.
-The key includes the input PDF content, model name, optional CAD summary, comment and pipeline version.
-A repeated request can reuse these checkpoints. Unclear verdicts are not cached as completed work.
-Checkpoints expire and do not replace the saved chat or engineer decision history.
+Each review evaluates the drawings again, including when you attach the same files.
 
 **Show in original** locates the native review comment when available. **Show in revised** uses revised-sheet evidence.
 Page navigation does not wait for inference or saving. The attention ring is a temporary view effect.

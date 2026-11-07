@@ -181,7 +181,22 @@ def extract_pdf_spans(data: bytes, max_pages: int) -> tuple[list[SheetSpan], lis
     with pdfplumber.open(BytesIO(data), unicode_norm="NFKC") as document:
         for number, page in enumerate(document.pages[:max_pages], 1):
             crop = page.crop(page.cropbox)
-            lines = crop.extract_text_lines(return_chars=False)
+            upright = crop.filter(lambda obj: obj.get("upright", True))
+            lines = upright.extract_text_lines(return_chars=False)
+            for positive, direction in ((True, "btt"), (False, "ttb")):
+                rotated = crop.filter(
+                    lambda obj, positive=positive: (
+                        obj.get("object_type") == "char"
+                        and not obj.get("upright", True)
+                        and (obj["matrix"][1] >= 0) == positive
+                    )
+                )
+                lines.extend(
+                    rotated.extract_words(
+                        line_dir_rotated="ltr",
+                        char_dir_rotated=direction,
+                    )
+                )
             if len(lines) > _MAX_SPANS_PER_PAGE or any(
                 len(str(line["text"])) > 400 for line in lines
             ):

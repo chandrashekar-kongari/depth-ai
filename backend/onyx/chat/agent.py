@@ -46,6 +46,7 @@ from onyx.llm.models import (
     ToolChoiceOptions,
     ToolResult,
     ToolResultMessage,
+    UserMessage,
 )
 from onyx.tools.built_in_tools import STOPPING_TOOLS_NAMES
 from onyx.tools.file_snapshot import SavedChatFile, SavedContextFiles
@@ -223,9 +224,12 @@ class ChatAgent(Agent, RestorableFeature):
             call.name in STOPPING_TOOLS_NAMES for call in message.tool_calls
         )
 
+    _user_request: str = ""
+
     def _tool_context(self) -> ToolContext:
         """Read feature state that advances only after a completed step."""
         return ToolContext(
+            user_request=self._user_request,
             search_context=self.search_context,
             user_memory_context=self.memory,
             citation_mapping=dict(self.citation_mapping),
@@ -237,6 +241,14 @@ class ChatAgent(Agent, RestorableFeature):
         )
 
     def _prepare_step(self, state: StepInput) -> PreparedStep:
+        self._user_request = next(
+            (
+                message.text
+                for message in reversed(state.input_messages)
+                if isinstance(message, UserMessage)
+            ),
+            "",
+        )
         previous = state.previous
         if previous is None:
             self.search_context = SearchContext()

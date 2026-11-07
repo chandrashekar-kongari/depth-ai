@@ -134,7 +134,7 @@ def test_verdicts_name_a_correct_fix_a_wrong_fix_and_an_open_change() -> None:
     ]
     assert result.comments[1].remaining == "The hole is 10 mm, not 12 mm."
     assert result.comments[2].remaining == "Set revision B."
-    assert llm.invoke.call_count == 5
+    assert llm.invoke.call_count == 4
 
 
 def test_comment_text_is_not_a_measurement() -> None:
@@ -193,7 +193,7 @@ def test_unpaired_comments_are_unclear_when_page_counts_differ() -> None:
     assert result.comments[0].verdict is CommentVerdict.SOLVED_CORRECT
     assert result.comments[1].verdict is CommentVerdict.UNCLEAR
     assert "no matching page" in result.comments[1].remaining
-    assert llm.invoke.call_count == 4
+    assert llm.invoke.call_count == 3
 
 
 def test_missing_sheet_tells_the_model_which_file_to_pass() -> None:
@@ -205,7 +205,7 @@ def test_missing_sheet_tells_the_model_which_file_to_pass() -> None:
     assert "revised_sheet_file_id" in message
 
 
-def test_reversed_pdf_roles_are_rejected_before_vision_review() -> None:
+def test_reversed_pdf_roles_are_reported_after_visual_discovery() -> None:
     tool = CommentReviewTool(tool_id=8, user_file_ids=[], chat_file_ids=[])
     original_id, revised_id = str(uuid4()), str(uuid4())
     with (
@@ -224,6 +224,14 @@ def test_reversed_pdf_roles_are_rejected_before_vision_review() -> None:
             ],
         ),
         patch(f"{_TOOL}.get_default_llm_with_vision") as model,
+        patch(
+            f"{_TOOL}.verify_sheet_comments",
+            return_value=CommentReviewResult(status="empty", report="empty"),
+        ),
+        patch(
+            f"{_TOOL}.ground_review_highlights",
+            side_effect=lambda result, _spans: result,
+        ),
         pytest.raises(ToolCallException) as caught,
     ):
         tool._run(
@@ -238,7 +246,7 @@ def test_reversed_pdf_roles_are_rejected_before_vision_review() -> None:
     assert f"commented_sheet_file_id='{revised_id}'" in caught.value.llm_facing_message
     assert f"revised_sheet_file_id='{original_id}'" in caught.value.llm_facing_message
     assert "no DXF" in caught.value.llm_facing_message
-    model.assert_not_called()
+    model.assert_called_once()
 
 
 def test_empty_visual_review_is_not_returned_as_success() -> None:
@@ -366,6 +374,7 @@ def test_extra_issues_do_not_discard_completed_pdf_comment_review() -> None:
             revised_name="revised.pdf",
             dxf_summary=None,
             llm=MagicMock(),
+            include_extra_issues=True,
         )
     assert result.comments[0].verdict.value == "solved_correct"
     assert result.extra_issues[0].title == "Unrelated note missing"
@@ -392,7 +401,257 @@ def test_optional_extra_failure_retains_pdf_verdicts() -> None:
             revised_name="revised.pdf",
             dxf_summary=None,
             llm=MagicMock(),
+            include_extra_issues=True,
         )
     assert result.comments[0].verdict.value == "open"
     assert result.extra_issues == []
     assert "Additional-issue detection failed" in result.status
+
+
+@pytest.mark.parametrize(
+    "page_text,indexed_text,duplicate,span_id,status",
+    [
+        ("80\n100", "80", False, "pitch", CommentVerdict.SOLVED_CORRECT),
+        ("08\n100", "80", False, None, CommentVerdict.SOLVED_CORRECT),
+        ("180\n100", "180", False, "pitch", CommentVerdict.UNCLEAR),
+        ("80\n80", "80", True, None, CommentVerdict.UNCLEAR),
+    ],
+)
+def test_short_dimension_evidence_requires_an_exact_unique_after_span(
+    page_text: str,
+    indexed_text: str,
+    duplicate: bool,
+    span_id: str | None,
+    status: CommentVerdict,
+) -> None:
+    from onyx.llm.models import ImageContentPart
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _judge_comment,
+    )
+
+    spans = [SheetSpan("pitch", 1, indexed_text, 0.2, 0.2, 0.1, 0.1)]
+    if duplicate:
+        spans.append(SheetSpan("other", 1, "80", 0.6, 0.6, 0.1, 0.1))
+    row = comment_from_extraction(
+        ExtractedComment(
+            text="Circled 90 with red 80", request="Change hole pitch from 90 to 80"
+        ),
+        comment_id="c1",
+        page=1,
+        spans={},
+    )
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "status": "solved_correct",
+                    "evidence": "80",
+                    "remaining": "",
+                    "span_id": span_id,
+                }
+            )
+        ]
+    )
+    with patch(
+        f"{_REVIEW}.prepare_image_bytes", return_value="data:image/png;base64,aa"
+    ):
+        verdict = _judge_comment(
+            llm,
+            b"after",
+            filename="after.pdf",
+            page_number=1,
+            page_count=1,
+            comment=row,
+            spans=spans,
+            dxf_summary=None,
+            revised_page_text=page_text,
+            original_image_data=b"before",
+        )
+    assert verdict is not None and verdict.status == status
+    if status == CommentVerdict.SOLVED_CORRECT:
+        assert verdict.span_id == "pitch"
+    sent = llm.invoke.call_args.args[0].messages[1].content
+    assert sum(isinstance(part, ImageContentPart) for part in sent) == 2
+
+
+def test_visual_markups_supplement_native_comments_without_dropping_them() -> None:
+    native = ExtractedComment(text="Add a finish note", request="Add clear anodize")
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "comments": [
+                        {
+                            "text": "Circled 120 with red 100 below",
+                            "request": "Change overall width from 120 to 100",
+                            "ambiguity": "",
+                        }
+                    ]
+                }
+            ),
+            _verdict("solved_correct", "Clear anodize", ""),
+            _verdict("open", "Overall width 120", "Change width to 100"),
+        ]
+    )
+    with patch(
+        f"{_REVIEW}.prepare_image_bytes", return_value="data:image/png;base64,aa"
+    ):
+        result = verify_sheet_comments(
+            _pages(1),
+            _pages(1),
+            commented_name="before.pdf",
+            revised_name="after.pdf",
+            dxf_summary=None,
+            llm=llm,
+            native_comments={1: [native]},
+            include_extra_issues=False,
+        )
+    assert [row.text for row in result.comments] == [
+        "Add a finish note",
+        "Circled 120 with red 100 below",
+    ]
+    assert [row.verdict for row in result.comments] == [
+        CommentVerdict.SOLVED_CORRECT,
+        CommentVerdict.OPEN,
+    ]
+
+
+def test_ambiguous_visual_mark_remains_in_queue_without_a_guessed_verdict() -> None:
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "comments": [
+                        {
+                            "text": "Circle around a hole",
+                            "request": "Confirm the marked feature",
+                            "ambiguity": "No replacement value or requested operation is visible.",
+                        }
+                    ]
+                }
+            )
+        ]
+    )
+    with patch(
+        f"{_REVIEW}.prepare_image_bytes", return_value="data:image/png;base64,aa"
+    ):
+        result = verify_sheet_comments(
+            _pages(1),
+            _pages(1),
+            commented_name="before.pdf",
+            revised_name="after.pdf",
+            dxf_summary=None,
+            llm=llm,
+            include_extra_issues=False,
+        )
+    assert result.comments[0].verdict == CommentVerdict.UNCLEAR
+    assert "No replacement value" in result.comments[0].remaining
+    assert llm.invoke.call_count == 1
+
+
+def test_delegated_review_preserves_scope_and_recovers_from_pdf_text_failure() -> None:
+    from onyx.llm.models import TextContentPart
+    from onyx.utils.process_isolation import IsolatedProcessTimeout
+
+    tool = CommentReviewTool(tool_id=8, user_file_ids=[], chat_file_ids=[])
+    user_request = "Only check page 2 and verify my marked width."
+    instructions = "Find the circled width and verify 200 on the same feature."
+    revised = _SheetPages(
+        pages=[b"page", b"page"],
+        spans=[SheetSpan("width", 2, "200", 0.2, 0.2, 0.1, 0.1)],
+        truncated_pages=[],
+        total=2,
+    )
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "comments": [
+                        {
+                            "text": "Circled 500 with 200 beside it",
+                            "request": "Change the width from 500 to 200",
+                            "requested_value": "200",
+                        }
+                    ]
+                }
+            ),
+            json.dumps(
+                {
+                    "status": "solved_correct",
+                    "evidence": "200",
+                    "remaining": "",
+                    "span_id": "width",
+                }
+            ),
+        ]
+    )
+    llm.config.model_name = "test-vision"
+    updates = MagicMock()
+    with (
+        patch.object(
+            tool,
+            "_load_sheet",
+            side_effect=[(b"before", "before.pdf"), (b"after", "after.pdf")],
+        ),
+        patch(f"{_TOOL}._sheet_pages", side_effect=[_pages(2), revised]),
+        patch(
+            f"{_TOOL}.run_in_isolated_process",
+            side_effect=[(2, {}), IsolatedProcessTimeout(30), (2, {})],
+        ),
+        patch(f"{_TOOL}.get_default_llm_with_vision", return_value=llm),
+        patch(
+            f"{_REVIEW}.prepare_image_bytes", return_value="data:image/png;base64,aa"
+        ),
+    ):
+        result = tool._run(
+            ToolInvocation(
+                call_id="comments",
+                cancellation=CancellationSignal(),
+                update=updates,
+                arguments={
+                    "commented_sheet_file_id": str(uuid4()),
+                    "revised_sheet_file_id": str(uuid4()),
+                    "review_instructions": instructions,
+                    "original_pages": [2],
+                    "include_extra_issues": False,
+                },
+            ),
+            ToolContext(user_request=user_request),
+        )
+    assert isinstance(result.details, CommentReviewResult)
+    assert [(row.page, row.verdict) for row in result.details.comments] == [
+        (2, CommentVerdict.SOLVED_CORRECT)
+    ]
+    assert result.details.comments[0].revised_span_id == "width"
+    snapshot = updates.call_args.args[0].details
+    assert isinstance(snapshot, CommentReviewResult)
+    assert snapshot.comments == result.details.comments
+    assert snapshot.status == "Reviewed 1 comments"
+    assert result.details.reviewed_pages == 1
+    assert "revised_text_extraction_failed" in result.content
+    assert llm.invoke.call_count == 2
+    for call in llm.invoke.call_args_list:
+        message = call.args[0].messages[1]
+        assert isinstance(message, UserMessage) and isinstance(message.content, list)
+        text = "\n".join(
+            part.text for part in message.content if isinstance(part, TextContentPart)
+        )
+        assert user_request in text
+        assert instructions in text
+
+
+def test_review_deadline_returns_explicit_incomplete_result() -> None:
+    llm = MagicMock()
+    with patch(f"{_REVIEW}._REVIEW_TIMEOUT", 0):
+        result = verify_sheet_comments(
+            _pages(1),
+            _pages(1),
+            commented_name="original.pdf",
+            revised_name="revised.pdf",
+            dxf_summary=None,
+            llm=llm,
+        )
+    llm.invoke.assert_not_called()
+    assert result.reviewed_pages == 0
+    assert result.comments[0].verdict == CommentVerdict.UNCLEAR
+    assert "time limit" in result.report
