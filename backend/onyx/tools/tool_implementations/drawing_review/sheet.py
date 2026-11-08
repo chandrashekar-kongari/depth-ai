@@ -8,7 +8,10 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from pdfminer.pdfexceptions import PDFException
+from pdfplumber.utils.exceptions import PdfminerException
 from pydantic import JsonValue, ValidationError
+from pypdfium2 import PdfiumError
 
 from onyx.configs.app_configs import PDF_TEXT_EXTRACTION_TIMEOUT_SECONDS
 from onyx.configs.chat_configs import IMAGE_SUMMARIZATION_TIMEOUT
@@ -44,6 +47,9 @@ from onyx.tools.tool_implementations.drawing_review.checklist import (
     span_text,
     standards_text,
     unreadable_page_finding,
+)
+from onyx.tools.tool_implementations.drawing_review.pdf_recovery import (
+    recover_review_pdf,
 )
 from onyx.tools.tool_implementations.drawing_review.spans import (
     SheetSpan,
@@ -83,6 +89,7 @@ class _SheetPages:
     truncated_pages: list[int]
     total: int
     error: str | None = None
+    recovered_pdf: bytes | None = None
 
 
 def review_sheet(
@@ -159,7 +166,7 @@ def review_sheet(
 
 
 def render_pdf_pngs(
-    file_bytes: bytes, max_pages: int
+    file_bytes: bytes, max_pages: int, *, draw_annotations: bool = False
 ) -> tuple[list[bytes], int, list[SheetSpan], list[int]]:
     """Render the first pages of a PDF to PNG bytes. Runs in a child process."""
     from io import BytesIO
@@ -174,7 +181,7 @@ def render_pdf_pngs(
         for index in range(min(total, max_pages)):
             page = pdf[index]
             try:
-                bitmap = page.render(scale=2)
+                bitmap = page.render(scale=2, draw_annots=draw_annotations)
                 try:
                     image = bitmap.to_pil()
                     buffer = BytesIO()
@@ -189,35 +196,51 @@ def render_pdf_pngs(
         pdf.close()
 
 
-def _sheet_pages(data: bytes, filename: str) -> _SheetPages:
+def _render_pdf_sheet(data: bytes, *, draw_annotations: bool) -> _SheetPages:
+    recovered: bytes | None = None
+    try:
+        pages, total, spans, truncated = render_pdf_pngs(
+            data, MAX_SHEET_PAGES, draw_annotations=draw_annotations
+        )
+    except (PdfminerException, PDFException, RecursionError):
+        recovered = recover_review_pdf(data, MAX_SHEET_PAGES)
+        pages, total, spans, truncated = render_pdf_pngs(
+            recovered, MAX_SHEET_PAGES, draw_annotations=draw_annotations
+        )
+    return _SheetPages(
+        pages=pages,
+        spans=spans,
+        truncated_pages=truncated,
+        total=total,
+        error=None if pages else "## observed\nThe sheet has no pages.",
+        recovered_pdf=recovered,
+    )
+
+
+def _sheet_pages(
+    data: bytes, filename: str, *, draw_annotations: bool = False
+) -> _SheetPages:
     extension = get_file_ext(filename)
     if extension == ".pdf":
         try:
-            pages, total, spans, truncated_pages = run_in_isolated_process(
-                render_pdf_pngs,
+            return run_in_isolated_process(
+                _render_pdf_sheet,
                 data,
-                MAX_SHEET_PAGES,
                 timeout=PDF_TEXT_EXTRACTION_TIMEOUT_SECONDS,
+                draw_annotations=draw_annotations,
             )
-        except IsolatedProcessError:
-            logger.warning("Failed to render drawing sheet %s", filename)
+        except (
+            IsolatedProcessError,
+            PdfiumError,
+            PdfminerException,
+            PDFException,
+            RecursionError,
+            ValueError,
+        ):
+            logger.warning("Failed to read or render drawing sheet %s", filename)
             return _SheetPages(
                 pages=[], spans=[], truncated_pages=[], total=0, error=_RENDER_FAILED
             )
-        if not pages:
-            return _SheetPages(
-                pages=[],
-                spans=[],
-                truncated_pages=[],
-                total=total,
-                error="## observed\nThe sheet has no pages.",
-            )
-        return _SheetPages(
-            pages=pages,
-            spans=spans,
-            truncated_pages=truncated_pages,
-            total=total,
-        )
     if extension in OnyxFileExtensions.IMAGE_EXTENSIONS:
         return _SheetPages(pages=[data], spans=[], truncated_pages=[], total=1)
     return _SheetPages(

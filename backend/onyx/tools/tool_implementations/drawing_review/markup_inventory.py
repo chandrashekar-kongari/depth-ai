@@ -1,6 +1,7 @@
 """Associate visual interpretations with native marks without losing their source boxes."""
 
 import re
+from decimal import Decimal
 
 from onyx.tools.tool_implementations.drawing_review.comment_queue import (
     ExtractedComment,
@@ -41,20 +42,38 @@ def merge_markups(
             if index in emitted:
                 continue
             primary = native[min(associations[index])]
-            requested_value = visual[index].requested_value
-            if (
-                requested_value is None
-                and len(associations[index]) == 1
-                and not visual[index].ambiguity.strip()
-                and re.fullmatch(r"[+-]?\d+(?:\.\d+)?", primary.text.strip())
+            interpreted = visual[index]
+            requested_value = interpreted.requested_value
+            request = interpreted.request
+            native_value = primary.text.strip()
+            single_mark = len(associations[index]) == 1
+            single_numeric = single_mark and re.fullmatch(
+                r"[+-]?(?:\d+(?:\.\d+)?|\.\d+)", native_value
+            )
+            if single_numeric and (
+                requested_value is not None
+                or primary.requested_value is not None
+                or not interpreted.ambiguity.strip()
             ):
-                requested_value = primary.text.strip()
+                if requested_value and (
+                    not re.fullmatch(
+                        r"[+-]?(?:\d+(?:\.\d+)?|\.\d+)", requested_value.strip()
+                    )
+                    or Decimal(requested_value) != Decimal(native_value)
+                ):
+                    request = f"Set the marked dimension to {native_value}."
+                requested_value = native_value
+            if single_mark and primary.bracket is not None:
+                request = f"Set the bracketed {primary.bracket.axis} dimension to {native_value}."
             result.append(
-                visual[index].model_copy(
+                interpreted.model_copy(
                     update={
                         "text": primary.text,
                         "box": primary.box,
-                        "span_id": primary.span_id or visual[index].span_id,
+                        "target_box": primary.target_box if single_mark else None,
+                        "bracket": primary.bracket if single_mark else None,
+                        "span_id": primary.span_id or interpreted.span_id,
+                        "request": request,
                         "requested_value": requested_value,
                     }
                 )

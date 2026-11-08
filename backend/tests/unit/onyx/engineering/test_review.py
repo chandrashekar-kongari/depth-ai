@@ -332,3 +332,33 @@ def test_identical_pdfs_are_rejected_before_model_inference() -> None:
     data = pdf()
     with pytest.raises(ReviewInputError, match="identical"):
         process_pair(data, data, "original.pdf", "revised.pdf", uuid4(), None)
+
+
+@pytest.mark.parametrize("competing_label", [False, True])
+def test_native_replacement_number_pairs_with_only_one_circle(
+    competing_label: bool,
+) -> None:
+    from pypdf import PdfWriter
+    from pypdf.annotations import Ellipse, FreeText
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=600, height=800)
+    writer.add_annotation(0, Ellipse(rect=(100, 100, 150, 150)))
+    writer.add_annotation(0, FreeText(text="100", rect=(152, 112, 175, 130)))
+    if competing_label:
+        writer.add_annotation(0, FreeText(text="80", rect=(70, 112, 98, 130)))
+    output = BytesIO()
+    writer.write(output)
+
+    _, native = pdf_comments(output.getvalue())
+    mark = native[1][0]
+    assert mark.text == "100"
+    if competing_label:
+        assert mark.target_box is None
+        assert mark.requested_value is None
+    else:
+        assert mark.requested_value == "100"
+        assert mark.target_box is not None
+        assert mark.target_box.x == pytest.approx(100 / 600)
+        assert mark.box is not None
+        assert mark.box.x == pytest.approx(152 / 600)

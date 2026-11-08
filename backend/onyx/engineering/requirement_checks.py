@@ -40,6 +40,52 @@ def _span_box(span: SheetSpan) -> DrawingMarkBox:
     return DrawingMarkBox(x=span.x, y=span.y, width=span.width, height=span.height)
 
 
+def _verify_bracket(
+    row: DrawingComment,
+    item: ExtractedComment,
+    evidence: DrawingEvidence,
+    expected: str,
+) -> DrawingComment | None:
+    if (
+        item.bracket is None
+        or item.requested_value != expected
+        or not _NUMBER.fullmatch(expected)
+        or row.box is None
+    ):
+        return None
+    mark = row.box
+    matches = [
+        dimension
+        for dimension in evidence.added_dimensions
+        if dimension.page == row.page
+        and abs(dimension.original_box.x - mark.x) <= 0.04
+        and abs(dimension.original_box.y - mark.y) <= 0.04
+        and dimension.extensions.matches(
+            item.bracket,
+            dimension.revised_box.x - dimension.original_box.x,
+            dimension.revised_box.y - dimension.original_box.y,
+        )
+    ]
+    if len(matches) != 1:
+        return None
+    dimension = matches[0]
+    correct = Decimal(dimension.value) == Decimal(expected)
+    return row.model_copy(
+        update={
+            "request": f"Set the bracketed {item.bracket.axis} dimension to {expected}.",
+            "verdict": CommentVerdict.SOLVED_CORRECT
+            if correct
+            else CommentVerdict.OPEN,
+            "evidence": f"The revised dimension spans the marked endpoints and reads {dimension.value}.",
+            "remaining": ""
+            if correct
+            else f"The bracket requests {expected}. The revised dimension reads {dimension.value}.",
+            "revised_page": row.page,
+            "revised_box": dimension.revised_box,
+        }
+    )
+
+
 def verify_grounded_request(
     row: DrawingComment,
     item: ExtractedComment,
@@ -58,23 +104,26 @@ def verify_grounded_request(
     expected = (item.requested_value or item.text).strip()
     if _NUMBER.fullmatch(item.text.strip()) and item.text.strip() != expected:
         return None
+    bracket_result = _verify_bracket(row, item, evidence, expected)
+    if bracket_result is not None:
+        return bracket_result
+    target_box = item.target_box or (row.box if not row.page_level else None)
     if (
-        not item.ambiguity
+        (item.target_box is not None or not item.ambiguity)
         and len(expected) <= 96
         and _NUMBER.fullmatch(expected)
         and expected in _NUMBER.findall(item.text)
-        and row.box
-        and not row.page_level
+        and target_box is not None
     ):
         candidates = [
             match
             for match in evidence.callouts
-            if match.page == row.page and _covers(row.box, match.original_box)
+            if match.page == row.page and _covers(target_box, match.original_box)
         ]
         marked_labels = [
             box
             for box in evidence.original_labels.get(row.page, [])
-            if _covers(row.box, box)
+            if _covers(target_box, box)
         ]
         if len(candidates) == 1 and marked_labels == [candidates[0].original_box]:
             match = candidates[0]
@@ -107,10 +156,15 @@ def verify_grounded_request(
                 return row.model_copy(
                     update={
                         "verdict": verdict,
+                        "request": (
+                            f"Change the marked dimension from {match.original_text} to {expected}."
+                            if item.target_box is not None
+                            else row.request
+                        ),
                         "evidence": f"Requested {expected}. Found {match.revised_text} on the corresponding dimension (original: {match.original_text}).",
                         "remaining": ""
                         if correct
-                        else f"Set this dimension to {expected}.",
+                        else f"The reviewer requested {expected}. The matching dimension on the revised sheet shows {match.revised_text}.",
                         "revised_page": row.page,
                         "revised_box": match.revised_box,
                         "revised_location_verified": True,

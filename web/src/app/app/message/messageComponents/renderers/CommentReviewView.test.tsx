@@ -179,3 +179,28 @@ it("shows the latest findings before the tool section ends", () => {
   expect(screen.getByText("Bore tolerance")).toBeInTheDocument();
   expect(onComplete).not.toHaveBeenCalled();
 });
+
+it("shows the mismatch explanation without expanding the issue", () => {
+  const explanation =
+    "The reviewer asked for 86, but the revised dimension reads 60.";
+  render(
+    <CommentReviewView
+      review={{
+        ...review,
+        comments: [
+          {
+            ...review.comments[0]!,
+            text: "86",
+            request: "Set the marked dimension to 86.",
+            evidence: "60",
+            remaining: explanation,
+            verdict: "solved_incorrect",
+          },
+        ],
+      }}
+      part="queue"
+    />
+  );
+
+  expect(screen.getByText(explanation)).toBeVisible();
+});

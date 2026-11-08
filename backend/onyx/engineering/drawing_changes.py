@@ -20,9 +20,12 @@ import numpy as np
 import numpy.typing as npt
 import pdfplumber
 import pypdfium2 as pdfium
+from pdfminer.pdfexceptions import PDFException
 from pdfplumber.page import Page
+from pdfplumber.utils.exceptions import PdfminerException
 from pydantic import BaseModel, Field
 
+from onyx.engineering.bracket_dimensions import ExtensionPair, extension_pairs
 from onyx.llm.cancellation import AgentCancelled, check_cancelled, current_cancellation
 from onyx.tools.models import (
     CommentReviewResult,
@@ -102,6 +105,38 @@ def _render(document: pdfium.PdfDocument, index: int) -> Image:
         page.close()
 
 
+_REVIEW_TAG = re.compile(r"^\s*(C[0-9]{2,})\b")
+
+
+def _review_tags(page: Page) -> set[str]:
+    try:
+        return {
+            match.group(1)
+            for annotation in page.annots
+            if (match := _REVIEW_TAG.match(str(annotation.get("contents") or "")))
+        }
+    except (
+        PdfminerException,
+        PDFException,
+        RecursionError,
+        ValueError,
+        TypeError,
+        KeyError,
+    ):
+        return set()
+
+
+def _red_review_ink(color: object) -> bool:
+    if (
+        not isinstance(color, tuple)
+        or len(color) != 3
+        or not all(isinstance(component, (int, float)) for component in color)
+    ):
+        return False
+    red, green, blue = color
+    return red > 0.4 and red > max(green, blue) + 0.25
+
+
 def _labels(page: Page) -> list[_Label]:
     """Group native glyphs in their own text direction, including angled callouts."""
     crop = page.crop(page.cropbox)
@@ -137,6 +172,7 @@ def _labels(page: Page) -> list[_Label]:
         )
         groups.setdefault(angle, []).append((across, along, size, char))
     labels: list[_Label] = []
+    review_tags = _review_tags(page)
     for angle, glyphs in groups.items():
         lines: list[list[tuple[float, float, float, dict[str, Any]]]] = []
         for glyph in sorted(glyphs, key=lambda g: g[0]):
@@ -162,6 +198,10 @@ def _labels(page: Page) -> list[_Label]:
             for word in words:
                 text = "".join(str(g[3]["text"]) for g in word)
                 if not re.search(r"\d", text) or len(text) > 96:
+                    continue
+                if text in review_tags and all(
+                    _red_review_ink(g[3].get("non_stroking_color")) for g in word
+                ):
                     continue
                 x0 = min(float(g[3]["x0"]) for g in word)
                 x1 = max(float(g[3]["x1"]) for g in word)
@@ -527,9 +567,18 @@ class MatchedCallout(BaseModel):
     revised_box: DrawingMarkBox
 
 
+class AddedDimension(BaseModel):
+    page: int
+    original_box: DrawingMarkBox
+    revised_box: DrawingMarkBox
+    value: str
+    extensions: ExtensionPair
+
+
 class DrawingEvidence(BaseModel):
     comparison: DrawingChangeReview
     callouts: list[MatchedCallout] = Field(default_factory=list)
+    added_dimensions: list[AddedDimension] = Field(default_factory=list)
     original_labels: dict[int, list[DrawingMarkBox]] = Field(default_factory=dict)
 
 
@@ -709,37 +758,58 @@ def _visual_changes(
     return result
 
 
+_SHEET_COUNTER = re.compile(
+    r"^SHEET[ \t]+(\d{1,4})[ \t]*(?:/|OF[ \t]+)[ \t]*(\d{1,4})\b",
+    re.MULTILINE,
+)
+_SHEET_IDENTIFIER = re.compile(
+    r"^(?:SHEET|DRAWING[ \t]+(?:NO\.?|NUMBER))[ \t]*[:#-]?[ \t]+"
+    r"([A-Z0-9][A-Z0-9._/-]*)[ \t]*$",
+    re.MULTILINE,
+)
+_PACKAGE_REVISION = re.compile(
+    r"\b([A-Z0-9._-]*\d[A-Z0-9._-]*)[ \t]*\|[ \t]*REV(?:ISION)?[ \t]+"
+)
+
+
+def _sheet_identity(text: str) -> str | None:
+    text = text.upper()
+    explicit = set(_SHEET_IDENTIFIER.findall(text))
+    counters = {
+        (int(number), int(total)) for number, total in _SHEET_COUNTER.findall(text)
+    }
+    if len(explicit) > 1 or len(counters) > 1:
+        return None
+    if explicit:
+        return "sheet:" + next(iter(explicit))
+    if counters:
+        number, total = next(iter(counters))
+        packages = set(_PACKAGE_REVISION.findall(text))
+        if 1 <= number <= total and len(packages) <= 1:
+            package = next(iter(packages), "")
+            return f"counter:{package}:{number}/{total}"
+        return None
+    if len(text) >= 80 and len(re.findall(r"[A-Z]{3,}", text)) >= 6:
+        return "text:" + sha256(" ".join(text.split()).encode()).hexdigest()
+    return None
+
+
 def pair_drawing_pages(
-    original: list[Page], revised: list[Page]
+    original: list[Page], revised: list[Page], *, confirmed_page_order: bool = False
 ) -> tuple[dict[int, int], dict[int, str], dict[int, str]]:
     """Bound identity inspection; do not guess sheet order for unidentified packages."""
+    if confirmed_page_order and len(original) == len(revised):
+        return {page: page for page in range(1, len(original) + 1)}, {}, {}
     limit = 64
-    pattern = re.compile(
-        r"\b(?:SHEET|DRAWING(?:\s+(?:NO\.?|NUMBER))?)\s*[:#-]?\s+([A-Z0-9][A-Z0-9._/-]*)",
-        re.IGNORECASE,
-    )
 
     def identities(pages: list[Page]) -> dict[int, str | None]:
         result: dict[int, str | None] = {}
         for index, page in enumerate(pages[:limit], 1):
-            if len(page.chars) > _MAX_GLYPHS:
-                result[index] = None
-                continue
-            text = page.extract_text() or ""
-            identifiers = set(pattern.findall(text.upper()))
-            if len(identifiers) == 1:
-                result[index] = "sheet:" + next(iter(identifiers))
-            elif (
-                not identifiers
-                and len(text) >= 80
-                and len(re.findall(r"[A-Za-z]{3,}", text)) >= 6
-            ):
-                result[index] = (
-                    "text:"
-                    + sha256(" ".join(text.upper().split()).encode()).hexdigest()
-                )
-            else:
-                result[index] = None
+            result[index] = (
+                None
+                if len(page.chars) > _MAX_GLYPHS
+                else _sheet_identity(page.extract_text() or "")
+            )
         return result
 
     old, new = identities(original), identities(revised)
@@ -747,8 +817,8 @@ def pair_drawing_pages(
     if len(original) == len(revised) == 1 and not (
         old[1]
         and new[1]
-        and old[1].startswith("sheet:")
-        and new[1].startswith("sheet:")
+        and old[1].split(":", 1)[0] == new[1].split(":", 1)[0]
+        and not old[1].startswith("text:")
         and old[1] != new[1]
     ):
         pairs[1] = 1
@@ -795,10 +865,15 @@ def compare_drawing_pdfs(
 
 
 def build_drawing_evidence(
-    original: bytes, revised: bytes, selected_pages: list[int] | None = None
+    original: bytes,
+    revised: bytes,
+    selected_pages: list[int] | None = None,
+    *,
+    confirmed_page_order: bool = False,
 ) -> DrawingEvidence:
     """Read revision evidence once for verification and change reporting."""
     callouts: list[MatchedCallout] = []
+    added_dimensions: list[AddedDimension] = []
     changes: list[DrawingChange] = []
     compared: list[int] = []
     original_labels: dict[int, list[DrawingMarkBox]] = {}
@@ -822,7 +897,9 @@ def build_drawing_evidence(
             pdfplumber.open(BytesIO(revised), unicode_norm="NFKC") as new_text,
         ):
             pairs, skipped, unmatched = pair_drawing_pages(
-                old_text.pages, new_text.pages
+                old_text.pages,
+                new_text.pages,
+                confirmed_page_order=confirmed_page_order,
             )
             scope = selected_pages or list(range(1, len(old_pdf) + 1))
             skipped = {
@@ -873,6 +950,29 @@ def build_drawing_evidence(
                     number,
                     callouts,
                 )
+                for change in native:
+                    if (
+                        change.kind != "text_added"
+                        or change.original_box is None
+                        or change.revised_box is None
+                        or not re.fullmatch(
+                            r"[+-]?(?:\d+(?:\.\d+)?|\.\d+)", change.after_text
+                        )
+                    ):
+                        continue
+                    extensions = extension_pairs(
+                        new_text.pages[target - 1], change.revised_box
+                    )
+                    if len(extensions) == 1:
+                        added_dimensions.append(
+                            AddedDimension(
+                                page=number,
+                                original_box=change.original_box,
+                                revised_box=change.revised_box,
+                                value=change.after_text,
+                                extensions=extensions[0],
+                            )
+                        )
                 visual = _visual_changes(aligned, new, mappings, number)
                 # Keep visual evidence, including geometry around a changed callout.
                 changes.extend(
@@ -893,6 +993,7 @@ def build_drawing_evidence(
     changes = [c.model_copy(update={"id": f"dc{i}"}) for i, c in enumerate(changes, 1)]
     return DrawingEvidence(
         callouts=callouts,
+        added_dimensions=added_dimensions,
         original_labels=original_labels,
         comparison=DrawingChangeReview(
             status="partial"
@@ -973,7 +1074,11 @@ def attach_drawing_changes(
 
 
 def load_drawing_evidence(
-    original: bytes, revised: bytes, selected_pages: list[int] | None = None
+    original: bytes,
+    revised: bytes,
+    selected_pages: list[int] | None = None,
+    *,
+    confirmed_page_order: bool = False,
 ) -> DrawingEvidence:
     deadline = time.monotonic() + 120
     combined = DrawingEvidence(
@@ -981,7 +1086,11 @@ def load_drawing_evidence(
     )
     try:
         pairs, skipped, unmatched, total = run_in_isolated_process(
-            _read_page_pairing, original, revised, timeout=30
+            _read_page_pairing,
+            original,
+            revised,
+            timeout=30,
+            confirmed_page_order=confirmed_page_order,
         )
     except (Exception, AgentCancelled):
         combined.comparison.status = "failed"
@@ -1019,6 +1128,7 @@ def load_drawing_evidence(
                 revised,
                 [page],
                 timeout=min(30, deadline - time.monotonic()),
+                confirmed_page_order=confirmed_page_order,
             )
         except (Exception, AgentCancelled) as error:
             combined.comparison.skipped_original_pages[page] = (
@@ -1028,6 +1138,7 @@ def load_drawing_evidence(
             )
             continue
         combined.callouts.extend(item.callouts)
+        combined.added_dimensions.extend(item.added_dimensions)
         combined.original_labels.update(item.original_labels)
         if page not in item.comparison.compared_pages:
             combined.comparison.skipped_original_pages[page] = (
@@ -1053,13 +1164,15 @@ def load_drawing_evidence(
 
 
 def _read_page_pairing(
-    original: bytes, revised: bytes
+    original: bytes, revised: bytes, *, confirmed_page_order: bool = False
 ) -> tuple[dict[int, int], dict[int, str], dict[int, str], int]:
     with (
         pdfplumber.open(BytesIO(original)) as old,
         pdfplumber.open(BytesIO(revised)) as new,
     ):
-        pairs, skipped, unmatched = pair_drawing_pages(old.pages, new.pages)
+        pairs, skipped, unmatched = pair_drawing_pages(
+            old.pages, new.pages, confirmed_page_order=confirmed_page_order
+        )
         return pairs, skipped, unmatched, len(old.pages)
 
 

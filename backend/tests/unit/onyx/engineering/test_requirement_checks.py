@@ -1,3 +1,5 @@
+import pytest
+
 from onyx.engineering.drawing_changes import DrawingEvidence, MatchedCallout
 from onyx.engineering.requirement_checks import verify_grounded_request
 from onyx.tools.models import (
@@ -118,3 +120,47 @@ def test_fix_missed_checks_scoped_original_field_list() -> None:
     assert result is not None
     assert result.verdict == CommentVerdict.SOLVED_CORRECT
     assert [check.label for check in result.checks] == ["Material", "Finish"]
+
+
+@pytest.mark.parametrize("same_endpoints", [True, False])
+def test_numbered_bracket_checks_both_extension_lines(same_endpoints: bool) -> None:
+    from onyx.engineering.bracket_dimensions import Bracket, ExtensionPair
+    from onyx.engineering.drawing_changes import AddedDimension
+    from onyx.tools.tool_implementations.drawing_review.comment_queue import (
+        comment_from_extraction,
+    )
+
+    box = DrawingMarkBox(x=0.84, y=0.28, width=0.01, height=0.01)
+    item = ExtractedComment(
+        text="86",
+        requested_value="86",
+        box=box,
+        bracket=Bracket(axis="vertical", tips=((0.82, 0.17), (0.82, 0.38))),
+    )
+    row = comment_from_extraction(item, comment_id="c1", page=1, spans={})
+    evidence = DrawingEvidence(
+        comparison=DrawingChangeReview(status="complete"),
+        added_dimensions=[
+            AddedDimension(
+                page=1,
+                original_box=box,
+                revised_box=box,
+                value="60",
+                extensions=ExtensionPair(
+                    axis="vertical",
+                    ends=(0.17, 0.38 if same_endpoints else 0.34),
+                    extensions=((0.81, 0.86), (0.81, 0.86)),
+                ),
+            )
+        ],
+    )
+
+    result = verify_grounded_request(row, item, evidence, [], [], "")
+    if same_endpoints:
+        assert result is not None and result.verdict == CommentVerdict.OPEN
+        assert (
+            result.remaining
+            == "The bracket requests 86. The revised dimension reads 60."
+        )
+    else:
+        assert result is None

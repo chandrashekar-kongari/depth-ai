@@ -124,6 +124,10 @@ class CommentReviewTool(Tool):
                         "type": "string",
                         "description": "Describe what to find and verify. Preserve the user's scope, target features, values, tolerances, and evidence requirements.",
                     },
+                    "confirmed_page_order": {
+                        "type": "boolean",
+                        "description": "Set true only if the user explicitly confirms that both PDFs have the same sheet order. Equal page counts alone do not establish order.",
+                    },
                     "original_pages": {
                         "type": "array",
                         "items": {"type": "integer", "minimum": 1},
@@ -155,7 +159,9 @@ class CommentReviewTool(Tool):
         commented_bytes, commented_name = self._load_sheet(commented_id, "commented")
         revised_bytes, revised_name = self._load_sheet(revised_id, "revised")
         self._claim_pair(commented_bytes, revised_bytes)
-        commented_pages = _sheet_pages(commented_bytes, commented_name)
+        commented_pages = _sheet_pages(
+            commented_bytes, commented_name, draw_annotations=True
+        )
         revised_pages = _sheet_pages(revised_bytes, revised_name)
         if commented_pages.error is not None or revised_pages.error is not None:
             report = "\n".join(
@@ -173,21 +179,22 @@ class CommentReviewTool(Tool):
             )
             return ToolResult(details=result, content=result.report)
 
+        commented_bytes = commented_pages.recovered_pdf or commented_bytes
+        revised_bytes = revised_pages.recovered_pdf or revised_bytes
+
         brief = DrawingReviewBrief(
             user_request=context.user_request[:12000],
             instructions=arguments.review_instructions.strip(),
             original_pages=sorted(set(arguments.original_pages)),
             include_extra_issues=False,
         )
-        if any(
-            page < 1 or page > len(commented_pages.pages)
-            for page in brief.original_pages
-        ):
-            raise ToolCallException(
-                message="Requested original pages are unavailable",
-                llm_facing_message="Check the requested original PDF page numbers. "
-                f"Only original pages 1 through {len(commented_pages.pages)} are available for review.",
-            )
+        _validate_page_scope(
+            brief.original_pages,
+            len(commented_pages.pages),
+            commented_pages.total,
+            revised_pages.total,
+            arguments.confirmed_page_order,
+        )
 
         native_comments = None
         revised_text = None
@@ -290,7 +297,10 @@ class CommentReviewTool(Tool):
             and get_file_ext(revised_name) == ".pdf"
         ):
             drawing_evidence = load_drawing_evidence(
-                commented_bytes, revised_bytes, brief.original_pages
+                commented_bytes,
+                revised_bytes,
+                brief.original_pages,
+                confirmed_page_order=arguments.confirmed_page_order,
             )
         result = verify_sheet_comments(
             commented_pages,
@@ -301,6 +311,9 @@ class CommentReviewTool(Tool):
             on_comment_reviewed=report_progress,
             llm=vision_llm,
             native_comments=native_comments,
+            original_pdf=commented_bytes
+            if get_file_ext(commented_name) == ".pdf"
+            else None,
             revised_text_by_page=revised_text,
             brief=brief,
             drawing_evidence=drawing_evidence,
@@ -308,6 +321,11 @@ class CommentReviewTool(Tool):
             revised_sheet_file_id=revised_id,
         )
         result = ground_review_highlights(result, revised_pages.spans)
+        result = _summarize_review(
+            result,
+            confirmed_page_order=arguments.confirmed_page_order,
+            same_page_count=commented_pages.total == revised_pages.total,
+        )
         invocation.update(ToolProgress(content=result.status, details=result))
         if not result.comments:
             if native_comments == {} and revised_comments:
@@ -413,6 +431,64 @@ class CommentReviewTool(Tool):
                 "Use a file_id from the drawing file list or an attached image tag."
             ),
         )
+
+
+def _validate_page_scope(
+    pages: list[int],
+    available: int,
+    before: int,
+    after: int,
+    confirmed_page_order: bool,
+) -> None:
+    if any(page < 1 or page > available for page in pages):
+        raise ToolCallException(
+            message="Requested original pages are unavailable",
+            llm_facing_message="Check the requested original PDF page numbers. "
+            f"Only original pages 1 through {available} are available for review.",
+        )
+    if confirmed_page_order and before != after:
+        raise ToolCallException(
+            message="Confirmed sheet order requires equal page counts",
+            llm_facing_message="The PDFs have different page counts. Use automatic sheet pairing or supply matching PDF packages.",
+        )
+
+
+def _summarize_review(
+    result: CommentReviewResult, *, confirmed_page_order: bool, same_page_count: bool
+) -> CommentReviewResult:
+    comparison = result.drawing_changes
+    if (
+        not confirmed_page_order
+        and same_page_count
+        and comparison is not None
+        and any(
+            reason.startswith("Ambiguous sheet pairing")
+            for reason in comparison.skipped_original_pages.values()
+        )
+    ):
+        notice = "Some sheets could not be paired. Confirm that both PDFs have the same sheet order to compare them by page number."
+        result = result.model_copy(
+            update={
+                "coverage_notices": [*result.coverage_notices, notice],
+                "report": f"{result.report}\n\n{notice}",
+            }
+        )
+    logger.info(
+        "Comment review summary: findings=%d verification=%s verified_pages=%s "
+        "coverage_notices=%d page_pairs=%s compared_pages=%s "
+        "change_validation=%s validated_pages=%s skipped_pages=%s unmatched_revised_pages=%s",
+        len(result.comments),
+        result.comment_verification_status,
+        result.comment_verified_pages,
+        len(result.coverage_notices),
+        comparison.page_pairs if comparison else None,
+        comparison.compared_pages if comparison else [],
+        comparison.validation_status if comparison else None,
+        comparison.validated_pages if comparison else [],
+        comparison.skipped_original_pages if comparison else {},
+        comparison.unmatched_revised_pages if comparison else [],
+    )
+    return result
 
 
 def _present(value: str | None) -> str | None:

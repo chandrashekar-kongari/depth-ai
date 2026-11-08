@@ -102,7 +102,7 @@ The chat reviewer uses the VISION model flow, not the selected chat model. Drawi
 Native text-line indexing uses pdfplumber and reports its explicit limits; the first-80-word restriction is removed.
 Request extraction receives BEFORE-only stage instructions; missing AFTER is not an extraction ambiguity.
 Extraction uncertainty is forwarded to paired verification rather than skipping that request.
-Native annotation close-ups supplement full-page request discovery. Associated scalar requests survive omitted visual value fields.
+The original review render includes native annotation appearances. Close-ups supplement discovery and paired feature verification. Associated scalar requests survive omitted visual value fields.
 Grounded scalar mismatches cannot pass the numeric request. Explicit observed values can replace prose evidence only through an exact native span match.
 The review budget is five minutes; per-call limits remain bounded.
 Unclear judgements receive at most three evidence-changing visual passes. Repeated unclear output stops retries.
@@ -134,12 +134,13 @@ values can establish a request without a sentence, leader, or strike-through. Am
 Short numeric AFTER evidence requires an exact identified native span. Repeated labels require an explicit matching span ID.
 Without a span ID, a short callout must be unique. Other native evidence keeps its six-character default.
 Visual-only evidence receives a separate model check of target identity, observation, and verdict; it does not create a native text anchor.
-A known unmet requirement stays open when its baseline value is unknown. Failed text matching preserves the observation and discrepancy.
+A numbered native bracket can establish a scalar request. A unique revised callout must match both bracket endpoints through its extension lines.
+A known unmet requirement stays open when its baseline value is unknown. Failed evidence checks discard the rejected observation and its explanation. The card names the failed check.
 Chat comment review checks supervisor requests with the Captioning LLM.
 PDF pairs then run an independent local change comparator in `backend/onyx/engineering/drawing_changes.py`.
 It excludes native annotations, aligns pages and distinct translated blocks, and combines native numeric text changes with visual regions.
 Local candidate discovery uses no model. MechVL validates candidates and proposes further changes. No result cache is used. Results use a separate drawing_changes field; historical extra_issues remain unchanged.
-Chat comparison accepts two PDFs. Unique sheet identifiers or sufficiently detailed identical native text can pair reordered sheets. Inserted, removed, and ambiguous sheets have separate coverage. Identity inspection stops at 64 pages; rendering and comparison cover the first eight pages of each input. Explicit original-page scope applies to both stages.
+Chat comparison accepts two PDFs. Unique sheet identifiers or sufficiently detailed identical native text can pair reordered sheets. Inserted, removed, and ambiguous sheets have separate coverage. The chat tool also accepts explicit user confirmation of the same sheet order for equal-size packages. Identity inspection stops at 64 pages; rendering and comparison cover the first eight pages of each input. Explicit original-page scope applies to both stages.
 Supported linear callouts use extension-line origins for correspondence, independently of text orientation or dimension-line offset.
 Ambiguous or unsupported references use conservative local matching. Equal values on different resolved references cannot cancel.
 The main list counts confirmed printed-text findings. Confirmed geometry differences appear in a collapsed section. Unchecked or unconfirmed candidates produce no finding or PDF marker. MechVL proposes changes beyond local comparison; discoveries without native support require focused checks of both regions. Rotation, layout shifts, artifacts, and review marks are rejected.

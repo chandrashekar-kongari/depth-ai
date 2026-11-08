@@ -417,6 +417,15 @@ function CommentQueue({
                   }}
                 />
               </Section>
+              {comment.remaining && comment.remaining !== title ? (
+                <Text
+                  font="secondary-body"
+                  color="text-04"
+                  wordWrap="wrap-anywhere"
+                >
+                  {comment.remaining}
+                </Text>
+              ) : null}
               <Section
                 flexDirection="row"
                 justifyContent="start"
@@ -510,15 +519,6 @@ function CommentQueue({
                       })}
                     </Text>
                   ))}
-                  {comment.remaining ? (
-                    <Text
-                      font="secondary-body"
-                      color="text-04"
-                      wordWrap="wrap-anywhere"
-                    >
-                      {t("remaining.text", { remaining: comment.remaining })}
-                    </Text>
-                  ) : null}
                   {!comment.box ||
                   comment.page_level ||
                   !comment.revised_box ||

@@ -252,3 +252,30 @@ it("navigates reordered sheets and avoids a second marker for linked comment evi
   };
   expect(drawingChangeIssues(linked)).toEqual([]);
 });
+
+it("shows incomplete coverage instead of a zero count when no sheets were compared", () => {
+  render(
+    <DrawingChangesView
+      review={{
+        ...review,
+        drawing_changes: {
+          status: "failed",
+          validation_status: "incomplete",
+          compared_pages: [],
+          validated_pages: [],
+          warnings: [],
+          changes: [],
+        },
+      }}
+      onShow={jest.fn()}
+    />
+  );
+  expect(
+    screen.queryByText("Printed text changes (0)")
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Review incomplete. No differences were confirmed in completed checks."
+    )
+  ).toBeInTheDocument();
+});

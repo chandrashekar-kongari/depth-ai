@@ -386,3 +386,35 @@ def test_comment_verification_uses_reordered_after_page() -> None:
     assert result.comments[0].revised_page == 2
     assert judge.call_args.kwargs["page_number"] == 2
     assert result.comment_verified_pages == [1]
+
+
+@pytest.mark.parametrize("valid_retry", [True, False])
+def test_invalid_change_batch_retries_once(valid_retry: bool) -> None:
+    candidate = DrawingChange(
+        id="dc1", page=1, kind="text_changed", original_box=_BOX, revised_box=_BOX
+    )
+    with patch(
+        f"{_REVIEW}._review_invoke",
+        side_effect=[
+            "invalid",
+            _response(dc1=_observation()) if valid_retry else "invalid",
+        ],
+    ) as invoke:
+        result = _validate_drawing_changes(
+            MagicMock(),
+            [candidate],
+            [1],
+            set(),
+            _pages(),
+            _pages(),
+            "after.pdf",
+            time.monotonic() + 60,
+        )
+
+    assert invoke.call_count == 2
+    assert result.validation_status == ("complete" if valid_retry else "incomplete")
+    assert result.validated_pages == ([1] if valid_retry else [])
+    assert (
+        invoke.call_args_list[0].kwargs["deadline"]
+        == invoke.call_args_list[1].kwargs["deadline"]
+    )

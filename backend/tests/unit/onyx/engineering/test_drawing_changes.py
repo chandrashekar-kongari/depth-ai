@@ -360,3 +360,32 @@ def test_duplicate_sheet_identifiers_stay_ambiguous() -> None:
     assert all(
         "Ambiguous" in reason for reason in result.skipped_original_pages.values()
     )
+
+
+def test_confirmed_page_order_pairs_unidentified_sheets_through_comparison() -> None:
+    from onyx.engineering.drawing_changes import build_drawing_evidence
+
+    before = drawing(["24", "34"])
+    source = PdfWriter(clone_from=BytesIO(drawing(["25"])))
+    writer = PdfWriter()
+    writer.add_page(source.pages[0])
+    writer.add_page(source.pages[0])
+    output = BytesIO()
+    writer.write(output)
+    after = output.getvalue()
+    automatic = build_drawing_evidence(before, after)
+    confirmed = build_drawing_evidence(before, after, confirmed_page_order=True)
+
+    assert automatic.comparison.page_pairs == {}
+    assert confirmed.comparison.page_pairs == {1: 1, 2: 2}
+    assert confirmed.comparison.compared_pages == [1, 2]
+
+
+def test_sheet_counters_ignore_prose_and_match_only_same_package() -> None:
+    from onyx.engineering.drawing_changes import _sheet_identity
+
+    before = "MECHANICAL DRAWING COMPARISON TEST PK-440 | REV A\nTHREE-SHEET REVIEW PACKAGE\nSHEET 01 / 03 OPEN REVIEW COMMENTS"
+    after = "MECHANICAL DRAWING COMPARISON TEST PK-440 | REV B\nTHREE-SHEET REVIEW PACKAGE\nSHEET 1 OF 3 RELEASED NOTES"
+    assert _sheet_identity(before) == _sheet_identity(after) == "counter:PK-440:1/3"
+    assert _sheet_identity(after.replace("PK-440", "PK-441")) != _sheet_identity(before)
+    assert _sheet_identity(before + "\nSHEET 2 / 3") is None

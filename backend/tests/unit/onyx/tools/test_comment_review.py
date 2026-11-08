@@ -674,13 +674,13 @@ def test_visual_mismatch_keeps_evidence_without_fabricating_text_anchor(
     assert verdict.status == (
         CommentVerdict.OPEN if confirmed else CommentVerdict.UNCLEAR
     )
-    assert verdict.evidence == "60"
+    assert verdict.evidence == ("60" if confirmed else "")
     assert verdict.span_id is None
-    assert "86" in verdict.remaining
+    assert ("86" in verdict.remaining) == confirmed
     assert llm.invoke.call_count == (3 if confirmed else 2)
 
 
-def test_text_failure_preserves_observation_and_specific_discrepancy() -> None:
+def test_text_failure_discards_unsupported_observation_and_explanation() -> None:
     from onyx.tools.tool_implementations.drawing_review.comment_review import (
         _judge_comment,
     )
@@ -705,8 +705,11 @@ def test_text_failure_preserves_observation_and_specific_discrepancy() -> None:
             original_image_data=b"before",
         )
     assert verdict is not None and verdict.status == CommentVerdict.UNCLEAR
-    assert verdict.evidence == "60"
-    assert "Height must be 86" in verdict.remaining
+    assert verdict.evidence == ""
+    assert (
+        verdict.remaining
+        == "Could not verify the After callout in the PDF text on the marked feature."
+    )
 
 
 def test_associated_native_numeric_request_survives_missing_model_value() -> None:
@@ -990,3 +993,237 @@ def test_paired_review_merges_only_the_matching_callout(span_x: float) -> None:
     assert visual_finding.vision_explanation == "A hole was added to the side plate."
     assert discovered.after_text == "R12"
     assert discovered.vision_validation == "confirmed"
+
+
+@pytest.mark.parametrize("same_feature", [True, False])
+def test_numeric_wrong_edit_requires_matching_before_and_after_spans(
+    same_feature: bool,
+) -> None:
+    from onyx.tools.models import DrawingChange, DrawingMarkBox
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _judge_comment,
+    )
+
+    original = SheetSpan("before", 1, "92", 0.1, 0.2, 0.1, 0.1)
+    revised = SheetSpan("after", 1, "60", 0.2, 0.2, 0.1, 0.1)
+    row = comment_from_extraction(
+        ExtractedComment(text="Set this dimension to 86", requested_value="86"),
+        comment_id="c1",
+        page=1,
+        spans={},
+    )
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "status": "solved_incorrect",
+                    "evidence": "60",
+                    "span_id": "after",
+                    "remaining": "The reviewer asked for 86, but the revised dimension reads 60.",
+                }
+            )
+        ]
+    )
+    candidate = DrawingChange(
+        id="diff1",
+        page=1,
+        kind="text_changed",
+        before_text="92",
+        after_text="60",
+        original_box=DrawingMarkBox(
+            x=0.1 if same_feature else 0.6, y=0.2, width=0.1, height=0.1
+        ),
+        revised_box=DrawingMarkBox(x=0.2, y=0.2, width=0.1, height=0.1),
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        verdict = _judge_comment(
+            llm,
+            b"after",
+            filename="after.pdf",
+            page_number=1,
+            page_count=1,
+            comment=row,
+            spans=[revised],
+            dxf_summary=None,
+            original_image_data=b"before",
+            expected_value="86",
+            original_span=original,
+            candidates=[candidate],
+        )
+
+    assert verdict is not None
+    if same_feature:
+        assert verdict.status == CommentVerdict.SOLVED_INCORRECT
+        assert (
+            verdict.remaining
+            == "The reviewer asked for 86, but the revised dimension reads 60."
+        )
+    else:
+        assert verdict.status == CommentVerdict.OPEN
+        assert verdict.remaining == "Requested 86. The matched dimension shows 60."
+
+
+def test_a_bare_numeric_mark_does_not_request_preservation() -> None:
+    llm = _llm(
+        [_comment("86", "Confirm the dimension marked as 86 remains unchanged.")]
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        result = verify_sheet_comments(
+            _pages(1),
+            _pages(1),
+            commented_name="before.pdf",
+            revised_name="after.pdf",
+            dxf_summary=None,
+            llm=llm,
+        )
+
+    [comment] = result.comments
+    assert comment.verdict == CommentVerdict.UNCLEAR
+    assert comment.text == "86"
+    assert (
+        comment.request
+        == "The mark identifies a feature but does not specify a change."
+    )
+
+
+def test_linear_review_recovers_from_an_unrelated_radius_callout() -> None:
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _judge_comment,
+    )
+
+    row = comment_from_extraction(
+        ExtractedComment(text="86", request="Set overall height to 86"),
+        comment_id="c1",
+        page=1,
+        spans={},
+    )
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "status": "solved_correct",
+                    "evidence": "R25",
+                    "evidence_source": "visual",
+                    "target_description": "Front arc",
+                    "remaining": "The radius changed from R30 to R25.",
+                }
+            ),
+            json.dumps(
+                {
+                    "span_id": "height",
+                    "target_description": "Side view from top edge to bottom edge",
+                    "status": "open",
+                    "remaining": "The reviewer requested 86, but the side view shows 60.",
+                }
+            ),
+            json.dumps(
+                {
+                    "same_target": True,
+                    "requested_action_supported": True,
+                    "before_target_evidence": "Red bracket connects the top and bottom edges",
+                    "requested_action": "Set overall height to 86",
+                    "observed_evidence": "60.0",
+                }
+            ),
+        ]
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        verdict = _judge_comment(
+            llm,
+            b"after",
+            filename="after.pdf",
+            page_number=1,
+            page_count=1,
+            comment=row,
+            spans=[
+                SheetSpan("radius", 1, "R25", 0.1, 0.1, 0.1, 0.1),
+                SheetSpan("height", 1, "60", 0.8, 0.1, 0.1, 0.1),
+            ],
+            dxf_summary=None,
+            original_image_data=b"before",
+            expected_value="86",
+        )
+
+    assert verdict is not None
+    assert verdict.status == CommentVerdict.OPEN
+    assert verdict.span_id == "height"
+    assert verdict.evidence == "60"
+    assert verdict.remaining == "The reviewer requested 86, but the side view shows 60."
+
+
+def test_native_replacement_value_wins_when_model_reverses_request() -> None:
+    from onyx.tools.tool_implementations.drawing_review.markup_inventory import (
+        merge_markups,
+    )
+
+    [mark] = merge_markups(
+        [ExtractedComment(text="100")],
+        [
+            ExtractedComment(
+                text="120",
+                request="Change 100 to 120.",
+                requested_value="120",
+                native_ids=["n1"],
+            )
+        ],
+    )
+    assert mark.requested_value == "100"
+    assert mark.request == "Set the marked dimension to 100."
+
+
+def test_added_callout_can_disprove_requested_dimension_without_old_value() -> None:
+    from onyx.tools.models import DrawingChange, DrawingMarkBox
+    from onyx.tools.tool_implementations.drawing_review.comment_review import (
+        _judge_comment,
+    )
+
+    box = DrawingMarkBox(x=0.8, y=0.2, width=0.02, height=0.02)
+    row = comment_from_extraction(
+        ExtractedComment(text="86", request="Set the marked height to 86.", box=box),
+        comment_id="c1",
+        page=1,
+        spans={},
+    )
+    llm = _llm(
+        [
+            json.dumps(
+                {
+                    "same_target": True,
+                    "requested_action_supported": True,
+                    "before_target_evidence": "Bracket spans the top and bottom edges",
+                    "requested_action": "Set the marked height to 86",
+                    "observed_evidence": "60",
+                }
+            ),
+        ]
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        verdict = _judge_comment(
+            llm,
+            b"after",
+            filename="after.pdf",
+            page_number=1,
+            page_count=1,
+            comment=row,
+            spans=[SheetSpan("height", 1, "60", 0.8, 0.2, 0.02, 0.02)],
+            dxf_summary=None,
+            original_image_data=b"before",
+            expected_value="86",
+            candidates=[
+                DrawingChange(
+                    id="d1",
+                    page=1,
+                    kind="text_added",
+                    after_text="60",
+                    original_box=box,
+                    revised_box=box,
+                )
+            ],
+        )
+
+    assert verdict is not None
+    assert verdict.status == CommentVerdict.OPEN
+    assert verdict.evidence == "60"
+    assert verdict.span_id == "height"
+    assert "86" in verdict.remaining and "60" in verdict.remaining
+    assert llm.invoke.call_count == 1

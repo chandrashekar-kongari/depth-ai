@@ -79,18 +79,21 @@ export function DrawingChangesView({
   const visualCount = shown.filter((change) => change.kind === "visual").length;
   return (
     <Section alignItems="stretch" justifyContent="start" gap={2} height="fit">
-      <Text font="heading-h3">
-        {t("title", {
-          count: standalone.filter((change) => change.kind !== "visual").length,
-        })}
-      </Text>
+      {audit.compared_pages.length > 0 ? (
+        <Text font="heading-h3">
+          {t("title", {
+            count: standalone.filter((change) => change.kind !== "visual")
+              .length,
+          })}
+        </Text>
+      ) : null}
       <Text font="secondary-body" color="text-03">
         {t("scope")}
       </Text>
       <Text font="secondary-body" color="text-03">
         {t("status", {
           status: t(audit.status),
-          pages: audit.compared_pages.join(", "),
+          pages: audit.compared_pages.join(", ") || "—",
         })}
       </Text>
       <Text font="secondary-body" color="text-03">
@@ -127,7 +130,8 @@ export function DrawingChangesView({
       {!audit.changes.some(isVisibleDrawingChange) ? (
         <Text font="secondary-body" color="text-03">
           {t(
-            audit.status === "complete" &&
+            audit.compared_pages.length > 0 &&
+              audit.status === "complete" &&
               audit.validation_status === "complete" &&
               review.comment_verification_status === "complete"
               ? "noDifferences"

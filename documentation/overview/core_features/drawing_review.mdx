@@ -91,13 +91,17 @@ If no comments can be extracted, the action reports an incomplete review. It doe
 
 Attach two PDFs for Before/After review. Prefer PDFs exported from CAD. Scanned PDFs use paired visual checks.
 A comment is a cloud, a balloon, a redline, or a note. This check does not accept images or CAD files.
+Onyx checks the full original sheet and uses close-ups to help read small colored marks embedded in the page.
 A number in a comment is not an independent geometry measurement. It can specify a requested callout value.
 A written instruction is optional:
 a circled dimension with a clearly associated red replacement number can define a change. For example,
 circled **90** with nearby red **80** requests **90 → 80** on that dimension.
 A circled overall width **120** with red **100** below requests **120 → 100** on the overall-width dimension.
-The reviewer compares the before and after images and checks the corresponding feature in the after PDF.
-An unexplained circle, illegible replacement, or uncertain feature match still needs confirmation.
+The reviewer uses close-ups to follow the mark to its target and checks the same feature in the revised PDF.
+If a second check rejects an observation, the issue shows the reason for uncertainty. An unexplained circle,
+illegible replacement, or uncertain feature match still needs confirmation.
+Onyx can check both endpoints of a numbered PDF bracket against the revised dimension lines.
+Each issue shows the reason for an unresolved result. A confirmed wrong edit shows the requested and observed values.
 
 Ask the agent to check each comment. The answer has one row per comment.
 
@@ -133,8 +137,9 @@ The reviewer pairs reordered sheets through unique sheet identifiers or sufficie
 identical native sheet text. It reports inserted, removed, and ambiguous sheets separately.
 It does not assume matching page order for unidentified packages. Identity inspection covers at most 64 pages.
 Rendering and comparison cover the first eight pages of each PDF.
-The result lists actual page pairs and identifies skipped pages.
-Explicit original-page restrictions apply to both checks.
+The result lists actual page pairs and identifies skipped pages. If Onyx compares no sheets,
+the review shows incomplete coverage. If the PDFs have the same sheet order and page count,
+tell the agent to compare them by page number. Explicit original-page restrictions apply to both checks.
 Native PDF review annotations are excluded from the local comparison. Flattened marks still require visual filtering.
 Small native numeric edits are checked independently of visual noise filtering.
 

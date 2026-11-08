@@ -6,10 +6,12 @@ A number in a comment is not a measurement. The DXF section stays separate.
 from __future__ import annotations
 
 import json
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from onyx.engineering.bracket_dimensions import Bracket
 from onyx.tools.models import (
     CommentReviewResult,
     CommentVerdict,
@@ -22,6 +24,16 @@ from onyx.tools.tool_implementations.drawing_review.spans import SheetSpan, page
 _MAX_COMMENTS_PER_PAGE = 40
 _NO_DXF = "No optional DXF was attached. CAD geometry measurements were not checked. PDF comment verification does not require DXF."
 _NOT_A_MEASUREMENT = "Comment text is not a measurement."
+_PRESERVATION = re.compile(
+    r"\b(?:keep|retain|preserve|unchanged|as is|as-is|no change|do not change)\b",
+    re.IGNORECASE,
+)
+_PRESERVATION_REQUEST = re.compile(
+    r"^\s*(?:keep\b|retain\b|preserve\b|do not change\b|no change\b|"
+    r"(?:confirm|verify|ensure|check)\b[^.]*\b(?:unchanged|as[- ]is)\b)",
+    re.IGNORECASE,
+)
+_UNSPECIFIED_CHANGE = "The mark identifies a feature but does not specify a change."
 
 _REVIEW_RULES = """
 Review the supervisor's marked BEFORE drawing against the designer's AFTER revision.
@@ -66,7 +78,8 @@ For a dimensional edit, classify the markup:
   Never turn this queue instruction into a design request to 'retain' the feature.
 Only report an old value if a separate printed callout exists for the same feature.
 If markup obscures that callout, its old value is unknown. Do not use the replacement as the old value.
-A value supplied as native review annotation text is markup evidence, not an existing callout.
+A value supplied as native review annotation text is the requested value when associated
+with a dimension mark. Never use it as the printed Before value.
 
 Apply the same approach to changes to fit, tolerance, GD&T, threads, hole count or pattern,
 material, finish, notes, and BOM entries. Preserve qualifiers, symbols, signs, units, precision,
@@ -125,7 +138,10 @@ when the old value is unknown. Do not claim that it was unchanged without baseli
 solved_incorrect: the identified AFTER feature was edited but the result conflicts with the request.
 unclear: the requested change, sheet correspondence, feature match, or actual requirement cannot be confirmed.
 If the crop excludes the relevant feature, use unclear and state what is missing from the crop.
-Use remaining for any specific discrepancy or missing evidence, and leave it empty when solved_correct.
+Use remaining to explain a discrepancy or missing evidence in one short sentence.
+For a known numeric mismatch, state the requested and observed values in that sentence.
+Say the value changed only if you can read a different printed value on the same BEFORE feature.
+A circle or highlight alone never requests preservation. Leave remaining empty when solved_correct.
 For partial completion, list satisfied and unsatisfied parts; never use solved_correct.
 Use solved_incorrect only when BEFORE and AFTER establish an edit, otherwise use open for a known failure.
 Verify deletions in the corresponding region, not through text-search absence alone.
@@ -155,7 +171,24 @@ class ExtractedComment(BaseModel):
     box: DrawingMarkBox | None = None
     ambiguity: str = ""
     native_ids: list[str] = Field(default_factory=list)
+    crop_id: int | None = None
+    target_box: DrawingMarkBox | None = None
+    bracket: Bracket | None = None
     requested_value: str | None = None
+
+
+def without_unsupported_preservation(item: ExtractedComment) -> ExtractedComment:
+    if _PRESERVATION_REQUEST.search(item.request) and not _PRESERVATION.search(
+        item.text
+    ):
+        return item.model_copy(
+            update={
+                "request": _UNSPECIFIED_CHANGE,
+                "ambiguity": _UNSPECIFIED_CHANGE,
+                "requested_value": None,
+            }
+        )
+    return item
 
 
 class VerdictDraft(BaseModel):
@@ -215,7 +248,7 @@ def parse_extracted_comments(text: str) -> list[ExtractedComment]:
         except ValidationError:
             continue
         if item.text.strip():
-            items.append(item)
+            items.append(item.model_copy(update={"target_box": None, "bracket": None}))
     return items
 
 
