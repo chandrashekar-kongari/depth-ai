@@ -12825,6 +12825,8 @@
         }
       },
       "commentReview": {
+        "partiallySolved": "Teilweise gelöst",
+        "requirementCheck": "{label} · {status} · {evidence}",
         "checkedStatus": {
           "text": "Comment review"
         },
@@ -13350,7 +13352,43 @@
         "textLocationError": "PDF-Textpositionen konnten nicht geladen werden. Zum Wiederholen aktualisieren.",
         "visionModel": "Bildmodell: {model}",
         "reviewCoverage": "{total} Befunde · {unclear} zu prüfen",
-        "reviewPasses": "In {count} Durchgängen geprüft"
+        "reviewPasses": "In {count} Durchgängen geprüft",
+        "markerSolved": "Gelöst",
+        "markerLabel": "{status}. {finding}",
+        "markerGroup": "{count} Hinweise an dieser Stelle. Zum Wechseln auswählen.",
+        "comparisonRegion": "Vergleichsbereich"
+      },
+      "drawingChanges": {
+        "incomplete": "Unvollständig",
+        "commentCoverage": "Kommentarprüfung: {status}. Vorher-Seiten: {pages}.",
+        "changeCoverage": "Änderungsprüfung: {status}. Vorher-Seiten: {pages}.",
+        "pagePair": "Vorher-Seite {before} ↔ Nachher-Seite {after}",
+        "skippedBefore": "Vorher-Seite {page}: {reason}",
+        "unmatchedAfter": "Nachher-Seite {page}: {reason}",
+        "noDifferences": "Keine bestätigten Unterschiede.",
+        "reviewIncomplete": "Prüfung unvollständig. Abgeschlossene Prüfungen haben keine Unterschiede bestätigt.",
+        "validation": {
+          "confirmed": "Die visuelle Prüfung beider Zeichnungen stützt diesen Unterschied.",
+          "unconfirmed": "Die visuelle Prüfung beider Zeichnungen hat diesen Unterschied nicht bestätigt.",
+          "unchecked": "Die visuelle Prüfung beider Zeichnungen wurde nicht abgeschlossen."
+        },
+        "verifiedLink": "Bestätigter Kommentarverweis: {ids}",
+        "title": "Änderungen am gedruckten Text ({count})",
+        "scope": "Bestätigte Text- und Geometrieunterschiede. Prüfen Sie die Merkmalsidentität und die Konstruktionsabsicht. Seitenpaare und übersprungene Blätter stehen unten.",
+        "status": "Vergleich: {status}. Seiten: {pages}.",
+        "complete": "Abgeschlossen",
+        "partial": "Teilweise",
+        "failed": "Fehlgeschlagen",
+        "all": "Alle Änderungen",
+        "unlinked": "Ohne möglichen Kommentarverweis",
+        "text_changed": "Gedruckter Text: {before} → {after}",
+        "text_added": "Neuer oder nicht zugeordneter Text: {after}",
+        "text_removed": "Entfernter oder nicht zugeordneter Text: {before}",
+        "visual": "Visueller Unterschied — beide Zeichnungen prüfen",
+        "possibleLink": "Möglicher Kommentarverweis: {ids}. Prüfen Sie, ob er diese Änderung abdeckt.",
+        "noLink": "Kein Kommentarverweis bestätigt. Dies belegt keinen Konstruktionsfehler.",
+        "visualGroup": "Weitere visuelle Unterschiede ({count})",
+        "visualScope": "Enthält Layout- und Drehungsänderungen. Diese Hinweise belegen keine Maßfehler."
       }
     },
     "modals": {

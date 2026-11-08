@@ -106,6 +106,11 @@ spans to read labels whose orientation makes the rendered text difficult to read
 Check the complete requested result on that feature. Include units, sign, tolerance, diameter or
 radius, fit, threads, datum references, count, and qualifiers when the request specifies them.
 For notes or BOM changes, confirm the exact requirement on the correct note or row.
+A shorthand mark such as "missing" can request a callout where none was printed BEFORE.
+Trace the mark's arrowheads or bracket endpoints to identify the target. Check whether AFTER
+adds the missing callout to those same references. If the mark clearly requests presence and
+specifies no value, verify presence on that target. Do not guess a required value or accept
+an addition on another feature.
 Read the printed specification. Only use CAD evidence for CAD measurements. Do not infer
 engineering dimensions from pixel distances or assume that the page is to scale.
 
@@ -163,6 +168,8 @@ class VerdictDraft(BaseModel):
     evidence_source: Literal["native_text", "visual"] = "native_text"
     target_description: str = ""
     observed_value: str | None = None
+    change_id: str | None = None
+    checks_completed: bool = True
 
 
 def extract_prompt() -> str:
@@ -213,7 +220,10 @@ def parse_extracted_comments(text: str) -> list[ExtractedComment]:
 
 
 def parse_verdict(text: str) -> VerdictDraft:
-    return VerdictDraft.model_validate(parse_json_object(text))
+    payload = parse_json_object(text)
+    if not isinstance(payload.get("change_id"), str):
+        payload.pop("change_id", None)
+    return VerdictDraft.model_validate(payload)
 
 
 def comment_from_extraction(
@@ -356,6 +366,11 @@ def format_comment_report(
             f"Request: {item.request} Evidence: {item.evidence}. "
             f"Remaining: {item.remaining} Page {item.page}."
             for item in comments
+        )
+        lines.extend(
+            f"- {item.id} / {check.label}: {check.verdict.value}. {check.evidence}"
+            for item in comments
+            for check in item.checks
         )
     if extra_issues:
         lines.append("### other changes and issues")

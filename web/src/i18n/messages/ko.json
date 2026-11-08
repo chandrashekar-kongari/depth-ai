@@ -12825,6 +12825,8 @@
         }
       },
       "commentReview": {
+        "partiallySolved": "부분 해결",
+        "requirementCheck": "{label} · {status} · {evidence}",
         "checkedStatus": {
           "text": "Comment review"
         },
@@ -13350,7 +13352,43 @@
         "textLocationError": "PDF 텍스트 위치를 불러오지 못했습니다. 새로고침하여 다시 시도하세요.",
         "visionModel": "비전 모델: {model}",
         "reviewCoverage": "문제 {total}개 · 검토 필요 {unclear}개",
-        "reviewPasses": "{count}회 처리로 검토"
+        "reviewPasses": "{count}회 처리로 검토",
+        "markerSolved": "해결됨",
+        "markerLabel": "{status}. {finding}",
+        "markerGroup": "이 위치에 지적 사항 {count}개가 있습니다. 선택하여 전환하세요.",
+        "comparisonRegion": "비교 영역"
+      },
+      "drawingChanges": {
+        "incomplete": "미완료",
+        "commentCoverage": "댓글 검증: {status}. 변경 전 페이지: {pages}.",
+        "changeCoverage": "변경 검증: {status}. 변경 전 페이지: {pages}.",
+        "pagePair": "변경 전 페이지 {before} ↔ 변경 후 페이지 {after}",
+        "skippedBefore": "변경 전 페이지 {page}: {reason}",
+        "unmatchedAfter": "변경 후 페이지 {page}: {reason}",
+        "noDifferences": "확인된 차이가 없습니다.",
+        "reviewIncomplete": "검토가 미완료되었습니다. 완료된 검사에서 확인된 차이가 없습니다.",
+        "validation": {
+          "confirmed": "두 도면의 시각 비교 결과가 이 차이를 뒷받침합니다.",
+          "unconfirmed": "두 도면을 시각적으로 비교했지만 이 차이를 확인하지 못했습니다.",
+          "unchecked": "두 도면의 시각 비교가 완료되지 않았습니다."
+        },
+        "verifiedLink": "확인된 의견 연결: {ids}",
+        "title": "인쇄된 텍스트 변경 ({count})",
+        "scope": "확인된 인쇄 텍스트 및 형상 차이입니다. 대상의 동일성과 설계 의도를 확인하세요. 페이지 쌍과 건너뛴 시트는 아래에 표시됩니다.",
+        "status": "비교: {status}. 페이지: {pages}.",
+        "complete": "완료",
+        "partial": "부분 완료",
+        "failed": "실패",
+        "all": "모든 변경",
+        "unlinked": "연결 가능한 의견 없음",
+        "text_changed": "인쇄된 텍스트: {before} → {after}",
+        "text_added": "새 텍스트 또는 대응하지 않는 텍스트: {after}",
+        "text_removed": "삭제되거나 대응하지 않는 텍스트: {before}",
+        "visual": "시각적 차이 — 두 도면 확인",
+        "possibleLink": "연결 가능한 의견: {ids}. 이 변경을 포함하는지 확인하세요.",
+        "noLink": "확인된 의견 연결이 없습니다. 설계 오류를 의미하지는 않습니다.",
+        "visualGroup": "기타 시각적 차이 ({count})",
+        "visualScope": "배치 및 회전 변경을 포함합니다. 이 후보는 치수 오류를 입증하지 않습니다."
       }
     },
     "modals": {

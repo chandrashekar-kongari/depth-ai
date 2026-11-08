@@ -12825,6 +12825,8 @@
         }
       },
       "commentReview": {
+        "partiallySolved": "تم الحل جزئيًا",
+        "requirementCheck": "{label} · {status} · {evidence}",
         "checkedStatus": {
           "text": "Comment review"
         },
@@ -13350,7 +13352,43 @@
         "textLocationError": "تعذر تحميل مواقع نص PDF. حدّث الصفحة للمحاولة مجددًا.",
         "visionModel": "نموذج الرؤية: {model}",
         "reviewCoverage": "{total} ملاحظة · {unclear} تحتاج مراجعة",
-        "reviewPasses": "تمت المراجعة في {count} جولات"
+        "reviewPasses": "تمت المراجعة في {count} جولات",
+        "markerSolved": "تم الحل",
+        "markerLabel": "{status}. {finding}",
+        "markerGroup": "توجد {count} ملاحظات هنا. حدد للتنقل بينها.",
+        "comparisonRegion": "منطقة المقارنة"
+      },
+      "drawingChanges": {
+        "incomplete": "غير مكتمل",
+        "commentCoverage": "التحقق من التعليقات: {status}. صفحات قبل التعديل: {pages}.",
+        "changeCoverage": "التحقق من التغييرات: {status}. صفحات قبل التعديل: {pages}.",
+        "pagePair": "صفحة قبل التعديل {before} ↔ صفحة بعد التعديل {after}",
+        "skippedBefore": "صفحة قبل التعديل {page}: {reason}",
+        "unmatchedAfter": "صفحة بعد التعديل {page}: {reason}",
+        "noDifferences": "لا توجد اختلافات مؤكدة.",
+        "reviewIncomplete": "المراجعة غير مكتملة. لم تؤكد الفحوص المكتملة أي اختلافات.",
+        "validation": {
+          "confirmed": "تدعم المقارنة البصرية بين الرسمين هذا الاختلاف.",
+          "unconfirmed": "لم تؤكد المقارنة البصرية بين الرسمين هذا الاختلاف.",
+          "unchecked": "لم تكتمل المقارنة البصرية بين الرسمين."
+        },
+        "verifiedLink": "ارتباط مؤكد بالتعليق: {ids}",
+        "title": "تغييرات النص المطبوع ({count})",
+        "scope": "اختلافات مؤكدة في النص المطبوع والهندسة. تحقق من هوية العنصر وقصد التصميم. أزواج الصفحات والأوراق المتخطاة موضحة أدناه.",
+        "status": "المقارنة: {status}. الصفحات: {pages}.",
+        "complete": "مكتملة",
+        "partial": "جزئية",
+        "failed": "فشلت",
+        "all": "جميع التغييرات",
+        "unlinked": "دون ارتباط محتمل بتعليق",
+        "text_changed": "النص المطبوع: {before} → {after}",
+        "text_added": "نص جديد أو غير مطابق: {after}",
+        "text_removed": "نص محذوف أو غير مطابق: {before}",
+        "visual": "فرق مرئي — افحص الرسمين",
+        "possibleLink": "ارتباط محتمل بتعليق: {ids}. تحقق من أنه يشمل هذا التغيير.",
+        "noLink": "لم يُؤكد ارتباط بتعليق. هذا لا يثبت وجود خطأ في التصميم.",
+        "visualGroup": "فروق مرئية أخرى ({count})",
+        "visualScope": "تشمل تغييرات التخطيط والدوران. لا تثبت هذه المؤشرات وجود أخطاء في الأبعاد."
       }
     },
     "modals": {

@@ -8,7 +8,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
 from onyx.configs.app_configs import PDF_TEXT_EXTRACTION_TIMEOUT_SECONDS
 from onyx.configs.chat_configs import IMAGE_SUMMARIZATION_TIMEOUT
@@ -369,6 +369,7 @@ def _invoke(
     *,
     max_tokens: int | None = None,
     timeout: float = IMAGE_SUMMARIZATION_TIMEOUT,
+    structured_response_format: dict[str, JsonValue] | None = None,
 ) -> str | None:
     try:
         response = llm.invoke(
@@ -376,6 +377,7 @@ def _invoke(
                 messages=messages,
                 options=GenerationOptions(
                     max_tokens=max_tokens,
+                    structured_response_format=structured_response_format,
                 ),
             ),
             context=GenerationContext(

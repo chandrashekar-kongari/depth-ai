@@ -8,6 +8,7 @@ from onyx.context.search.models import SearchDoc
 from onyx.server.query_and_chat.placement import Placement
 from onyx.tools.models import (
     CustomToolErrorInfo,
+    DrawingChangeReview,
     DrawingComment,
     DrawingExtraIssue,
     DrawingFinding,
@@ -451,7 +452,11 @@ class CommentReviewStart(BaseObj):
 
 
 class CommentReviewDelta(BaseObj):
+    comment_verification_status: Literal["complete", "incomplete"] = "incomplete"
+    comment_verified_pages: list[int] = Field(default_factory=list)
     vision_model: str | None = None
+    drawing_changes: DrawingChangeReview | None = None
+    coverage_notices: list[str] = Field(default_factory=list)
     type: Literal["comment_review_delta"] = StreamingType.COMMENT_REVIEW_DELTA.value
 
     comments: list[DrawingComment] = []

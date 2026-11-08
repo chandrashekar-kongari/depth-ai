@@ -12825,6 +12825,8 @@
         }
       },
       "commentReview": {
+        "partiallySolved": "部分解决",
+        "requirementCheck": "{label} · {status} · {evidence}",
         "checkedStatus": {
           "text": "Comment review"
         },
@@ -13350,7 +13352,43 @@
         "textLocationError": "无法加载 PDF 文本位置。请刷新重试。",
         "visionModel": "视觉模型：{model}",
         "reviewCoverage": "{total} 项发现 · {unclear} 项待复核",
-        "reviewPasses": "经过 {count} 轮检查"
+        "reviewPasses": "经过 {count} 轮检查",
+        "markerSolved": "已解决",
+        "markerLabel": "{status}。{finding}",
+        "markerGroup": "此处有 {count} 项发现。选择以切换。",
+        "comparisonRegion": "比较区域"
+      },
+      "drawingChanges": {
+        "incomplete": "未完成",
+        "commentCoverage": "批注验证：{status}。修改前页码：{pages}。",
+        "changeCoverage": "变更验证：{status}。修改前页码：{pages}。",
+        "pagePair": "修改前第 {before} 页 ↔ 修改后第 {after} 页",
+        "skippedBefore": "修改前第 {page} 页：{reason}",
+        "unmatchedAfter": "修改后第 {page} 页：{reason}",
+        "noDifferences": "没有已确认的差异。",
+        "reviewIncomplete": "审查未完成。已完成的检查未确认差异。",
+        "validation": {
+          "confirmed": "两版图纸的视觉对照支持此差异。",
+          "unconfirmed": "两版图纸的视觉对照未能确认此差异。",
+          "unchecked": "两版图纸的视觉对照尚未完成。"
+        },
+        "verifiedLink": "已验证的批注关联：{ids}",
+        "title": "印刷文本变更（{count}）",
+        "scope": "已确认的印刷文本和几何差异。请检查特征对应关系和设计意图。页面配对和跳过的图纸如下所示。",
+        "status": "比较：{status}。页面：{pages}。",
+        "complete": "已完成",
+        "partial": "部分完成",
+        "failed": "失败",
+        "all": "全部变更",
+        "unlinked": "无可能关联的批注",
+        "text_changed": "印刷文本：{before} → {after}",
+        "text_added": "新增或未匹配文本：{after}",
+        "text_removed": "删除或未匹配文本：{before}",
+        "visual": "视觉差异 — 请检查两份图纸",
+        "possibleLink": "可能关联的批注：{ids}。请确认其涵盖此变更。",
+        "noLink": "尚未确认批注关联。这不代表存在设计错误。",
+        "visualGroup": "其他视觉差异（{count}）",
+        "visualScope": "包括布局和旋转变化。这些候选项不代表尺寸错误。"
       }
     },
     "modals": {

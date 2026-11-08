@@ -12825,6 +12825,8 @@
         }
       },
       "commentReview": {
+        "partiallySolved": "Partiellement résolu",
+        "requirementCheck": "{label} · {status} · {evidence}",
         "checkedStatus": {
           "text": "Comment review"
         },
@@ -13350,7 +13352,43 @@
         "textLocationError": "Impossible de charger les positions du texte PDF. Actualisez pour réessayer.",
         "visionModel": "Modèle de vision : {model}",
         "reviewCoverage": "{total} constats · {unclear} à vérifier",
-        "reviewPasses": "Examiné en {count} passages"
+        "reviewPasses": "Examiné en {count} passages",
+        "markerSolved": "Résolu",
+        "markerLabel": "{status}. {finding}",
+        "markerGroup": "{count} constats ici. Sélectionnez pour les parcourir.",
+        "comparisonRegion": "Zone de comparaison"
+      },
+      "drawingChanges": {
+        "incomplete": "Incomplet",
+        "commentCoverage": "Vérification des commentaires : {status}. Pages originales : {pages}.",
+        "changeCoverage": "Validation des modifications : {status}. Pages originales : {pages}.",
+        "pagePair": "Page originale {before} ↔ Page révisée {after}",
+        "skippedBefore": "Page originale {page} : {reason}",
+        "unmatchedAfter": "Page révisée {page} : {reason}",
+        "noDifferences": "Aucune différence confirmée.",
+        "reviewIncomplete": "Examen incomplet. Les vérifications terminées n’ont confirmé aucune différence.",
+        "validation": {
+          "confirmed": "La comparaison visuelle des deux plans appuie ce constat.",
+          "unconfirmed": "La comparaison visuelle des deux plans n’a pas confirmé cet écart.",
+          "unchecked": "La comparaison visuelle des deux plans reste incomplète."
+        },
+        "verifiedLink": "Lien vérifié avec le commentaire : {ids}",
+        "title": "Modifications du texte imprimé ({count})",
+        "scope": "Différences confirmées de texte imprimé et de géométrie. Vérifiez l’identité de l’élément et l’intention de conception. Les paires de pages et feuilles ignorées figurent ci-dessous.",
+        "status": "Comparaison : {status}. Pages : {pages}.",
+        "complete": "Terminée",
+        "partial": "Partielle",
+        "failed": "Échec",
+        "all": "Toutes les modifications",
+        "unlinked": "Sans lien possible avec un commentaire",
+        "text_changed": "Texte imprimé : {before} → {after}",
+        "text_added": "Texte nouveau ou sans correspondance : {after}",
+        "text_removed": "Texte supprimé ou sans correspondance : {before}",
+        "visual": "Différence visuelle — examinez les deux plans",
+        "possibleLink": "Lien possible avec un commentaire : {ids}. Confirmez qu’il couvre cette modification.",
+        "noLink": "Aucun lien confirmé avec un commentaire. Cela ne prouve pas une erreur de conception.",
+        "visualGroup": "Autres différences visuelles ({count})",
+        "visualScope": "Inclut les changements de mise en page et de rotation. Ces indices ne prouvent pas des erreurs de cote."
       }
     },
     "modals": {

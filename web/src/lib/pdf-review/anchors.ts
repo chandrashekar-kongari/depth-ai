@@ -17,6 +17,7 @@ export function resolvedAnchor(
     original.pageLevel ||
     (original.quality !== "confirmed" &&
       original.quality !== "located_text" &&
+      original.quality !== "located_difference" &&
       original.quality !== "located_comment")
   )
     return null;

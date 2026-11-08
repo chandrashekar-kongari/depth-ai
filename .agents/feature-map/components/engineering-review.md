@@ -62,7 +62,7 @@ The tools framework owns historical chat result persistence and rendering.
 9. `legacy-contracts` **Old tool names, result types and checkpoint discriminators stay unchanged.** The new workflow adds records outside chat.
 10. `private-boundary` **Endpoint checks do not replace network controls.** Unit tests do not qualify model quality or offline operation.
 
-11. `revised-evidence-grounding` **Private verification receives full revision text. Native evidence requires a source match; visual evidence requires a separate target and observation check.** This checks quote provenance, not engineering correctness. Extra-issue generation is disabled pending qualification.
+11. `revised-evidence-grounding` **Private verification receives full revision text. Native evidence requires a source match; visual evidence requires a separate target and observation check.** This checks quote provenance, not engineering correctness. Independent local PDF change discovery runs after comment checks. Its coverage and spatial comment links do not change comment verdicts.
 
 12. `context-forwarding` **The private adapter sends an 8,192-token context to Ollama.** A client input budget alone does not change the server context; both limits must agree.
 
@@ -135,6 +135,16 @@ Short numeric AFTER evidence requires an exact identified native span. Repeated 
 Without a span ID, a short callout must be unique. Other native evidence keeps its six-character default.
 Visual-only evidence receives a separate model check of target identity, observation, and verdict; it does not create a native text anchor.
 A known unmet requirement stays open when its baseline value is unknown. Failed text matching preserves the observation and discrepancy.
-Chat comment review checks supervisor requests with the Captioning LLM only.
-It does not run an additional change or defect audit. Legacy extra-scan flags cannot enable another pass.
-Historical additional findings retain their result and viewer types, but new comment reviews return no additional findings.
+Chat comment review checks supervisor requests with the Captioning LLM.
+PDF pairs then run an independent local change comparator in `backend/onyx/engineering/drawing_changes.py`.
+It excludes native annotations, aligns pages and distinct translated blocks, and combines native numeric text changes with visual regions.
+Local candidate discovery uses no model. MechVL validates candidates and proposes further changes. No result cache is used. Results use a separate drawing_changes field; historical extra_issues remain unchanged.
+Chat comparison accepts two PDFs. Unique sheet identifiers or sufficiently detailed identical native text can pair reordered sheets. Inserted, removed, and ambiguous sheets have separate coverage. Identity inspection stops at 64 pages; rendering and comparison cover the first eight pages of each input. Explicit original-page scope applies to both stages.
+Supported linear callouts use extension-line origins for correspondence, independently of text orientation or dimension-line offset.
+Ambiguous or unsupported references use conservative local matching. Equal values on different resolved references cannot cancel.
+The main list counts confirmed printed-text findings. Confirmed geometry differences appear in a collapsed section. Unchecked or unconfirmed candidates produce no finding or PDF marker. MechVL proposes changes beyond local comparison; discoveries without native support require focused checks of both regions. Rotation, layout shifts, artifacts, and review marks are rejected.
+Unmatched text is not evidence of addition/deletion. Final-answer guidance must not invent restoration work or reopen solved comments.
+Spatial text correspondence is not verified CAD feature identity. Unmatched callouts remain separate, and visual candidates do not assert metric values.
+Spatial associations remain possible links. A verified link requires the same feature and supported requested action. Shorthand receives an independent Before-mark and After-feature check. Verified change evidence appears once on its comment card. Unrelated confirmed changes remain separate.
+The viewer uses located_difference anchors for source comparison regions. These do not confirm engineering targets.
+Comment verification and change validation expose separate completion states and completed pages. Skipped pages name coverage failures. Per-page PDF isolation preserves earlier comparisons after later timeouts. Completed validation survives later failures or cancellation. Each chat tool instance claims a PDF pair once by content hash; no result cache is stored. Legacy extra-scan flags do not enable the retired model audit.

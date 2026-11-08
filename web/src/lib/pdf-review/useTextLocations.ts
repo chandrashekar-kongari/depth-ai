@@ -30,6 +30,11 @@ export function useTextLocations(
 ) {
   const queries = issues.flatMap((issue) => {
     const source = issue.anchors[documentId];
+    if (
+      source?.quality === "located_difference" ||
+      source?.quality === "located_text"
+    )
+      return [];
     return source
       ? [
           {

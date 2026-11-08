@@ -233,6 +233,8 @@ def record_decision(
     valid_ids = {c.id for c in result.comments} | {
         issue.id for issue in result.extra_issues
     }
+    if result.drawing_changes is not None:
+        valid_ids.update(change.id for change in result.drawing_changes.changes)
     if finding_id not in valid_ids:
         raise OnyxError(OnyxErrorCode.NOT_FOUND, "Finding not found")
     row.version += 1

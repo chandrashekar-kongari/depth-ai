@@ -12825,6 +12825,8 @@
         }
       },
       "commentReview": {
+        "partiallySolved": "Partially solved",
+        "requirementCheck": "{label} · {status} · {evidence}",
         "checkedStatus": {
           "text": "Comment review"
         },
@@ -13350,7 +13352,43 @@
         "textLocationError": "Could not load PDF text locations. Refresh to retry.",
         "visionModel": "Vision model: {model}",
         "reviewCoverage": "{total} findings · {unclear} need review",
-        "reviewPasses": "Reviewed in {count} passes"
+        "reviewPasses": "Reviewed in {count} passes",
+        "markerSolved": "Solved",
+        "markerLabel": "{status}. {finding}",
+        "markerGroup": "{count} findings here. Select to cycle.",
+        "comparisonRegion": "Comparison region"
+      },
+      "drawingChanges": {
+        "incomplete": "Incomplete",
+        "commentCoverage": "Comment verification: {status}. Before pages: {pages}.",
+        "changeCoverage": "Change validation: {status}. Before pages: {pages}.",
+        "pagePair": "Before page {before} ↔ After page {after}",
+        "skippedBefore": "Before page {page}: {reason}",
+        "unmatchedAfter": "After page {page}: {reason}",
+        "noDifferences": "No confirmed differences.",
+        "reviewIncomplete": "Review incomplete. No differences were confirmed in completed checks.",
+        "validation": {
+          "confirmed": "Paired vision check supports this difference.",
+          "unconfirmed": "Paired vision check did not confirm this difference.",
+          "unchecked": "Paired vision check was not completed."
+        },
+        "verifiedLink": "Verified comment link: {ids}",
+        "title": "Printed text changes ({count})",
+        "scope": "Confirmed printed-text and geometry differences. Check feature identity and design intent. Page pairs and skipped sheets are listed below.",
+        "status": "Comparison: {status}. Pages: {pages}.",
+        "complete": "Finished",
+        "partial": "Partial",
+        "failed": "Failed",
+        "all": "All changes",
+        "unlinked": "Without a possible comment link",
+        "text_changed": "Printed text: {before} → {after}",
+        "text_added": "New or unmatched text: {after}",
+        "text_removed": "Removed or unmatched text: {before}",
+        "visual": "Visual difference — inspect both drawings",
+        "possibleLink": "Possible comment link: {ids}. Confirm that it covers this change.",
+        "noLink": "No comment link confirmed. This does not establish a design error.",
+        "visualGroup": "Other visual differences ({count})",
+        "visualScope": "Includes layout and rotation changes. These candidates do not establish metric errors."
       }
     },
     "modals": {

@@ -122,6 +122,12 @@ class CommentVerdict(str, Enum):
     UNCLEAR = "unclear"
 
 
+class DrawingRequirementCheck(BaseModel):
+    label: str
+    verdict: CommentVerdict
+    evidence: str
+
+
 class DrawingComment(BaseModel):
     """One review comment and the verdict for the new sheet."""
 
@@ -139,7 +145,10 @@ class DrawingComment(BaseModel):
     revised_span_id: str | None = None
     revised_box: DrawingMarkBox | None = None
     revised_page_level: bool = False
+    revised_location_verified: bool = False
     review_attempts: int = 0
+    checks: list[DrawingRequirementCheck] = Field(default_factory=list)
+    verified_change_ids: list[str] = Field(default_factory=list)
 
 
 class DrawingExtraIssue(BaseModel):
@@ -173,6 +182,35 @@ class CommentReviewArguments(BaseModel):
     include_extra_issues: bool = False
 
 
+class DrawingChange(BaseModel):
+    """Independent PDF evidence. Text correspondence does not certify CAD geometry."""
+
+    id: str
+    page: int
+    revised_page: int | None = None
+    kind: Literal["text_changed", "text_added", "text_removed", "visual"]
+    before_text: str = ""
+    after_text: str = ""
+    original_box: DrawingMarkBox | None = None
+    revised_box: DrawingMarkBox | None = None
+    possible_comment_ids: list[str] = Field(default_factory=list)
+    verified_comment_ids: list[str] = Field(default_factory=list)
+    vision_validation: Literal["confirmed", "unconfirmed"] | None = None
+    vision_explanation: str = ""
+
+
+class DrawingChangeReview(BaseModel):
+    status: Literal["complete", "partial", "failed"]
+    changes: list[DrawingChange] = Field(default_factory=list)
+    compared_pages: list[int] = Field(default_factory=list)
+    page_pairs: dict[int, int] | None = None
+    skipped_original_pages: dict[int, str] = Field(default_factory=dict)
+    unmatched_revised_pages: dict[int, str] = Field(default_factory=dict)
+    validated_pages: list[int] = Field(default_factory=list)
+    validation_status: Literal["complete", "incomplete"] = "incomplete"
+    warnings: list[str] = Field(default_factory=list)
+
+
 class CommentReviewResult(BaseModel):
     type: Literal["comment_review_result"] = "comment_review_result"
     status: str
@@ -186,7 +224,11 @@ class CommentReviewResult(BaseModel):
     commented_page_count: int = 0
     revised_page_count: int = 0
     reviewed_pages: int = 0
+    comment_verification_status: Literal["complete", "incomplete"] = "incomplete"
+    comment_verified_pages: list[int] = Field(default_factory=list)
     vision_model: str | None = None
+    coverage_notices: list[str] = Field(default_factory=list)
+    drawing_changes: DrawingChangeReview | None = None
 
 
 class MemoryOperation(str, Enum):

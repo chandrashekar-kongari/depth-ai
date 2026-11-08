@@ -506,7 +506,16 @@ def test_delegated_review_preserves_scope_and_recovers_from_pdf_text_failure() -
     )
     llm.config.model_name = "test-vision"
     updates = MagicMock()
+    from onyx.engineering.drawing_changes import DrawingEvidence
+    from onyx.tools.models import DrawingChangeReview
+
     with (
+        patch(
+            f"{_TOOL}.load_drawing_evidence",
+            return_value=DrawingEvidence(
+                comparison=DrawingChangeReview(status="complete", page_pairs={2: 2})
+            ),
+        ),
         patch.object(
             tool,
             "_load_sheet",
@@ -545,7 +554,7 @@ def test_delegated_review_preserves_scope_and_recovers_from_pdf_text_failure() -
     snapshot = updates.call_args.args[0].details
     assert isinstance(snapshot, CommentReviewResult)
     assert snapshot.comments == result.details.comments
-    assert snapshot.status == "Reviewed 1 comments"
+    assert snapshot.status == result.details.status
     assert result.details.reviewed_pages == 1
     assert "revised_text_extraction_failed" in result.content
     assert llm.invoke.call_count == 2
@@ -572,7 +581,8 @@ def test_review_deadline_returns_explicit_incomplete_result() -> None:
         )
     llm.invoke.assert_not_called()
     assert result.reviewed_pages == 0
-    assert result.comments[0].verdict == CommentVerdict.UNCLEAR
+    assert not result.comments
+    assert any("time limit" in notice for notice in result.coverage_notices)
     assert "time limit" in result.report
 
 
@@ -612,6 +622,40 @@ def test_visual_mismatch_keeps_evidence_without_fabricating_text_anchor(
             ),
         ]
     )
+    if confirmed:
+        llm.invoke.side_effect = [
+            MagicMock(
+                text=json.dumps(
+                    {
+                        "status": "open",
+                        "evidence": "60",
+                        "remaining": "Set overall height to 86; it shows 60.",
+                        "evidence_source": "visual",
+                        "target_description": "Overall height between top and bottom edges",
+                    }
+                )
+            ),
+            MagicMock(
+                text=json.dumps(
+                    {
+                        "same_target": True,
+                        "observed_evidence": "60",
+                        "supported_status": "open",
+                    }
+                )
+            ),
+            MagicMock(
+                text=json.dumps(
+                    {
+                        "same_target": True,
+                        "requested_action_supported": True,
+                        "before_target_evidence": "The replacement mark points to the overall-height endpoints",
+                        "requested_action": "Set overall height to 86",
+                        "observed_evidence": "60",
+                    }
+                )
+            ),
+        ]
     with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
         verdict = _judge_comment(
             llm,
@@ -633,7 +677,7 @@ def test_visual_mismatch_keeps_evidence_without_fabricating_text_anchor(
     assert verdict.evidence == "60"
     assert verdict.span_id is None
     assert "86" in verdict.remaining
-    assert llm.invoke.call_count == 2
+    assert llm.invoke.call_count == (3 if confirmed else 2)
 
 
 def test_text_failure_preserves_observation_and_specific_discrepancy() -> None:
@@ -710,6 +754,29 @@ def test_observed_scalar_grounds_prose_without_accepting_an_unrelated_span() -> 
             )
         ]
     )
+    llm.invoke.side_effect = [
+        MagicMock(
+            text=json.dumps(
+                {
+                    "status": "solved_correct",
+                    "evidence": "60",
+                    "observed_value": "60",
+                    "span_id": "height",
+                }
+            )
+        ),
+        MagicMock(
+            text=json.dumps(
+                {
+                    "same_target": True,
+                    "requested_action_supported": True,
+                    "before_target_evidence": "Replacement points to the height endpoints",
+                    "requested_action": "Set height to 86",
+                    "observed_evidence": "60",
+                }
+            )
+        ),
+    ]
     row = comment_from_extraction(
         ExtractedComment(text="86", request="Set height to 86"),
         comment_id="c1",
@@ -727,6 +794,7 @@ def test_observed_scalar_grounds_prose_without_accepting_an_unrelated_span() -> 
             spans=[SheetSpan("height", 1, "60", 0.1, 0.2, 0.1, 0.1)],
             dxf_summary=None,
             expected_value="86",
+            original_image_data=b"before",
             revised_page_text="60",
         )
     assert verdict is not None and verdict.status == CommentVerdict.OPEN
@@ -806,3 +874,119 @@ def test_comment_review_tool_does_not_offer_additional_audit() -> None:
     properties = definition.parameters["properties"]
     assert isinstance(properties, dict)
     assert "include_extra_issues" not in properties
+
+
+@pytest.mark.parametrize("span_x", [0.3, 0.7])
+def test_paired_review_merges_only_the_matching_callout(span_x: float) -> None:
+    from onyx.engineering.drawing_changes import DrawingEvidence
+    from onyx.tools.models import DrawingChange, DrawingChangeReview, DrawingMarkBox
+
+    mark = DrawingMarkBox(x=0.2, y=0.2, width=0.1, height=0.05)
+    change = DrawingChange(
+        id="dc1",
+        page=1,
+        kind="text_added",
+        after_text="8",
+        original_box=mark,
+        revised_box=mark.model_copy(update={"x": 0.3}),
+    )
+    unrelated = change.model_copy(update={"id": "dc2", "after_text": "42"})
+    visual = change.model_copy(update={"id": "dc3", "kind": "visual", "after_text": ""})
+    evidence = DrawingEvidence(
+        comparison=DrawingChangeReview(
+            status="complete", changes=[change, unrelated, visual]
+        )
+    )
+    llm = _llm(
+        [
+            json.dumps({"comments": [{"text": "missing", "box": mark.model_dump()}]}),
+            json.dumps(
+                {
+                    "status": "solved_correct",
+                    "evidence": "8",
+                    "span_id": "callout",
+                    "change_id": "dc1",
+                }
+            ),
+            json.dumps(
+                {
+                    "same_target": span_x == 0.3,
+                    "requested_action_supported": True,
+                    "before_target_evidence": "Arrow identifies the right-side feature",
+                    "requested_action": "Add the missing callout",
+                    "observed_evidence": "8",
+                }
+            ),
+            json.dumps(
+                {
+                    "dc1": {
+                        "status": "confirmed",
+                        "before_text": "",
+                        "after_text": "Ø8",
+                        "original_box": mark.model_dump(),
+                        "revised_box": {**mark.model_dump(), "x": 0.4},
+                        "explanation": "The right-side feature gains a dimension of 8.",
+                    },
+                    "dc3": {
+                        "status": "confirmed",
+                        "before_text": "",
+                        "after_text": "",
+                        "original_box": mark.model_dump(),
+                        "revised_box": mark.model_copy(update={"x": 0.3}).model_dump(),
+                        "explanation": "A hole was added to the side plate.",
+                    },
+                    "extra1": {
+                        "status": "confirmed",
+                        "before_text": "",
+                        "after_text": "R12",
+                        "original_box": {**mark.model_dump(), "x": 0.8},
+                        "revised_box": {**mark.model_dump(), "x": 0.8},
+                        "explanation": "A radius callout appears on the far-right feature.",
+                    },
+                    "dc2": {
+                        "status": "unconfirmed",
+                        "before_text": "",
+                        "after_text": "",
+                        "original_box": None,
+                        "revised_box": None,
+                        "explanation": "",
+                    },
+                }
+            ),
+        ]
+    )
+    after = _SheetPages(
+        pages=[b"after"],
+        spans=[
+            SheetSpan("callout", 1, "8", span_x, 0.2, 0.1, 0.05),
+            SheetSpan("radius", 1, "R12", 0.8, 0.2, 0.1, 0.05),
+        ],
+        truncated_pages=[],
+        total=1,
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        result = verify_sheet_comments(
+            _pages(1),
+            after,
+            commented_name="before.pdf",
+            revised_name="after.pdf",
+            dxf_summary=None,
+            llm=llm,
+            drawing_evidence=evidence,
+        )
+
+    assert result.comments[0].verdict == (
+        CommentVerdict.SOLVED_CORRECT if span_x == 0.3 else CommentVerdict.UNCLEAR
+    )
+    assert result.comments[0].verified_change_ids == (["dc1"] if span_x == 0.3 else [])
+    assert result.drawing_changes is not None
+    first, second, visual_finding, discovered = result.drawing_changes.changes
+    assert first.vision_validation == "confirmed"
+    assert first.after_text == ("8" if span_x == 0.3 else "Ø8")
+    assert first.revised_box is not None
+    assert first.revised_box.x == (0.3 if span_x == 0.3 else 0.4)
+    assert second.vision_validation == "unconfirmed"
+    assert visual_finding.kind == "visual"
+    assert visual_finding.vision_explanation == "A hole was added to the side plate."
+    assert discovered.after_text == "R12"
+    assert discovered.vision_validation == "confirmed"

@@ -58,7 +58,7 @@ import {
   SvgZoomOut,
 } from "@opal/icons";
 import { cn } from "@opal/utils";
-import { createReviewMarks } from "@/lib/pdf-review/reviewMarks";
+import { ReviewStatusMarkers } from "@/lib/pdf-review/ReviewStatusMarkers";
 import { resolvedAnchor, locationKey } from "@/lib/pdf-review/anchors";
 import { rectAnchor } from "@/lib/pdf-review/geometry";
 import { revealIssue } from "@/lib/pdf-review/revealIssue";
@@ -141,7 +141,6 @@ function Workspace({
   const ui = useTranslations("chat.workspace");
   const [annotationMode, setAnnotationMode] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const reviewT = useTranslations("chat.messages.commentReview");
   const { pluginsReady } = useRegistry();
   const { activeDocumentId } = useActiveDocument();
   const id = activeDocumentId ?? documents[0]?.id ?? "";
@@ -372,38 +371,7 @@ function Workspace({
       new Map<string, PdfAnnotationObject>();
     managedByDocument.current.set(id, managed);
     originalsByDocument.current.set(id, originals);
-    const records = Object.fromEntries(
-      Object.entries(snapshot.state.annotations[id] ?? {}).filter(
-        ([key]) =>
-          !key.startsWith("depth-review:") ||
-          (key.startsWith("depth-review:v2:") && !key.endsWith(":page-note"))
-      )
-    );
-    for (const [index, issue] of issuesRef.current.entries()) {
-      const anchor = resolvedAnchor(snapshot, id, issue);
-      const pageNumber = anchor?.page ?? issue.anchors[id]?.page;
-      if (!pageNumber) continue;
-      const pdfPage = documentState.document?.pages[pageNumber - 1];
-      if (!pdfPage) continue;
-      const label = reviewT(
-        issue.verdict === "solved_correct"
-          ? "solvedCorrectStatus.label"
-          : issue.verdict === "open"
-            ? "openStatus.label"
-            : issue.verdict === "solved_incorrect"
-              ? "solvedIncorrectStatus.label"
-              : "unclearStatus.label"
-      );
-      for (const mark of createReviewMarks(
-        issue,
-        anchor,
-        pageNumber - 1,
-        pdfPage.size,
-        label,
-        index
-      ))
-        if (!records[mark.id]) records[mark.id] = { annotation: mark };
-    }
+    const records = snapshot.state.annotations[id] ?? {};
     reconcileAnnotations(
       annotation,
       records,
@@ -436,7 +404,6 @@ function Workspace({
     documentState?.document,
     pending,
     reviewKey,
-    reviewT,
   ]);
 
   useEffect(() => {
@@ -1026,6 +993,7 @@ function Workspace({
                   <SelectionLayer documentId={id} pageIndex={pageIndex} />
                   <SearchLayer documentId={id} pageIndex={pageIndex} />
                   <AnnotationLayer documentId={id} pageIndex={pageIndex} />
+                  {!annotationMode ? <ReviewStatusMarkers documentId={id} pageIndex={pageIndex} issues={issues} snapshot={snapshot} selectedIssueId={selectedIssueId} original={descriptor?.role === "original"} onSelect={(issueId,page)=>onIssueSelect?.(issueId,page)} /> : null}
                   {radar?.documentId === id && radar.page === pageIndex + 1 ? (
                     <AttentionRing
                       key={radar.requestId}

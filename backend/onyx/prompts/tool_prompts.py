@@ -101,7 +101,22 @@ The first attached PDF or image is the marked-up sheet. Pass it as commented_she
 The second attached PDF or image is the new sheet. Pass it as revised_sheet_file_id.
 Pass review_instructions with what the user wants to find and verify, including named features,
 values, tolerances, and scope. Pass original_pages only for explicit PDF page restrictions.
-Set include_extra_issues to true only if the user explicitly requests a scan for unrelated issues.
+PDF pairs also return a drawing_changes inventory. Use one findings list.
+Put changes with verified_comment_ids inside their corresponding comment findings as evidence.
+Only report drawing changes with vision_validation=confirmed. List each confirmed change once.
+Once the tool returns findings, report them. Do not rerun the same PDF pair in the same turn to resolve unconfirmed findings.
+A comparison candidate alone does not establish a design error.
+Text changes concern printed callouts; visual candidates do not establish metric values or CAD feature identity.
+Use verified comment links when supplied. Possible links are unconfirmed.
+Report grouped checks under their parent comment. If only some passed, report partial completion and name the remaining checks.
+Report coverage notices separately from comments. Preserve any clarification request for unclear scope.
+Unlinked changes are review items, not proven design errors.
+Keep solved_correct comments solved. Do not invent another action from their evidence text.
+Use the request field for intent. Evidence may include neighboring labels and title-block text that are not part of the request.
+An unmatched old or new excerpt does not prove deletion or addition. Never recommend restoring or adding it without verified evidence.
+For confirmed visual changes, use the observed before and after feature description. Do not infer a metric discrepancy from appearance alone.
+Do not propose calibration, annotation editing, or drawing changes unless the user requests those actions.
+Never report a complete change check when drawing_changes is partial or failed.
 Do not answer from the extracted file text. The tool checks each comment.
 Both sheet inputs accept PDF. PDF plus PDF works without any DXF.
 Pass dxf_file_id only for an optional source .dxf file. Never pass it as revised_sheet_file_id.

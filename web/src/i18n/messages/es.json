@@ -12825,6 +12825,8 @@
         }
       },
       "commentReview": {
+        "partiallySolved": "Resuelto parcialmente",
+        "requirementCheck": "{label} · {status} · {evidence}",
         "checkedStatus": {
           "text": "Comment review"
         },
@@ -13350,7 +13352,43 @@
         "textLocationError": "No se pudieron cargar las posiciones del texto PDF. Actualiza para reintentar.",
         "visionModel": "Modelo de visión: {model}",
         "reviewCoverage": "{total} hallazgos · {unclear} requieren revisión",
-        "reviewPasses": "Revisado en {count} pasadas"
+        "reviewPasses": "Revisado en {count} pasadas",
+        "markerSolved": "Resuelto",
+        "markerLabel": "{status}. {finding}",
+        "markerGroup": "{count} hallazgos aquí. Seleccione para alternar.",
+        "comparisonRegion": "Región de comparación"
+      },
+      "drawingChanges": {
+        "incomplete": "Incompleta",
+        "commentCoverage": "Verificación de comentarios: {status}. Páginas originales: {pages}.",
+        "changeCoverage": "Validación de cambios: {status}. Páginas originales: {pages}.",
+        "pagePair": "Página original {before} ↔ Página revisada {after}",
+        "skippedBefore": "Página original {page}: {reason}",
+        "unmatchedAfter": "Página revisada {page}: {reason}",
+        "noDifferences": "No hay diferencias confirmadas.",
+        "reviewIncomplete": "Revisión incompleta. Las comprobaciones completadas no confirmaron diferencias.",
+        "validation": {
+          "confirmed": "La revisión visual de ambos planos respalda esta diferencia.",
+          "unconfirmed": "La revisión visual de ambos planos no confirmó esta diferencia.",
+          "unchecked": "La revisión visual de ambos planos quedó incompleta."
+        },
+        "verifiedLink": "Vínculo verificado con el comentario: {ids}",
+        "title": "Cambios en texto impreso ({count})",
+        "scope": "Diferencias confirmadas de texto impreso y geometría. Compruebe la identidad del elemento y la intención de diseño. Los pares de páginas y las hojas omitidas aparecen abajo.",
+        "status": "Comparación: {status}. Páginas: {pages}.",
+        "complete": "Finalizada",
+        "partial": "Parcial",
+        "failed": "Fallida",
+        "all": "Todos los cambios",
+        "unlinked": "Sin posible comentario vinculado",
+        "text_changed": "Texto impreso: {before} → {after}",
+        "text_added": "Texto nuevo o sin correspondencia: {after}",
+        "text_removed": "Texto eliminado o sin correspondencia: {before}",
+        "visual": "Diferencia visual — inspeccione ambos planos",
+        "possibleLink": "Posible comentario vinculado: {ids}. Confirme que cubre este cambio.",
+        "noLink": "No se confirmó un comentario vinculado. Esto no demuestra un error de diseño.",
+        "visualGroup": "Otras diferencias visuales ({count})",
+        "visualScope": "Incluye cambios de diseño y rotación. Estos indicios no demuestran errores de cotas."
       }
     },
     "modals": {

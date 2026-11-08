@@ -1,5 +1,7 @@
 "use client";
 
+import { isVisibleDrawingChange } from "@/app/app/message/messageComponents/renderers/DrawingChangesView";
+
 import { useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
@@ -257,16 +259,20 @@ export default function EngineeringReviewsPage() {
                 fileUrl={reviewFileUrl}
               />
               <Text>{t("decisions")}</Text>
-              {[...review.result.comments, ...review.result.extra_issues].map(
-                (finding) => (
-                  <FindingDecision
-                    key={finding.id}
-                    review={review}
-                    findingId={finding.id}
-                    onSaved={() => void detail.mutate()}
-                  />
-                )
-              )}
+              {[
+                ...review.result.comments,
+                ...review.result.extra_issues,
+                ...(review.result.drawing_changes?.changes ?? []).filter(
+                  isVisibleDrawingChange
+                ),
+              ].map((finding) => (
+                <FindingDecision
+                  key={finding.id}
+                  review={review}
+                  findingId={finding.id}
+                  onSaved={() => void detail.mutate()}
+                />
+              ))}
             </DrawingReviewLayoutProvider>
           ) : null}
         </Section>

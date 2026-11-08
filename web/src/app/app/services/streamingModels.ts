@@ -400,6 +400,9 @@ export type CommentVerdict =
   | "unclear";
 
 export interface DrawingComment {
+  checks?: { label: string; verdict: CommentVerdict; evidence: string }[];
+  verified_change_ids?: string[];
+  revised_location_verified?: boolean;
   review_attempts?: number;
   id: string;
   page: number;
@@ -434,8 +437,39 @@ export interface CommentReviewStart extends BaseObj {
   type: "comment_review_start";
 }
 
+export interface DrawingChange {
+  revised_page?: number | null;
+  id: string;
+  page: number;
+  kind: "text_changed" | "text_added" | "text_removed" | "visual";
+  before_text: string;
+  after_text: string;
+  original_box: DrawingMarkBox | null;
+  revised_box: DrawingMarkBox | null;
+  possible_comment_ids: string[];
+  verified_comment_ids?: string[];
+  vision_validation?: "confirmed" | "unconfirmed" | null;
+  vision_explanation?: string;
+}
+
+export interface DrawingChangeReview {
+  status: "complete" | "partial" | "failed";
+  changes: DrawingChange[];
+  compared_pages: number[];
+  page_pairs?: Record<string, number> | null;
+  skipped_original_pages?: Record<string, string>;
+  unmatched_revised_pages?: Record<string, string>;
+  validated_pages?: number[];
+  validation_status?: "complete" | "incomplete";
+  warnings: string[];
+}
+
 export interface CommentReviewDelta extends BaseObj {
+  comment_verification_status?: "complete" | "incomplete";
+  comment_verified_pages?: number[];
+  coverage_notices?: string[];
   vision_model?: string | null;
+  drawing_changes?: DrawingChangeReview | null;
   type: "comment_review_delta";
   comments: DrawingComment[];
   extra_issues: DrawingExtraIssue[];

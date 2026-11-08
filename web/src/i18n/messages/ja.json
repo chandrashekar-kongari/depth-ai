@@ -12825,6 +12825,8 @@
         }
       },
       "commentReview": {
+        "partiallySolved": "一部解決済み",
+        "requirementCheck": "{label} · {status} · {evidence}",
         "checkedStatus": {
           "text": "Comment review"
         },
@@ -13350,7 +13352,43 @@
         "textLocationError": "PDFのテキスト位置を読み込めませんでした。更新して再試行してください。",
         "visionModel": "画像モデル: {model}",
         "reviewCoverage": "指摘 {total} 件 · 要確認 {unclear} 件",
-        "reviewPasses": "{count} 回の処理で確認"
+        "reviewPasses": "{count} 回の処理で確認",
+        "markerSolved": "解決済み",
+        "markerLabel": "{status}。{finding}",
+        "markerGroup": "この位置に{count}件の指摘があります。選択すると切り替わります。",
+        "comparisonRegion": "比較領域"
+      },
+      "drawingChanges": {
+        "incomplete": "未完了",
+        "commentCoverage": "コメント検証：{status}。変更前のページ：{pages}。",
+        "changeCoverage": "変更の検証：{status}。変更前のページ：{pages}。",
+        "pagePair": "変更前のページ {before} ↔ 変更後のページ {after}",
+        "skippedBefore": "変更前のページ {page}：{reason}",
+        "unmatchedAfter": "変更後のページ {page}：{reason}",
+        "noDifferences": "確認された差分はありません。",
+        "reviewIncomplete": "レビューは未完了です。完了した確認では差分は確認されませんでした。",
+        "validation": {
+          "confirmed": "両方の図面の目視比較で、この差分を裏付ける情報が得られました。",
+          "unconfirmed": "両方の図面の目視比較では、この差分を確認できませんでした。",
+          "unchecked": "両方の図面の目視比較は完了していません。"
+        },
+        "verifiedLink": "確認済みのコメントリンク：{ids}",
+        "title": "印刷テキストの変更（{count}）",
+        "scope": "確認済みの印刷テキストと形状の差分です。対象の同一性と設計意図を確認してください。ページの対応と未確認のシートを以下に示します。",
+        "status": "比較：{status}。ページ：{pages}。",
+        "complete": "完了",
+        "partial": "一部完了",
+        "failed": "失敗",
+        "all": "すべての変更",
+        "unlinked": "コメントとの関連候補なし",
+        "text_changed": "印刷テキスト：{before} → {after}",
+        "text_added": "新規または対応不明のテキスト：{after}",
+        "text_removed": "削除または対応不明のテキスト：{before}",
+        "visual": "画像の差分 — 両方の図面を確認",
+        "possibleLink": "関連する可能性のあるコメント：{ids}。この変更が対象か確認してください。",
+        "noLink": "コメントとの関連は未確認です。設計ミスを示すものではありません。",
+        "visualGroup": "その他の画像差分（{count}）",
+        "visualScope": "配置や回転の変更を含みます。寸法の誤りを示すものではありません。"
       }
     },
     "modals": {

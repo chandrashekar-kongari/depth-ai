@@ -89,8 +89,8 @@ Keep the file roles clear: the original contains review comments, and the revise
 The action rejects likely reversed PDF roles when only the revised input contains native comments.
 If no comments can be extracted, the action reports an incomplete review. It does not report a passed drawing.
 
-Attach both sheets. A comment is a cloud, a balloon, a redline, or a note. The sheet is a PDF, PNG, JPEG, or WEBP.
-A DXF of the new drawing is optional. Use the DXF when a comment is about a dimension.
+Attach two PDFs for Before/After review. Prefer PDFs exported from CAD. Scanned PDFs use paired visual checks.
+A comment is a cloud, a balloon, a redline, or a note. This check does not accept images or CAD files.
 A number in a comment is not an independent geometry measurement. It can specify a requested callout value.
 A written instruction is optional:
 a circled dimension with a clearly associated red replacement number can define a change. For example,
@@ -106,8 +106,45 @@ Ask the agent to check each comment. The answer has one row per comment.
 - **Solved, incorrect.** The new sheet changed that area, but the change does not match the comment.
 - **Unclear.** The pages do not show enough to decide.
 
-Comment review checks supervisor requests against the revised drawing using the **Captioning LLM**.
-It does not run an additional audit of unmarked changes or unrelated defects.
+Comment review checks supervisor requests against the revised drawing using the configured **Captioning LLM**.
+The same vision model validates local PDF candidates and proposes printed-text or geometry changes the comparison
+missed. No second model or result cache is used.
+
+**Printed text changes** lists confirmed printed-text differences.
+Expand **Other visual differences** for confirmed geometry changes.
+Each finding describes the visible difference in both drawings. Rotation, layout shifts, rendering artifacts,
+and review marks are not drawing findings.
+New discoveries without native text support need a focused check of both feature regions.
+Unchecked and unconfirmed candidates do not appear as findings.
+
+Supported linear dimensions match through their extension-line origins,
+even when text rotates or the dimension line moves. Equal values on different references remain separate.
+A shorthand comment such as **missing**, **update**,
+or a bare value requires evidence for its target and requested action. The reviewer follows marks, arrows, leaders,
+and dimension endpoints, then checks the corresponding feature in the revision.
+A nearby or repeated value alone cannot verify the request. Ambiguous intent remains **Unclear**.
+
+Verified changes appear on the associated comment card once. Unrelated confirmed changes remain separate.
+Select **Show in original** or **Show in revised** to inspect the corresponding source region.
+Select **Without a possible comment link** to filter spatial associations.
+A possible association does not confirm the requested action. An unlinked difference does not establish a design error.
+
+The reviewer pairs reordered sheets through unique sheet identifiers or sufficiently detailed,
+identical native sheet text. It reports inserted, removed, and ambiguous sheets separately.
+It does not assume matching page order for unidentified packages. Identity inspection covers at most 64 pages.
+Rendering and comparison cover the first eight pages of each PDF.
+The result lists actual page pairs and identifies skipped pages.
+Explicit original-page restrictions apply to both checks.
+Native PDF review annotations are excluded from the local comparison. Flattened marks still require visual filtering.
+Small native numeric edits are checked independently of visual noise filtering.
+
+Check **Comment verification** and **Change validation** separately.
+Coverage lists completed pages and incomplete checks. Timeouts, cancellations, pairing failures,
+and page limits preserve completed results. **No confirmed differences** requires completed checks.
+**Review incomplete** does not establish that the drawings are unchanged. A PDF pair can run once per chat turn.
+A new turn can start a fresh review.
+
+Printed text correspondence does not verify CAD feature identity, physical geometry, or engineering correctness.
 
 A clear request needs no complete sentence. Marks can use any color. The reviewer connects a value to its bracket,
 leader, or affected callout before comparing the revised feature.
@@ -209,7 +246,9 @@ automatic sheet alignment, and validated model benchmarks are future work.
 
 In the private pilot, verification also receives the complete extracted revision-page text.
 A definite proposal needs a matching verbatim text excerpt. This check validates the quoted text,
-not its engineering interpretation. Additional-issue detection is disabled in the private pilot until it is validated.
+not its engineering interpretation.
+The private pilot also returns independent PDF change evidence and coverage messages.
+The change comparison does not decide whether a revised design is correct.
 
 The private review adapter requests an 8,192-token Ollama context.
 Its input budget and inference-server context use the same limit.
@@ -266,7 +305,7 @@ Unclear results can receive up to three visual passes,
 using the full page and overlapping crops within the review time limit.
 A supported verdict can remain separate from an unresolved location. The review does not claim every issue is fixed.
 
-Each review evaluates the drawings again, including when you attach the same files.
+Each new chat turn evaluates the drawings again. Repeated calls for the same PDF pair within one turn are blocked.
 
 **Show in original** locates the native review comment when available. **Show in revised** uses revised-sheet evidence.
 Page navigation does not wait for inference or saving. The attention ring is a temporary view effect.

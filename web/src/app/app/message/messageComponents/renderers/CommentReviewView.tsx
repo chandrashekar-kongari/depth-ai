@@ -19,6 +19,11 @@ import type {
   DrawingExtraIssue,
 } from "@/app/app/services/streamingModels";
 import { useDrawingReviewLayout } from "@/app/app/message/messageComponents/renderers/drawingReviewLayout";
+import {
+  DrawingChangesView,
+  drawingChangeIssues,
+  isVisibleDrawingChange,
+} from "@/app/app/message/messageComponents/renderers/DrawingChangesView";
 
 interface CommentReviewViewProps {
   fileUrl?: (fileId: string) => string;
@@ -119,6 +124,9 @@ export function CommentReviewView({
                   page: comment.revised_page ?? comment.page,
                   box: comment.revised_box,
                   pageLevel: comment.revised_page_level,
+                  quality: comment.revised_location_verified
+                    ? "located_text"
+                    : undefined,
                 };
               return {
                 id: comment.id,
@@ -149,6 +157,7 @@ export function CommentReviewView({
                   : {},
               })
             ),
+            ...drawingChangeIssues(review),
           ]}
           documents={[
             {
@@ -197,6 +206,7 @@ function CommentQueue({
 }) {
   const t = useTranslations("chat.messages.commentReview");
   const pdfT = useTranslations("chat.messages.pdfWorkspace");
+  const changeT = useTranslations("chat.messages.drawingChanges");
   const layout = useDrawingReviewLayout();
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
   const selectedId = layout.active ? layout.selectedId : localSelectedId;
@@ -311,6 +321,11 @@ function CommentQueue({
             : ui("noMatchingFindings")}
         </Text>
       ) : null}
+      {review.coverage_notices?.map((notice) => (
+        <Text key={notice} font="secondary-body" color="text-04">
+          {notice}
+        </Text>
+      ))}
       {filtered.map((comment) => {
         const number = comments.indexOf(comment) + 1;
         const titleSource = /^\s*[+-]?\d+(?:\.\d+)?\s*$/.test(comment.text)
@@ -364,7 +379,14 @@ function CommentQueue({
                         ? "amber"
                         : "red"
                   }
-                  title={verdictLabel(comment.verdict, t)}
+                  title={
+                    comment.verdict !== "solved_correct" &&
+                    comment.checks?.some(
+                      (check) => check.verdict === "solved_correct"
+                    )
+                      ? t("partiallySolved")
+                      : verdictLabel(comment.verdict, t)
+                  }
                 />
               </Section>
               <Section
@@ -456,6 +478,38 @@ function CommentQueue({
                   >
                     {t("evidence.text", { evidence: comment.evidence })}
                   </Text>
+                  {review.drawing_changes?.changes
+                    .filter(
+                      (change) =>
+                        isVisibleDrawingChange(change) &&
+                        change.verified_comment_ids?.includes(comment.id)
+                    )
+                    .map((change) => (
+                      <Text
+                        key={change.id}
+                        font="secondary-body"
+                        color="text-03"
+                      >
+                        {change.vision_explanation ||
+                          changeT(change.kind, {
+                            before: change.before_text,
+                            after: change.after_text,
+                          })}
+                      </Text>
+                    ))}
+                  {comment.checks?.map((check) => (
+                    <Text
+                      key={check.label}
+                      font="secondary-body"
+                      color="text-04"
+                    >
+                      {t("requirementCheck", {
+                        label: check.label,
+                        status: verdictLabel(check.verdict, t),
+                        evidence: check.evidence,
+                      })}
+                    </Text>
+                  ))}
                   {comment.remaining ? (
                     <Text
                       font="secondary-body"
@@ -519,6 +573,9 @@ function CommentQueue({
             {pdfT("visionModel", { model: review.vision_model })}
           </Text>
         </details>
+      ) : null}
+      {review.drawing_changes ? (
+        <DrawingChangesView review={review} onShow={onShow} />
       ) : null}
     </Section>
   );

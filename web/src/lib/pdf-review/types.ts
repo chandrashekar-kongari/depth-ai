@@ -93,7 +93,12 @@ export interface LinkedIssue {
       page: number;
       box: DrawingMarkBox | null;
       pageLevel: boolean;
-      quality?: "confirmed" | "proposed" | "located_text" | "located_comment";
+      quality?:
+        | "confirmed"
+        | "proposed"
+        | "located_text"
+        | "located_comment"
+        | "located_difference";
     }
   >;
 }

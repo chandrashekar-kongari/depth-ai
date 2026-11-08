@@ -4,6 +4,7 @@ from io import BytesIO
 from uuid import UUID
 
 from onyx.engineering.checks import ground_review_highlights, verify_note_replacement
+from onyx.engineering.drawing_changes import load_drawing_evidence
 from onyx.llm.interfaces import LLM
 from onyx.tools.models import CommentReviewResult, DrawingComment, DrawingMarkBox
 from onyx.tools.tool_implementations.drawing_review.comment_queue import (
@@ -122,6 +123,7 @@ def process_pair(
         commented_name=original_name,
         revised_name=revised_name,
         exact_verifier=exact_verifier,
+        drawing_evidence=load_drawing_evidence(original, revised),
         revised_text_by_page=revised_text,
         include_extra_issues=False,
         dxf_summary=None,
@@ -132,7 +134,7 @@ def process_pair(
     )
 
     result = ground_review_highlights(result, new.spans)
-    coverage = "Pilot scope: confirmed page order; native annotations take priority. Flattened comments on pages with native annotations require manual checking. Text checks do not verify geometry. Additional-issue detection is disabled pending validation. All findings require engineer decisions."
+    coverage = "Pilot scope: confirmed page order; native annotations take priority. Text checks do not verify geometry. Independent PDF changes have separate coverage and evidence. Flattened markup may appear as a visual change. All findings require engineer decisions."
     return result.model_copy(
         update={"status": coverage, "report": coverage + "\n\n" + result.report}
     )

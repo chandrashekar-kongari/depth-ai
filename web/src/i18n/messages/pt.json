@@ -12825,6 +12825,8 @@
         }
       },
       "commentReview": {
+        "partiallySolved": "Parcialmente resolvido",
+        "requirementCheck": "{label} · {status} · {evidence}",
         "checkedStatus": {
           "text": "Comment review"
         },
@@ -13350,7 +13352,43 @@
         "textLocationError": "Não foi possível carregar as posições do texto PDF. Atualize para tentar novamente.",
         "visionModel": "Modelo de visão: {model}",
         "reviewCoverage": "{total} achados · {unclear} precisam de revisão",
-        "reviewPasses": "Revisado em {count} passagens"
+        "reviewPasses": "Revisado em {count} passagens",
+        "markerSolved": "Resolvido",
+        "markerLabel": "{status}. {finding}",
+        "markerGroup": "{count} resultados aqui. Selecione para alternar.",
+        "comparisonRegion": "Região de comparação"
+      },
+      "drawingChanges": {
+        "incomplete": "Incompleta",
+        "commentCoverage": "Verificação de comentários: {status}. Páginas originais: {pages}.",
+        "changeCoverage": "Validação de alterações: {status}. Páginas originais: {pages}.",
+        "pagePair": "Página original {before} ↔ Página revisada {after}",
+        "skippedBefore": "Página original {page}: {reason}",
+        "unmatchedAfter": "Página revisada {page}: {reason}",
+        "noDifferences": "Nenhuma diferença confirmada.",
+        "reviewIncomplete": "Revisão incompleta. As verificações concluídas não confirmaram diferenças.",
+        "validation": {
+          "confirmed": "A comparação visual dos dois desenhos corrobora esta diferença.",
+          "unconfirmed": "A comparação visual dos dois desenhos não confirmou esta diferença.",
+          "unchecked": "A comparação visual dos dois desenhos ficou incompleta."
+        },
+        "verifiedLink": "Vínculo confirmado com o comentário: {ids}",
+        "title": "Alterações no texto impresso ({count})",
+        "scope": "Diferenças confirmadas de texto impresso e geometria. Verifique a identidade do elemento e a intenção do projeto. Os pares de páginas e folhas ignoradas aparecem abaixo.",
+        "status": "Comparação: {status}. Páginas: {pages}.",
+        "complete": "Concluída",
+        "partial": "Parcial",
+        "failed": "Falhou",
+        "all": "Todas as alterações",
+        "unlinked": "Sem possível comentário vinculado",
+        "text_changed": "Texto impresso: {before} → {after}",
+        "text_added": "Texto novo ou sem correspondência: {after}",
+        "text_removed": "Texto removido ou sem correspondência: {before}",
+        "visual": "Diferença visual — inspecione ambos os desenhos",
+        "possibleLink": "Possível comentário vinculado: {ids}. Confirme que abrange esta alteração.",
+        "noLink": "Nenhum vínculo com comentário confirmado. Isso não comprova um erro de projeto.",
+        "visualGroup": "Outras diferenças visuais ({count})",
+        "visualScope": "Inclui alterações de disposição e rotação. Estes indícios não comprovam erros de cotas."
       }
     },
     "modals": {
