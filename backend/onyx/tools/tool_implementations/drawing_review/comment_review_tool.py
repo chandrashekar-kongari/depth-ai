@@ -54,7 +54,6 @@ class CommentReviewTool(Tool):
         "Check each marked change on a BEFORE drawing against the AFTER drawing. "
         "BEFORE may contain handwritten replacement values, crossed-out dimensions, arrows, circles, or graphic redlines without written instructions. "
         "Infer clear changes from drawing context; report ambiguous marks as unclear. "
-        "By default also compare the revisions for changes without linked comments and supported additional defects. "
         "Pass commented_sheet_file_id for the marked-up PDF, PNG, JPEG, or WEBP. "
         "Pass revised_sheet_file_id for the new sheet in those formats. "
         "Check the file names and roles before calling; do not reverse the original with comments and the corrected revision. "
@@ -129,10 +128,6 @@ class CommentReviewTool(Tool):
                         "items": {"type": "integer", "minimum": 1},
                         "description": "Original PDF page numbers, only when the user explicitly restricts the review to those pages. Omit to review all pages.",
                     },
-                    "include_extra_issues": {
-                        "type": "boolean",
-                        "description": "Defaults to true. Compare both revisions for unrequested changes and additional defects. Set false when the user restricts the review to marked comments or named checks.",
-                    },
                     "dxf_file_id": {
                         "type": "string",
                         "description": (
@@ -184,7 +179,7 @@ class CommentReviewTool(Tool):
             user_request=context.user_request[:12000],
             instructions=arguments.review_instructions.strip(),
             original_pages=sorted(set(arguments.original_pages)),
-            include_extra_issues=arguments.include_extra_issues,
+            include_extra_issues=False,
         )
         if any(
             page < 1 or page > len(commented_pages.pages)

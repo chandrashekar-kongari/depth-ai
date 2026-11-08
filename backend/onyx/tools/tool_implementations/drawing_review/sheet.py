@@ -213,7 +213,10 @@ def _sheet_pages(data: bytes, filename: str) -> _SheetPages:
                 error="## observed\nThe sheet has no pages.",
             )
         return _SheetPages(
-            pages=pages, spans=spans, truncated_pages=truncated_pages, total=total
+            pages=pages,
+            spans=spans,
+            truncated_pages=truncated_pages,
+            total=total,
         )
     if extension in OnyxFileExtensions.IMAGE_EXTENSIONS:
         return _SheetPages(pages=[data], spans=[], truncated_pages=[], total=1)
@@ -370,7 +373,10 @@ def _invoke(
     try:
         response = llm.invoke(
             GenerationRequest(
-                messages=messages, options=GenerationOptions(max_tokens=max_tokens)
+                messages=messages,
+                options=GenerationOptions(
+                    max_tokens=max_tokens,
+                ),
             ),
             context=GenerationContext(
                 flow=LLMFlow.DRAWING_REVIEW,

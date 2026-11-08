@@ -321,93 +321,6 @@ def test_file_notice_names_comment_review_ahead_of_read_file() -> None:
     assert "Use the read_file tool" not in listed_text
 
 
-def test_extra_issue_uses_grounded_span_without_native_comment_box() -> None:
-    from onyx.tools.tool_implementations.drawing_review.comment_queue import (
-        ExtraIssueDraft,
-        extra_issue_from_draft,
-    )
-    from onyx.tools.tool_implementations.drawing_review.spans import SheetSpan
-
-    span = SheetSpan(
-        span_id="p1s1", page=1, text="THRU", x=0.1, y=0.2, width=0.3, height=0.04
-    )
-    issue = extra_issue_from_draft(
-        ExtraIssueDraft(title="Fit missing", detail="Add fit", span_id="p1s1"),
-        issue_id="e1",
-        page=1,
-        spans={span.span_id: span},
-    )
-    assert issue.box is not None
-    assert issue.box.x == 0.1
-    assert issue.page_level is False
-    fallback = extra_issue_from_draft(
-        ExtraIssueDraft(title="Check note"), issue_id="e2", page=1, spans={}
-    )
-    assert fallback.page_level is True
-
-
-def test_extra_issues_do_not_discard_completed_pdf_comment_review() -> None:
-    with (
-        patch(
-            "onyx.tools.tool_implementations.drawing_review.comment_review._invoke",
-            side_effect=[
-                _comment("Add H7 fit", "Add H7 fit"),
-                _verdict("solved_correct", "Ø8 H7 THRU", ""),
-                json.dumps(
-                    {
-                        "issues": [
-                            {"title": "Unrelated note missing", "detail": "Add note"}
-                        ]
-                    }
-                ),
-            ],
-        ),
-        patch(
-            "onyx.tools.tool_implementations.drawing_review.comment_review._encode",
-            return_value="data:image/png;base64,test",
-        ),
-    ):
-        result = verify_sheet_comments(
-            _pages(1),
-            _pages(1),
-            commented_name="original.pdf",
-            revised_name="revised.pdf",
-            dxf_summary=None,
-            llm=MagicMock(),
-            include_extra_issues=True,
-        )
-    assert result.comments[0].verdict.value == "solved_correct"
-    assert result.extra_issues[0].title == "Unrelated note missing"
-
-
-def test_optional_extra_failure_retains_pdf_verdicts() -> None:
-    with (
-        patch(
-            f"{_REVIEW}._invoke",
-            side_effect=[
-                _comment("Add a note", "Add a note"),
-                _verdict("open", "Old note remains", "Add the requested note"),
-            ],
-        ),
-        patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"),
-        patch(
-            f"{_REVIEW}._extra_issues", side_effect=RuntimeError("auxiliary failure")
-        ),
-    ):
-        result = verify_sheet_comments(
-            _pages(1),
-            _pages(1),
-            commented_name="original.pdf",
-            revised_name="revised.pdf",
-            dxf_summary=None,
-            llm=MagicMock(),
-            include_extra_issues=True,
-        )
-    assert result.comments[0].verdict.value == "open"
-    assert result.extra_issues == []
-    assert "Additional-issue detection failed" in result.status
-
-
 @pytest.mark.parametrize(
     "page_text,indexed_text,duplicate,span_id,status",
     [
@@ -752,89 +665,6 @@ def test_text_failure_preserves_observation_and_specific_discrepancy() -> None:
     assert "Height must be 86" in verdict.remaining
 
 
-def test_other_changes_receive_both_revisions_and_retain_partial_results() -> None:
-    import time
-
-    from onyx.llm.models import ImageContentPart
-    from onyx.tools.tool_implementations.drawing_review.comment_review import (
-        _scan_extra_issues,
-    )
-
-    llm = _llm(
-        [
-            json.dumps(
-                {
-                    "issues": [
-                        {
-                            "kind": "change",
-                            "title": "Finish changed",
-                            "detail": "Finish changed without a linked request.",
-                            "before_evidence": "PAINT",
-                            "after_evidence": "ANODIZE",
-                        }
-                    ],
-                    "coverage_limits": [],
-                }
-            ),
-            "invalid response",
-        ]
-    )
-    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
-        issues, incomplete = _scan_extra_issues(
-            llm,
-            _pages(2),
-            _pages(2),
-            [],
-            "after.pdf",
-            "",
-            set(),
-            time.monotonic() + 30,
-        )
-    assert incomplete
-    assert len(issues) == 1 and issues[0].kind == "change"
-    assert issues[0].before_evidence == "PAINT"
-    assert issues[0].after_evidence == "ANODIZE"
-    for call in llm.invoke.call_args_list:
-        content = call.args[0].messages[1].content
-        assert sum(isinstance(part, ImageContentPart) for part in content) == 2
-
-
-def test_other_changes_without_baseline_evidence_are_not_reported_as_verified() -> None:
-    import time
-
-    from onyx.tools.tool_implementations.drawing_review.comment_review import (
-        _scan_extra_issues,
-    )
-
-    llm = _llm(
-        [
-            json.dumps(
-                {
-                    "issues": [
-                        {
-                            "kind": "change",
-                            "title": "New hole",
-                            "after_evidence": "hole",
-                        }
-                    ]
-                }
-            )
-        ]
-    )
-    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
-        issues, incomplete = _scan_extra_issues(
-            llm,
-            _pages(1),
-            _pages(1),
-            [],
-            "after.pdf",
-            "",
-            set(),
-            time.monotonic() + 30,
-        )
-    assert incomplete and not issues
-
-
 def test_associated_native_numeric_request_survives_missing_model_value() -> None:
     from onyx.tools.tool_implementations.drawing_review.markup_inventory import (
         merge_markups,
@@ -939,3 +769,40 @@ def test_native_recovery_reads_the_selected_span_instead_of_model_prose() -> Non
     )
     assert recovered is not None and recovered.evidence == "45"
     assert recovered.status == CommentVerdict.OPEN
+
+
+@pytest.mark.parametrize("legacy_extra_flag", [False, True])
+def test_comment_only_review_never_runs_an_additional_scan(
+    legacy_extra_flag: bool,
+) -> None:
+    from onyx.tools.models import DrawingReviewBrief
+
+    llm = _llm(
+        [
+            _comment("Add note", "Add note"),
+            _verdict("solved_correct", "New note", ""),
+        ]
+    )
+    with patch(f"{_REVIEW}._encode", return_value="data:image/png;base64,test"):
+        result = verify_sheet_comments(
+            _pages(1),
+            _pages(1),
+            commented_name="before.pdf",
+            revised_name="after.pdf",
+            dxf_summary=None,
+            llm=llm,
+            include_extra_issues=legacy_extra_flag,
+            brief=DrawingReviewBrief(include_extra_issues=legacy_extra_flag),
+        )
+    assert llm.invoke.call_count == 2
+    assert result.comments[0].verdict == CommentVerdict.SOLVED_CORRECT
+    assert result.extra_issues == []
+    assert "comparison" not in result.report.lower()
+
+
+def test_comment_review_tool_does_not_offer_additional_audit() -> None:
+    tool = CommentReviewTool(tool_id=1, user_file_ids=[], chat_file_ids=[])
+    definition = tool.tool_definition()
+    properties = definition.parameters["properties"]
+    assert isinstance(properties, dict)
+    assert "include_extra_issues" not in properties

@@ -20,7 +20,6 @@ from onyx.tools.models import (
 from onyx.tools.tool_implementations.drawing_review.spans import SheetSpan, page_box
 
 _MAX_COMMENTS_PER_PAGE = 40
-_MAX_EXTRA_ISSUES = 8
 _NO_DXF = "No optional DXF was attached. CAD geometry measurements were not checked. PDF comment verification does not require DXF."
 _NOT_A_MEASUREMENT = "Comment text is not a measurement."
 
@@ -141,30 +140,6 @@ Do not invent
 coordinates, span IDs, or evidence. The review does not certify the drawing or standards compliance.
 """.strip()
 
-_EXTRA_PROMPT = """
-Compare the supplied BEFORE and AFTER pages within the requested review scope.
-First establish matching sheet and feature identities. If the pages do not correspond or an area
-cannot be compared, report the specific limitation in coverage_limits. Never silently skip it.
-Look for changes without a linked review request and separate, visible problems on the revised page.
-Compare values, text, symbols, quantities, notes, tables, references, and visible geometry or layout.
-Ignore rendering noise and removal of supervisor markup unless underlying design content was lost.
-Do not infer a change when markup obscures the baseline. Do not infer changes from AFTER alone.
-For each change, quote or describe the BEFORE and AFTER evidence on the same identified feature.
-Use kind=change for a supported change without a linked request. It is not automatically a defect.
-Use kind=defect only for a supported problem. Do not claim a defect is new without baseline evidence.
-Check for conflicting or incomplete callouts, missing required qualifiers, inconsistent view or
-detail references, and discrepancies between notes, quantities, and parts-list entries.
-Report an issue only when the visible drawing or a supplied requirement supports it.
-Avoid treating a drafting preference or an unspecified tolerance as an established requirement.
-Do not repeat an existing finding. Return no issues if none are supported.
-Return JSON only with issues and coverage_limits arrays. Each issue has title, detail, span_id,
-kind (change or defect), before_evidence, and after_evidence. For changes, both evidence fields are required.
-State the target, before/after observations, and any demonstrated consequence in detail.
-Use a supplied
-span_id for the supporting revised text or null if it has no indexed location.
-Do not claim engineering measurements or standards compliance from appearance.
-""".strip()
-
 
 class ExtractedComment(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -190,17 +165,6 @@ class VerdictDraft(BaseModel):
     observed_value: str | None = None
 
 
-class ExtraIssueDraft(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    title: str
-    detail: str = ""
-    span_id: str | None = None
-    kind: Literal["defect", "change"] = "defect"
-    before_evidence: str = ""
-    after_evidence: str = ""
-
-
 def extract_prompt() -> str:
     return (
         "You extract supervisor requests from ONE marked drawing. This is not the verification stage. "
@@ -214,10 +178,6 @@ def extract_prompt() -> str:
 
 def verdict_prompt() -> str:
     return _REVIEW_RULES + "\n\n" + _VERDICT_PROMPT
-
-
-def extra_prompt() -> str:
-    return _REVIEW_RULES + "\n\n" + _EXTRA_PROMPT
 
 
 def parse_json_object(text: str) -> dict[str, object]:
@@ -254,19 +214,6 @@ def parse_extracted_comments(text: str) -> list[ExtractedComment]:
 
 def parse_verdict(text: str) -> VerdictDraft:
     return VerdictDraft.model_validate(parse_json_object(text))
-
-
-def parse_extra_issues(text: str) -> list[ExtraIssueDraft]:
-    raw_items = parse_json_object(text).get("issues")
-    if not isinstance(raw_items, list):
-        raise ValueError("Comment JSON is missing.")
-    items: list[ExtraIssueDraft] = []
-    for raw_item in raw_items:
-        item = ExtraIssueDraft.model_validate(raw_item)
-        if not item.title.strip():
-            raise ValueError("An additional finding has no title.")
-        items.append(item)
-    return items
 
 
 def comment_from_extraction(
@@ -364,28 +311,6 @@ def apply_verdict(
     )
 
 
-def extra_issue_from_draft(
-    item: ExtraIssueDraft,
-    *,
-    issue_id: str,
-    page: int,
-    spans: dict[str, SheetSpan],
-) -> DrawingExtraIssue:
-    box, page_level, span_id = _mark(item.span_id, spans, page)
-    return DrawingExtraIssue(
-        id=issue_id,
-        page=page,
-        title=item.title.strip()[:160],
-        detail=item.detail.strip()[:400],
-        kind=item.kind,
-        before_evidence=item.before_evidence.strip()[:400],
-        after_evidence=item.after_evidence.strip()[:400],
-        span_id=span_id,
-        box=box,
-        page_level=page_level,
-    )
-
-
 def label_comment_evidence(evidence: str, *, dxf_attached: bool) -> str:
     """Keep comment and sheet text out of the measured section."""
     text = evidence.strip() or "none"
@@ -402,10 +327,6 @@ def take_page_comments(
     if len(items) <= _MAX_COMMENTS_PER_PAGE:
         return items, False
     return items[:_MAX_COMMENTS_PER_PAGE], True
-
-
-def cap_extra_issues(issues: list[DrawingExtraIssue]) -> list[DrawingExtraIssue]:
-    return issues[:_MAX_EXTRA_ISSUES]
 
 
 def format_comment_report(

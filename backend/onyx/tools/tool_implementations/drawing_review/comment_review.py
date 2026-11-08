@@ -32,21 +32,16 @@ from onyx.tools.models import (
     CommentReviewResult,
     CommentVerdict,
     DrawingComment,
-    DrawingExtraIssue,
     DrawingReviewBrief,
 )
 from onyx.tools.tool_implementations.drawing_review.comment_queue import (
     ExtractedComment,
     VerdictDraft,
     apply_verdict,
-    cap_extra_issues,
     comment_from_extraction,
-    extra_issue_from_draft,
-    extra_prompt,
     extract_prompt,
     format_comment_report,
     paired_page,
-    parse_extra_issues,
     parse_extracted_comments,
     parse_json_object,
     parse_verdict,
@@ -62,9 +57,6 @@ from onyx.tools.tool_implementations.drawing_review.sheet import (
     _SheetPages,
 )
 from onyx.tools.tool_implementations.drawing_review.spans import SheetSpan
-from onyx.utils.logger import setup_logger
-
-logger = setup_logger()
 
 _REVIEW_TIMEOUT = 300
 _CALL_TIMEOUT = 25
@@ -95,7 +87,7 @@ def verify_sheet_comments(
     exact_verifier: Callable[[DrawingComment], DrawingComment | None] | None = None,
     on_comment_reviewed: Callable[[DrawingComment], None] | None = None,
 ) -> CommentReviewResult:
-    """Return one queue row per comment. Do not invent a verdict."""
+    """Return one queue row per comment. Legacy extra-scan flags do not enable another pass."""
     skipped = _skipped_note(commented, revised)
     brief = brief or DrawingReviewBrief(include_extra_issues=include_extra_issues)
     selected_pages = set(brief.original_pages)
@@ -287,16 +279,6 @@ def verify_sheet_comments(
                 )
             )
 
-    extra, extra_failed = _scan_extra_issues(
-        llm if brief.include_extra_issues else None,
-        commented,
-        revised,
-        comments,
-        revised_name,
-        task_context,
-        selected_pages,
-        deadline,
-    )
     timed_out = time.monotonic() >= deadline
     if timed_out:
         skipped = " ".join(note for note in (skipped, _BUDGET_NOTE) if note)
@@ -309,10 +291,9 @@ def verify_sheet_comments(
                 remaining=_BUDGET_NOTE,
             )
         )
-    skipped = _comparison_note(skipped, extra_failed)
     report = format_comment_report(
         comments,
-        extra,
+        [],
         commented_name=commented_name,
         revised_name=revised_name,
         dxf_summary=dxf_summary,
@@ -324,13 +305,11 @@ def verify_sheet_comments(
         status=(
             _BUDGET_NOTE
             if timed_out
-            else "Requested comments were checked. Additional-issue detection failed."
-            if extra_failed
             else f"Processed {processed} comments; {unresolved} remain unclear."
         ),
         report=report,
         comments=comments,
-        extra_issues=extra,
+        extra_issues=[],
         commented_sheet_file_id=commented_sheet_file_id,
         commented_sheet_filename=commented_name,
         revised_sheet_file_id=revised_sheet_file_id,
@@ -338,19 +317,6 @@ def verify_sheet_comments(
         commented_page_count=commented.total,
         revised_page_count=revised.total,
         reviewed_pages=reviewed_pages,
-    )
-
-
-def _comparison_note(skipped: str | None, incomplete: bool) -> str | None:
-    if not incomplete:
-        return skipped
-    return " ".join(
-        note
-        for note in (
-            skipped,
-            "Additional change and defect comparison is incomplete. Returned findings cover only inspected areas.",
-        )
-        if note
     )
 
 
@@ -385,7 +351,12 @@ def _review_invoke(
     if timeout <= 0:
         return None
     return _invoke(
-        llm, messages, filename, page_number, max_tokens=max_tokens, timeout=timeout
+        llm,
+        messages,
+        filename,
+        page_number,
+        max_tokens=max_tokens,
+        timeout=timeout,
     )
 
 
@@ -871,140 +842,6 @@ def _confirm_visual_evidence(
         and " ".join(confirmation.observed_evidence.split())
         == " ".join(draft.evidence.split())
     )
-
-
-def _scan_extra_issues(
-    llm: LLM | None,
-    original: _SheetPages,
-    revised: _SheetPages,
-    comments: list[DrawingComment],
-    filename: str,
-    task_context: str,
-    selected_pages: set[int],
-    deadline: float,
-) -> tuple[list[DrawingExtraIssue], bool]:
-    if llm is None:
-        return [], False
-    if time.monotonic() >= deadline:
-        return [], True
-    try:
-        issues, incomplete = _extra_issues(
-            llm,
-            original,
-            revised,
-            comments,
-            filename,
-            task_context,
-            selected_pages,
-            deadline,
-        )
-        return cap_extra_issues(issues), incomplete
-    except Exception:
-        logger.exception(
-            "Additional-issue detection failed; retaining requested comment verdicts"
-        )
-        return [], True
-
-
-def _extra_issues(
-    llm: LLM,
-    original: _SheetPages,
-    revised: _SheetPages,
-    comments: list[DrawingComment],
-    filename: str,
-    task_context: str,
-    selected_pages: set[int],
-    deadline: float,
-) -> tuple[list[DrawingExtraIssue], bool]:
-    issues: list[DrawingExtraIssue] = []
-    incomplete = original.total != revised.total or bool(
-        _skipped_note(original, revised)
-    )
-    for index, page in enumerate(revised.pages, start=1):
-        if selected_pages and index not in selected_pages:
-            continue
-        check_cancelled()
-        if len(issues) >= 8 or time.monotonic() >= deadline:
-            incomplete = True
-            break
-        encoded = _encode(page)
-        if encoded is None:
-            incomplete = True
-            continue
-        if index > len(original.pages):
-            incomplete = True
-            continue
-        before_encoded = _encode(original.pages[index - 1])
-        if before_encoded is None:
-            incomplete = True
-            continue
-        page_spans = [span for span in revised.spans if span.page == index]
-        span_lines = (
-            "\n".join(f"{span.span_id}: {span.text}" for span in page_spans) or "none"
-        )
-        asked = [
-            f"{item.id}: {item.request}"
-            for item in comments
-            if item.page == index or item.revised_page == index
-        ]
-        asked_text = "\n".join(f"- {text}" for text in asked) or "none"
-        messages: list[Message] = [
-            SystemMessage(content=extra_prompt()),
-            UserMessage(
-                content=[
-                    TextContentPart(
-                        text="BEFORE: marked original. Compare design content, not markup removal."
-                    ),
-                    ImageContentPart(image_url=ImageUrlDetail(url=before_encoded)),
-                    TextContentPart(
-                        text="AFTER: revised page. Confirm sheet correspondence before comparison."
-                    ),
-                    TextContentPart(
-                        text=(
-                            f"The file name is '{filename}'. "
-                            f"This is page {index} of {len(revised.pages)}.\n"
-                            f"{task_context}"
-                            f"Comments already listed:\n{asked_text}\n"
-                            f"Spans:\n{span_lines}"
-                        )
-                    ),
-                    ImageContentPart(image_url=ImageUrlDetail(url=encoded)),
-                ]
-            ),
-        ]
-        text = _review_invoke(
-            llm, messages, filename, index, deadline=deadline, max_tokens=768
-        )
-        if text is None:
-            incomplete = True
-            continue
-        try:
-            drafts = parse_extra_issues(text)
-            limits = parse_json_object(text).get("coverage_limits", [])
-            if limits:
-                incomplete = True
-        except (ValueError, ValidationError, json.JSONDecodeError):
-            incomplete = True
-            continue
-        span_map = {span.span_id: span for span in page_spans}
-        for draft in drafts:
-            if draft.kind == "change" and not (
-                draft.before_evidence.strip() and draft.after_evidence.strip()
-            ):
-                incomplete = True
-                continue
-            if len(issues) >= 8 or time.monotonic() >= deadline:
-                incomplete = True
-                break
-            issues.append(
-                extra_issue_from_draft(
-                    draft,
-                    issue_id=f"e{len(issues) + 1}",
-                    page=index,
-                    spans=span_map,
-                )
-            )
-    return issues, incomplete
 
 
 def _encode(image_data: bytes) -> str | None:

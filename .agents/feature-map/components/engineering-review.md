@@ -135,6 +135,6 @@ Short numeric AFTER evidence requires an exact identified native span. Repeated 
 Without a span ID, a short callout must be unique. Other native evidence keeps its six-character default.
 Visual-only evidence receives a separate model check of target identity, observation, and verdict; it does not create a native text anchor.
 A known unmet requirement stays open when its baseline value is unknown. Failed text matching preserves the observation and discrepancy.
-Chat compares both revisions for additional changes and defects by default. A restricted comment-only review can disable this scan.
-Additional findings distinguish neutral changes from defects; changes require before/after evidence and do not count as errors.
-Partial comparison failures preserve completed findings and report incomplete coverage. The private queue keeps this scan disabled.
+Chat comment review checks supervisor requests with the Captioning LLM only.
+It does not run an additional change or defect audit. Legacy extra-scan flags cannot enable another pass.
+Historical additional findings retain their result and viewer types, but new comment reviews return no additional findings.

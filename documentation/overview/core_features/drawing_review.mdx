@@ -106,12 +106,8 @@ Ask the agent to check each comment. The answer has one row per comment.
 - **Solved, incorrect.** The new sheet changed that area, but the change does not match the comment.
 - **Unclear.** The pages do not show enough to decide.
 
-By default, chat compares both revisions for other changes and supported problems.
-**Change without a linked request** identifies a change that no review comment explains.
-It is not automatically a defect. These rows show the before and after evidence.
-They do not count under **Needs attention**.
-Ask to check only marked comments or named features to skip this additional comparison.
-The private review queue keeps additional comparison disabled.
+Comment review checks supervisor requests against the revised drawing using the **Captioning LLM**.
+It does not run an additional audit of unmarked changes or unrelated defects.
 
 A clear request needs no complete sentence. Marks can use any color. The reviewer connects a value to its bracket,
 leader, or affected callout before comparing the revised feature.
@@ -244,7 +240,7 @@ they do not verify the associated geometry or engineering verdict. There are no 
 No drawing data is sent to an external extraction service.
 Scanned pages without native text require a manually placed location in this version.
 Old corrections keyed only by sequential issue numbers must be confirmed again.
-Additional findings use the revised PDF location. An original location requires confirmation.
+Additional findings in historical reviews use the revised PDF location. An original location requires confirmation.
 
 Use **Markup tool** to add highlights, drawing strokes, shapes, arrows, text, callouts, or notes.
 **Undo** and **Redo** apply to saved drawing edits. Changes are stored separately from the source PDF.
@@ -259,9 +255,9 @@ The drawing action uses the **Captioning LLM**, independently of the chat model.
 Choose an installed vision-capable local model, such as `qwen3-vl:8b-instruct`, for that role.
 New results show the vision model and the number of review passes for each finding.
 
-The reviewer shows each comment finding as it becomes available. Other changes and issues follow the comment checks.
-The vision review has a five-minute time limit and reports any remaining work it could not check.
-Request extraction uses the marked original only. Verification uses both revisions.
+The reviewer shows each comment finding as it becomes available. Comment verification has a five-minute time limit.
+Each stage reports work it could not finish. Request extraction uses the marked original only.
+Verification uses both revisions.
 Extraction uncertainty receives verification before the reviewer decides that a request remains unclear.
 Annotation close-ups supplement the full page when native annotation locations are available.
 Numeric requests retain their associated supervisor value.

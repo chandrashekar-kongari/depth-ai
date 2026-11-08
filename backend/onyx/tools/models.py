@@ -170,7 +170,7 @@ class CommentReviewArguments(BaseModel):
     dxf_file_id: str | None = None
     review_instructions: str = Field(default="", max_length=8000)
     original_pages: list[int] = Field(default_factory=list, max_length=100)
-    include_extra_issues: bool = True
+    include_extra_issues: bool = False
 
 
 class CommentReviewResult(BaseModel):
