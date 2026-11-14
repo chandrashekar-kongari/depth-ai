@@ -1,7 +1,7 @@
 from enum import Enum, auto
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import case, delete, false, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, load_only, selectinload
 from sqlalchemy.orm.interfaces import LoaderOption
@@ -1416,14 +1416,29 @@ def fetch_default_model(
     db_session: Session,
     flow_type: LLMModelFlowType,
 ) -> ModelConfiguration | None:
+    preferred_name = {
+        LLMModelFlowType.CHAT: "qwen/qwen3.8-max-0902",
+        LLMModelFlowType.VISION: "qwen/qwen3.8-27b",
+    }.get(flow_type)
+    preferred_model = (
+        ModelConfiguration.name == preferred_name
+        if preferred_name is not None
+        else false()
+    )
     model_config = db_session.scalar(
         select(ModelConfiguration)
         .options(selectinload(ModelConfiguration.llm_provider))
         .join(LLMModelFlow)
         .where(
             LLMModelFlow.llm_model_flow_type == flow_type,
-            LLMModelFlow.is_default == True,  # noqa: E712
+            or_(LLMModelFlow.is_default == True, preferred_model),  # noqa: E712
         )
+        .order_by(
+            case((preferred_model, 0), else_=1),
+            LLMModelFlow.is_default.desc(),
+            ModelConfiguration.id,
+        )
+        .limit(1)
     )
 
     return model_config

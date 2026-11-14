@@ -50,7 +50,6 @@ import { FederatedConnectorDetail } from "@/lib/types";
 import DocumentsSidebar from "@/sections/document-sidebar/DocumentsSidebar";
 import useChatController from "@/hooks/useChatController";
 import useMultiModelChat from "@/hooks/useMultiModelChat";
-import MultiModelSelector from "@/sections/model-selector/MultiModelSelector";
 import { useActiveAgent } from "@/lib/agents/hooks";
 import useChatSessionController from "@/hooks/useChatSessionController";
 import useDeepResearchToggle from "@/hooks/useDeepResearchToggle";
@@ -1281,21 +1280,6 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
                             )}
                           />
                           <AppInputBar
-                            modelControls={
-                              !isSearch &&
-                              activeAgent &&
-                              llmManager.hasAnyProvider ? (
-                                <MultiModelSelector
-                                  compact
-                                  selectedModels={multiModel.selectedModels}
-                                  onAdd={multiModel.addModel}
-                                  onRemove={multiModel.removeModel}
-                                  onReplace={multiModel.replaceModel}
-                                  temperatureManager={llmManager}
-                                  reasoningManager={llmManager}
-                                />
-                              ) : undefined
-                            }
                             toolConfiguration={toolConfiguration}
                             memberPlugins={memberPlugins.plugins}
                             ref={chatInputBarRef}
