@@ -4,7 +4,7 @@
   isolation: isolate;
   touch-action: none;
   overscroll-behavior: contain;
-  background: var(--background-neutral-03);
+  background: var(--background-canvas);
   outline-offset: -2px;
 }
 
@@ -18,7 +18,7 @@
   position: absolute;
   background: var(--background-neutral-light-00);
   box-shadow:
-    0 0 0 1px var(--border-01),
+    0 0 0 1px var(--border-canvas-sheet),
     0 3px 12px var(--shadow-02);
 }
 

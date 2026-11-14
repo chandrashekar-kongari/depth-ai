@@ -599,6 +599,14 @@
     "surface-border": {
       "value": "#ffffff0f",
       "type": "color"
+    },
+    "background-canvas": {
+      "value": "#292524",
+      "type": "color"
+    },
+    "border-canvas-sheet": {
+      "value": "#393634",
+      "type": "color"
     }
   }
 }
