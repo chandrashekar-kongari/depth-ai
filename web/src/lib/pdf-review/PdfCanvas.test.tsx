@@ -1,10 +1,51 @@
-import { fireEvent, waitFor } from "@testing-library/react";
+import type { HTMLAttributes } from "react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { render, screen, setupUser } from "@tests/setup/test-utils";
 import { PdfCanvas } from "@/lib/pdf-review/PdfCanvas";
 import type { PdfReviewWorkspaceProps } from "@/lib/pdf-review/types";
 import type { RenderPageOptions } from "@embedpdf/plugin-render";
 
 const mockActivate = jest.fn();
+const mockAnnotation = {
+  setActiveTool: jest.fn(),
+  deselectAnnotation: jest.fn(),
+};
+const mockAnnotationState = { selectedUid: null, byUid: {} };
+jest.mock("@embedpdf/plugin-annotation/react", () => ({
+  useAnnotation: () => ({
+    provides: mockAnnotation,
+    state: mockAnnotationState,
+  }),
+  AnnotationLayer: () => <div data-testid="native-annotations" />,
+}));
+jest.mock("@embedpdf/plugin-export/react", () => ({
+  useExportCapability: () => ({ provides: null }),
+}));
+jest.mock("@embedpdf/plugin-print/react", () => ({
+  usePrintCapability: () => ({ provides: null }),
+}));
+jest.mock("@embedpdf/plugin-selection/react", () => ({
+  SelectionLayer: () => null,
+}));
+jest.mock("@embedpdf/plugin-interaction-manager/react", () => ({
+  PagePointerProvider: ({
+    children,
+    style,
+    inert,
+  }: HTMLAttributes<HTMLDivElement>) => (
+    <div style={style} inert={inert}>
+      {children}
+    </div>
+  ),
+}));
+jest.mock("@/lib/pdf-review/useDocumentAnnotations", () => ({
+  useDocumentAnnotations: () => ({
+    annotation: mockAnnotation,
+    state: mockAnnotationState,
+    ready: true,
+    error: false,
+  }),
+}));
 const mockRenderPage = jest.fn((_options: RenderPageOptions) => ({
   wait: jest.fn(),
   abort: jest.fn(),
@@ -83,15 +124,37 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+it("keeps the floating dock outside camera gestures and opens compact controls", async () => {
+  const user = setupUser();
+  const { container } = render(<PdfCanvas {...props} />);
+  const toolbar = screen.getByRole("toolbar", { name: "Drawing workspace" });
+  const canvas = screen.getByRole("application");
+  expect(canvas).not.toContainElement(toolbar);
+  const surface =
+    container.querySelector("[data-pdf-canvas]")?.firstElementChild;
+  const before = surface?.getAttribute("style");
+  fireEvent.wheel(toolbar, { deltaY: 120, ctrlKey: true });
+  expect(surface?.getAttribute("style")).toBe(before);
+  await user.click(screen.getByRole("button", { name: "Documents and pages" }));
+  await user.click(screen.getByRole("button", { name: "Revised" }));
+  expect(mockActivate).toHaveBeenCalledWith("revised");
+  expect(screen.getByRole("spinbutton", { name: "Page" })).toBeInTheDocument();
+  await user.keyboard("{Escape}");
+  act(() => screen.getByRole("button", { name: "Select" }).focus());
+  await user.keyboard("{ArrowRight}");
+  expect(screen.getByRole("button", { name: "Pan" })).toHaveFocus();
+});
+
 it("renders at Retina density through the full canvas zoom range", async () => {
   jest.replaceProperty(window, "devicePixelRatio", 2);
-  render(<PdfCanvas {...props} editor={null} />);
+  render(<PdfCanvas {...props} />);
   await waitFor(() =>
     expect(mockRenderPage).toHaveBeenCalledWith(
       expect.objectContaining({ options: expect.objectContaining({ dpr: 2 }) })
     )
   );
   const user = setupUser();
+  await user.click(screen.getByRole("button", { name: "Zoom controls" }));
   for (let step = 0; step < 18; step++) {
     await user.click(screen.getByRole("button", { name: "Zoom in" }));
   }
@@ -108,9 +171,7 @@ it("renders at Retina density through the full canvas zoom range", async () => {
 });
 
 it("keeps both revisions on one camera and repeated card requests preserve zoom", async () => {
-  const { container, rerender } = render(
-    <PdfCanvas {...props} editor={null} />
-  );
+  const { container, rerender } = render(<PdfCanvas {...props} />);
   expect(
     container.querySelectorAll('[data-pdf-document="original"]')
   ).toHaveLength(2);
@@ -118,7 +179,9 @@ it("keeps both revisions on one camera and repeated card requests preserve zoom"
     container.querySelectorAll('[data-pdf-document="revised"]')
   ).toHaveLength(2);
   const user = setupUser();
+  await user.click(screen.getByRole("button", { name: "Zoom controls" }));
   await user.click(screen.getByRole("button", { name: "Zoom in" }));
+  await user.keyboard("{Escape}");
   const surface =
     container.querySelector("[data-pdf-canvas]")?.firstElementChild;
   const before = surface?.getAttribute("style")?.match(/scale\(([^)]+)\)/)?.[1];
@@ -128,7 +191,7 @@ it("keeps both revisions on one camera and repeated card requests preserve zoom"
     documentId: "revised",
     page: 2,
   };
-  rerender(<PdfCanvas {...props} focusRequest={request} editor={null} />);
+  rerender(<PdfCanvas {...props} focusRequest={request} />);
   await waitFor(() => expect(mockActivate).toHaveBeenCalledWith("revised"));
   expect(props.onPageChange).toHaveBeenCalledWith(2);
   expect(screen.getByTestId("pdf-attention-ring")).toBeInTheDocument();
@@ -136,17 +199,13 @@ it("keeps both revisions on one camera and repeated card requests preserve zoom"
   fireEvent.wheel(screen.getByRole("application"), { deltaX: 120, deltaY: 50 });
   const panned = surface?.getAttribute("style");
   rerender(
-    <PdfCanvas
-      {...props}
-      focusRequest={{ ...request, id: "click2" }}
-      editor={null}
-    />
+    <PdfCanvas {...props} focusRequest={{ ...request, id: "click2" }} />
   );
   await waitFor(() => expect(surface?.getAttribute("style")).not.toBe(panned));
   expect(surface?.getAttribute("style")).toContain(`scale(${before})`);
 });
 
-it("opens uncertain findings at page level and returns from annotation mode", async () => {
+it("opens uncertain findings at page level and edits without replacing the canvas", async () => {
   render(
     <PdfCanvas
       {...props}
@@ -156,14 +215,16 @@ it("opens uncertain findings at page level and returns from annotation mode", as
         documentId: "original",
         page: 1,
       }}
-      editor={<div>Editor fixture</div>}
     />
   );
   await waitFor(() => expect(mockActivate).toHaveBeenCalledWith("original"));
   expect(screen.queryByTestId("pdf-attention-ring")).not.toBeInTheDocument();
   const user = setupUser();
   await user.click(screen.getByRole("button", { name: "Annotate" }));
-  expect(screen.getByText("Editor fixture")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Back to canvas" }));
+  expect(
+    screen.queryByRole("button", { name: "Back to canvas" })
+  ).not.toBeInTheDocument();
+  expect(screen.getAllByTestId("native-annotations").length).toBeGreaterThan(0);
+  await user.keyboard("{Escape}");
   expect(screen.getByRole("application")).toBeVisible();
 });

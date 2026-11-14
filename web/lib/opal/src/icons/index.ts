@@ -236,3 +236,5 @@ export { SvgArrowWallRight } from "@opal/icons/directional";
 export { SvgChevronLeft } from "@opal/icons/directional";
 export { SvgChevronRight } from "@opal/icons/directional";
 export { default as SvgWrench } from "@opal/icons/wrench";
+export { default as SvgCursor } from "@opal/icons/cursor";
+export { default as SvgHand } from "@opal/icons/hand";

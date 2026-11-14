@@ -13293,6 +13293,8 @@
         "fitWidth": "Fit width",
         "fitPage": "Fit page",
         "fitAll": "Fit both",
+        "documentControls": "Documents and pages",
+        "zoomControls": "Zoom controls",
         "backToCanvas": "Back to canvas",
         "select": "Select",
         "highlight": "Highlight",

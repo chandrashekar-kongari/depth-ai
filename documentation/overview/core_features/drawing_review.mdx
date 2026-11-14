@@ -171,11 +171,15 @@ Search finds text in requests, evidence, and remaining work. The finding title s
 Expand a finding to read the request and other details. Revision buttons remain available when details are collapsed.
 Open **Review details** to see the vision model.
 
-The canvas toolbar provides **Select**, **Pan**, and **Annotate**. The bottom bar provides page navigation, zoom,
-**Fit both**, and **Fit page**. Hold Space and drag to pan.
-Use Ctrl or Cmd with the scroll wheel to zoom around the pointer. Select **Annotate** to open the document editor.
-The editor provides markup, search, print, export, and rotation.
-Select **Back to canvas** to return to the comparison at the previous camera position.
+The floating toolbar provides **Select**, **Pan**, and **Annotate**.
+Open **Documents and pages** to select a revision or page. Open **Zoom controls** for zoom, **Fit both**,
+and **Fit page**. The toolbar stays the same size while the PDFs zoom. Hold Space and drag to pan.
+Use Ctrl or Cmd with the scroll wheel to zoom around the pointer. Select the pencil icon to open the markup tools.
+Hover over an icon to see its name. Select a tool, then draw directly on either PDF.
+The canvas keeps its position and zoom. Use the pointer icon to select a mark, then move it or drag its resize handles.
+The markup panel also provides undo, redo, delete, print, and PDF export. Press Escape to leave markup mode.
+
+<img className="rounded-image" src="/assets/overview/core_features/pdf-annotation-tools.webp" alt="Compact PDF markup tools with a Rectangle hover label above the floating canvas toolbar"/>
 
 The check uses the Captioning LLM. When it is not set, no verdict is invented.
 Onyx checks the first 8 pages of each sheet.
@@ -271,7 +275,8 @@ Identical original and revision PDFs are rejected before inference.
 
 Attach one or two PDFs to your chat. The PDFs open on a shared canvas beside the conversation.
 Each revision has its own column. Pages appear below each other within a column.
-Select a document name above the canvas to center that document's current page.
+Open **Documents and pages** in the floating toolbar to center a revision or change pages.
+Open **Zoom controls** for **Fit both** and **Fit page**.
 Use **Fit both** to bring the first page of each revision into view. Use **Fit page** to fit the current page.
 
 <img className="rounded-image" src="/assets/overview/core_features/pdf-canvas.webp" alt="Original and revised PDF sheets on a shared canvas beside a review finding"/>

@@ -43,3 +43,25 @@
   pointer-events: none;
   user-select: none;
 }
+.shell {
+  isolation: isolate;
+}
+
+.dockOverlay {
+  position: absolute;
+  inset-inline: 12px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.dock {
+  pointer-events: auto;
+  max-width: 100%;
+  border: 1px solid var(--border-02);
+  border-radius: 16px;
+  background: var(--background-neutral-01);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--border-05) 15%, transparent);
+}

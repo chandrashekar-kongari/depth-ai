@@ -13293,6 +13293,8 @@
         "fitWidth": "幅に合わせる",
         "fitPage": "ページに合わせる",
         "fitAll": "両方を表示",
+        "documentControls": "ドキュメントとページ",
+        "zoomControls": "ズーム操作",
         "backToCanvas": "キャンバスに戻る",
         "select": "選択",
         "highlight": "ハイライト",

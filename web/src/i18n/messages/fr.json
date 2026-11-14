@@ -13293,6 +13293,8 @@
         "fitWidth": "Ajuster la largeur",
         "fitPage": "Ajuster la page",
         "fitAll": "Ajuster les deux",
+        "documentControls": "Documents et pages",
+        "zoomControls": "Commandes de zoom",
         "backToCanvas": "Retour au canevas",
         "select": "Sélectionner",
         "highlight": "Surligner",

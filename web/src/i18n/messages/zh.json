@@ -13293,6 +13293,8 @@
         "fitWidth": "适合宽度",
         "fitPage": "适合页面",
         "fitAll": "适应两个文档",
+        "documentControls": "文档和页面",
+        "zoomControls": "缩放控件",
         "backToCanvas": "返回画布",
         "select": "选择",
         "highlight": "高亮",

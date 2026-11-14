@@ -3,27 +3,29 @@
 /* oxlint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- The application surface provides keyboard camera controls. */
 
 import {
+  Fragment,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
+import { useAnnotation } from "@embedpdf/plugin-annotation/react";
+import { useExportCapability } from "@embedpdf/plugin-export/react";
+import { usePrintCapability } from "@embedpdf/plugin-print/react";
+import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
+import { PagePointerProvider } from "@embedpdf/plugin-interaction-manager/react";
+import { SelectionLayer } from "@embedpdf/plugin-selection/react";
+import { useDocumentAnnotations } from "@/lib/pdf-review/useDocumentAnnotations";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useDocumentManagerCapability } from "@embedpdf/plugin-document-manager/react";
 import { useRenderCapability } from "@embedpdf/plugin-render/react";
 import { PdfErrorCode, type Rect, type Size } from "@embedpdf/models";
 import { useTranslations } from "next-intl";
-import { Button, InputTypeIn, Text } from "@opal/components";
+import { Button, Text } from "@opal/components";
 import { Section } from "@opal/layouts";
-import {
-  SvgChevronLeft,
-  SvgChevronRight,
-  SvgEdit,
-  SvgFitWidth,
-  SvgZoomIn,
-  SvgZoomOut,
-} from "@opal/icons";
+
 import { cn } from "@opal/utils";
 import {
   canvasTarget,
@@ -48,12 +50,11 @@ import type {
   LinkedIssue,
 } from "@/lib/pdf-review/types";
 import styles from "@/lib/pdf-review/canvas.module.css";
+import { CanvasDock } from "@/lib/pdf-review/CanvasDock";
 import attention from "@/lib/pdf-review/attention.module.css";
 import { scheduleAttentionEnd } from "@/lib/pdf-review/AttentionRing";
 
-interface PdfCanvasProps extends PdfReviewWorkspaceProps {
-  editor: ReactNode;
-}
+type PdfCanvasProps = PdfReviewWorkspaceProps;
 
 export function PdfCanvas({
   documents,
@@ -64,13 +65,16 @@ export function PdfCanvas({
   pageNumber,
   onPageChange,
   fill,
-  editor,
 }: PdfCanvasProps) {
   const t = useTranslations("chat.messages.pdfWorkspace");
   const ui = useTranslations("chat.workspace");
   const root = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
+  const cameraSize = useMemo(
+    () => ({ ...size, height: Math.max(0, size.height - 88) }),
+    [size]
+  );
   const [camera, setCamera] = useState<CanvasCamera>({
     x: 32,
     y: 64,
@@ -79,6 +83,18 @@ export function PdfCanvas({
   const [geometry, setGeometry] = useState<Record<string, Size[]>>({});
   const [activeId, setActiveId] = useState(documents[0]?.id ?? "");
   const [editing, setEditing] = useState(false);
+  const [tool, setTool] = useState("select");
+  const [correctionId, setCorrectionId] = useState<string | null>(null);
+  const [annotationStatus, setAnnotationStatus] = useState<
+    Record<string, { ready: boolean; error: boolean }>
+  >({});
+  const [annotationRetry, setAnnotationRetry] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportFailed, setExportFailed] = useState(false);
+  const { provides: annotation, state: annotationState } =
+    useAnnotation(activeId);
+  const { provides: exporter } = useExportCapability();
+  const { provides: printer } = usePrintCapability();
   const [pan, setPan] = useState(false);
   const [space, setSpace] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -88,9 +104,77 @@ export function PdfCanvas({
   const cancelled = useRef<string | null>(null);
   const initialFit = useRef(false);
   const { provides: manager } = useDocumentManagerCapability();
-  const { snapshot, reload } = useDrawingWorkspace(
+  const workspace = useDrawingWorkspace(
     documents.map((document) => document.id)
   );
+  const { snapshot, submit, pending, failed, openError } = workspace;
+  const editable =
+    !!snapshot &&
+    !!annotationStatus[activeId]?.ready &&
+    !annotationStatus[activeId]?.error &&
+    !failed &&
+    !openError &&
+    !exporting;
+  const selected = annotationState.selectedUid
+    ? (annotationState.byUid[annotationState.selectedUid]?.object ?? null)
+    : null;
+  const reportAnnotationState = useCallback(
+    (id: string, ready: boolean, error: boolean) => {
+      setAnnotationStatus((previous) =>
+        previous[id]?.ready === ready && previous[id]?.error === error
+          ? previous
+          : { ...previous, [id]: { ready, error } }
+      );
+    },
+    []
+  );
+  const corrected = useCallback(() => {
+    setCorrectionId(null);
+    setTool("select");
+  }, []);
+  function chooseTool(next: string) {
+    setCorrectionId(null);
+    setPan(false);
+    setEditing(true);
+    setTool(next);
+    annotation?.setActiveTool(next === "select" ? null : next);
+  }
+  function activateDocument(documentId: string, page: number) {
+    if (documentId !== activeId) {
+      annotation?.setActiveTool(null);
+      annotation?.deselectAnnotation();
+    }
+    setActiveId(documentId);
+    manager?.setActiveDocument(documentId);
+    onPageChange(page);
+  }
+  async function download() {
+    const descriptor = documents.find((document) => document.id === activeId);
+    if (!annotation || !exporter || !descriptor || !editable || pending) return;
+    setExporting(true);
+    setExportFailed(false);
+    try {
+      await annotation.commit().toPromise();
+      const bytes = await exporter
+        .forDocument(activeId)
+        .saveAsCopy()
+        .toPromise();
+      const url = URL.createObjectURL(
+        new Blob([bytes], { type: "application/pdf" })
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = descriptor.filename.replace(/\.pdf$/i, "-reviewed.pdf");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      setExportFailed(true);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     setLocalFocus(null);
@@ -123,7 +207,7 @@ export function PdfCanvas({
     });
     if (!frames.length || size.width <= 0 || size.height <= 0) return;
     setCamera(
-      fitCamera(size, {
+      fitCamera(cameraSize, {
         origin: { x: 0, y: 0 },
         size: {
           width: documents.length * (PAGE_WIDTH + COLUMN_GAP) - COLUMN_GAP,
@@ -131,7 +215,7 @@ export function PdfCanvas({
         },
       })
     );
-  }, [documents, geometry, size]);
+  }, [documents, geometry, size, cameraSize]);
   useEffect(() => {
     if (
       initialFit.current ||
@@ -152,13 +236,13 @@ export function PdfCanvas({
       if (size.width <= 0 || size.height <= 0 || cancelled.current === next.id)
         return false;
       initialFit.current = true;
-      setCamera((previous) => centerCamera(previous, size, target));
+      setCamera((previous) => centerCamera(previous, cameraSize, target));
       setActiveId(next.documentId);
       manager?.setActiveDocument(next.documentId);
       onPageChange(next.page);
       return true;
     },
-    [size, manager, onPageChange]
+    [size, cameraSize, manager, onPageChange]
   );
 
   useEffect(() => {
@@ -202,7 +286,7 @@ export function PdfCanvas({
     cancelFocus();
     const next = Math.max(1, Math.min(page, pages.length));
     setCamera((previous) =>
-      centerCamera(previous, size, pageFrame(pages, column, next - 1))
+      centerCamera(previous, cameraSize, pageFrame(pages, column, next - 1))
     );
     setActiveId(documentId);
     manager?.setActiveDocument(documentId);
@@ -212,8 +296,8 @@ export function PdfCanvas({
     cancelFocus();
     setCamera((previous) =>
       zoomCamera(previous, previous.scale * factor, {
-        x: size.width / 2,
-        y: size.height / 2,
+        x: cameraSize.width / 2,
+        y: cameraSize.height / 2,
       })
     );
   }
@@ -227,88 +311,13 @@ export function PdfCanvas({
       gap={0}
       className="min-h-0 overflow-hidden"
     >
-      {editing ? (
-        <>
-          <Section
-            flexDirection="row"
-            height="fit"
-            padding={2}
-            justifyContent="start"
-          >
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditing(false);
-                void reload();
-              }}
-            >
-              {t("backToCanvas")}
-            </Button>
-          </Section>
-          {editor}
-        </>
-      ) : null}
       <Section
-        hidden={editing}
         height={fill ? "full" : undefined}
         alignItems="stretch"
         justifyContent="start"
         gap={0}
-        className="min-h-0 flex-1"
+        className={cn("relative min-h-0 flex-1", styles.shell)}
       >
-        <Section
-          flexDirection="row"
-          height="fit"
-          padding={2}
-          gap={1}
-          wrap
-          justifyContent="between"
-          className="shrink-0 border-b border-border-01"
-        >
-          <Section flexDirection="row" width="fit" height="fit" gap={1} wrap>
-            {documents.map((document) => (
-              <Button
-                key={document.id}
-                size="sm"
-                prominence={activeId === document.id ? "secondary" : "tertiary"}
-                aria-pressed={activeId === document.id}
-                tooltip={document.filename}
-                onClick={() => navigate(document.id, pageNumber)}
-              >
-                {document.label}
-              </Button>
-            ))}
-          </Section>
-          <Section flexDirection="row" width="fit" height="fit" gap={1} wrap>
-            <Button
-              size="sm"
-              prominence={!pan ? "secondary" : "tertiary"}
-              aria-pressed={!pan}
-              onClick={() => setPan(false)}
-            >
-              {t("select")}
-            </Button>
-            <Button
-              size="sm"
-              prominence={pan ? "secondary" : "tertiary"}
-              aria-pressed={pan}
-              onClick={() => setPan(true)}
-            >
-              {t("pan")}
-            </Button>
-            <Button
-              size="sm"
-              prominence="tertiary"
-              icon={SvgEdit}
-              onClick={() => {
-                cancelFocus();
-                setEditing(true);
-              }}
-            >
-              {ui("annotate")}
-            </Button>
-          </Section>
-        </Section>
         <div
           ref={viewport}
           data-pdf-canvas
@@ -338,6 +347,11 @@ export function PdfCanvas({
             if (event.key === "Escape") {
               setPan(false);
               setSpace(false);
+              setEditing(false);
+              setCorrectionId(null);
+              setTool("select");
+              annotation?.setActiveTool(null);
+              annotation?.deselectAnnotation();
             }
             if (event.key === "+" || event.key === "=") {
               event.preventDefault();
@@ -346,6 +360,26 @@ export function PdfCanvas({
             if (event.key === "-") {
               event.preventDefault();
               zoom(1 / 1.2);
+            }
+            if (
+              (event.ctrlKey || event.metaKey) &&
+              ["z", "y"].includes(event.key.toLowerCase())
+            ) {
+              event.preventDefault();
+              if (editable && !pending) {
+                const redo = event.shiftKey || event.key.toLowerCase() === "y";
+                if (redo ? snapshot?.can_redo : snapshot?.can_undo)
+                  submit({ action: redo ? "redo" : "undo" });
+              }
+            }
+            if (
+              (event.key === "Delete" || event.key === "Backspace") &&
+              editing &&
+              selected &&
+              editable
+            ) {
+              event.preventDefault();
+              annotation?.deleteAnnotation(selected.pageIndex, selected.id);
             }
             if (event.key === "0") {
               event.preventDefault();
@@ -375,9 +409,11 @@ export function PdfCanvas({
                 pan ||
                 space ||
                 event.button === 1 ||
-                event.pointerType === "touch" ||
+                (event.pointerType === "touch" && !editing) ||
                 (event.target instanceof HTMLElement &&
-                  !event.target.closest("[data-pdf-document]"))
+                  !event.target.closest(
+                    "[data-pdf-document],[data-pdf-annotation-page]"
+                  ))
               )
             )
               return;
@@ -434,6 +470,17 @@ export function PdfCanvas({
                 camera={camera}
                 viewport={size}
                 snapshot={snapshot}
+                workspace={workspace}
+                active={activeId === document.id}
+                editing={editing}
+                tool={tool}
+                pan={pan || space}
+                correctionId={correctionId}
+                overlayContainer={viewport.current}
+                onActivate={activateDocument}
+                onAnnotationState={reportAnnotationState}
+                onCorrected={corrected}
+                retryToken={annotationRetry}
                 issues={issues}
                 selectedIssueId={selectedIssueId}
                 request={request}
@@ -452,110 +499,117 @@ export function PdfCanvas({
             ))}
           </div>
         </div>
-        <Section
-          flexDirection="row"
-          height="fit"
-          padding={2}
-          gap={1}
-          wrap
-          justifyContent="between"
-          className="shrink-0 border-t border-border-01"
-        >
-          <Section flexDirection="row" width="fit" height="fit" gap={1}>
-            <Button
-              size="sm"
-              prominence="tertiary"
-              icon={SvgChevronLeft}
-              aria-label={t("previous")}
-              disabled={pageNumber <= 1}
-              onClick={() => navigate(activeId, pageNumber - 1)}
-            />
-            <Section width={3} height="fit">
-              <InputTypeIn
-                type="number"
-                min={1}
-                max={total}
-                aria-label={t("page")}
-                value={String(Math.min(pageNumber, total))}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  if (Number.isInteger(value) && value >= 1 && value <= total)
-                    navigate(activeId, value);
-                }}
-              />
-            </Section>
-            <Text font="secondary-body" color="text-03">
-              {t("ofPages", { total })}
-            </Text>
-            <Button
-              size="sm"
-              prominence="tertiary"
-              icon={SvgChevronRight}
-              aria-label={t("next")}
-              disabled={pageNumber >= total}
-              onClick={() => navigate(activeId, pageNumber + 1)}
-            />
-          </Section>
-          <Section flexDirection="row" width="fit" height="fit" gap={1}>
-            <Button
-              size="sm"
-              prominence="tertiary"
-              icon={SvgZoomOut}
-              aria-label={t("zoomOut")}
-              onClick={() => zoom(1 / 1.2)}
-            />
-            <Text font="secondary-body" color="text-03">
-              {t("zoom", { percent: Math.round(camera.scale * 100) })}
-            </Text>
-            <Button
-              size="sm"
-              prominence="tertiary"
-              icon={SvgZoomIn}
-              aria-label={t("zoomIn")}
-              onClick={() => zoom(1.2)}
-            />
-            {documents.length > 1 ? (
-              <Button
-                size="sm"
-                prominence="tertiary"
-                icon={SvgFitWidth}
-                onClick={() => {
-                  cancelFocus();
-                  fitAll();
-                }}
-              >
-                {t("fitAll")}
-              </Button>
-            ) : null}
-            <Button
-              size="sm"
-              prominence="tertiary"
-              onClick={() => {
-                const pages = geometry[activeId];
-                if (pages?.length) {
-                  cancelFocus();
-                  setCamera(
-                    fitCamera(
-                      size,
-                      pageFrame(
-                        pages,
-                        Math.max(
-                          0,
-                          documents.findIndex(
-                            (document) => document.id === activeId
-                          )
-                        ),
-                        Math.min(pageNumber, pages.length) - 1
-                      )
-                    )
-                  );
+        <CanvasDock
+          documents={documents}
+          activeId={activeId}
+          page={pageNumber}
+          total={total}
+          scale={camera.scale}
+          pan={pan}
+          onPanChange={(next) => {
+            setPan(next);
+            if (!next) setEditing(true);
+            setCorrectionId(null);
+            setTool("select");
+            annotation?.setActiveTool(null);
+          }}
+          editing={editing}
+          tool={tool}
+          editable={editable}
+          pending={pending}
+          canUndo={!!snapshot?.can_undo}
+          canRedo={!!snapshot?.can_redo}
+          selected={selected}
+          onToolChange={chooseTool}
+          onUndo={() => submit({ action: "undo" })}
+          onRedo={() => submit({ action: "redo" })}
+          onDelete={() => {
+            if (selected)
+              annotation?.deleteAnnotation(selected.pageIndex, selected.id);
+          }}
+          onNoteChange={(contents) => {
+            if (selected)
+              annotation?.updateAnnotation(selected.pageIndex, selected.id, {
+                contents,
+              });
+          }}
+          onExport={() => void download()}
+          onPrint={() => {
+            void printer
+              ?.forDocument(activeId)
+              .print()
+              .toPromise()
+              .catch(() => setExportFailed(true));
+          }}
+          onCorrect={
+            selectedIssueId
+              ? () => {
+                  setCorrectionId(selectedIssueId);
+                  setEditing(true);
+                  setPan(false);
+                  setTool("square");
+                  annotation?.setActiveTool("square");
                 }
-              }}
-            >
-              {t("fitPage")}
-            </Button>
-          </Section>
-        </Section>
+              : undefined
+          }
+          status={
+            exportFailed
+              ? t("exportFailed")
+              : failed || openError || annotationStatus[activeId]?.error
+                ? t("saveFailed")
+                : pending
+                  ? t("saving")
+                  : snapshot
+                    ? correctionId
+                      ? t("placeAnchor")
+                      : t("saved")
+                    : t("loading")
+          }
+          onRetry={() => {
+            setAnnotationRetry((previous) => previous + 1);
+            if (failed) void workspace.retry();
+            else if (openError) void workspace.reopen();
+            else void workspace.reload();
+          }}
+          hasError={
+            exportFailed ||
+            !!failed ||
+            !!openError ||
+            !!annotationStatus[activeId]?.error
+          }
+          onNavigate={navigate}
+          onZoom={zoom}
+          onFitAll={() => {
+            cancelFocus();
+            fitAll();
+          }}
+          onFitPage={() => {
+            const pages = geometry[activeId];
+            if (pages?.length) {
+              cancelFocus();
+              setCamera(
+                fitCamera(
+                  cameraSize,
+                  pageFrame(
+                    pages,
+                    Math.max(
+                      0,
+                      documents.findIndex(
+                        (document) => document.id === activeId
+                      )
+                    ),
+                    Math.min(pageNumber, pages.length) - 1
+                  )
+                )
+              );
+            }
+          }}
+          onAnnotate={() => {
+            cancelFocus();
+            setEditing(true);
+            setPan(false);
+          }}
+        />
       </Section>
     </Section>
   );
@@ -573,6 +627,17 @@ interface CanvasDocumentProps {
   onGeometry: (id: string, pages: Size[]) => void;
   onFocus: (request: ReviewFocusRequest, target: Rect) => boolean;
   onSelect: (id: string, page: number) => void;
+  workspace: ReturnType<typeof useDrawingWorkspace>;
+  active: boolean;
+  editing: boolean;
+  tool: string;
+  pan: boolean;
+  correctionId: string | null;
+  overlayContainer: HTMLElement | null;
+  onActivate: (id: string, page: number) => void;
+  onAnnotationState: (id: string, ready: boolean, error: boolean) => void;
+  onCorrected: () => void;
+  retryToken: number;
 }
 
 function CanvasDocument({
@@ -587,6 +652,17 @@ function CanvasDocument({
   onGeometry,
   onFocus,
   onSelect,
+  workspace,
+  active,
+  editing,
+  tool,
+  pan,
+  correctionId,
+  overlayContainer,
+  onActivate,
+  onAnnotationState,
+  onCorrected,
+  retryToken,
 }: CanvasDocumentProps) {
   const t = useTranslations("chat.messages.pdfWorkspace");
   const state = useDocumentState(document.id);
@@ -597,6 +673,24 @@ function CanvasDocument({
     issues,
     document.role
   );
+  const controller = useDocumentAnnotations({
+    documentId: document.id,
+    document: pdf ?? undefined,
+    snapshot,
+    pending: workspace.pending,
+    enabled: editing && !!snapshot && !workspace.failed && !workspace.openError,
+    active,
+    tool,
+    correction: active
+      ? (locations.issues.find((issue) => issue.id === correctionId) ?? null)
+      : null,
+    submit: workspace.submit,
+    onCorrected,
+    retryToken,
+  });
+  useEffect(() => {
+    onAnnotationState(document.id, controller.ready, controller.error);
+  }, [document.id, controller.ready, controller.error, onAnnotationState]);
   const signature = JSON.stringify(locations.issues);
   const handled = useRef<string | null>(null);
   const [ring, setRing] = useState<{
@@ -676,81 +770,135 @@ function CanvasDocument({
         const frame = pageFrame(pages, column, index);
         const visible = frameVisible(camera, viewport, frame);
         return (
-          <div
-            key={index}
-            className={styles.page}
-            data-pdf-document={document.id}
-            data-pdf-page={index + 1}
-            style={{
-              left: frame.origin.x,
-              top: frame.origin.y,
-              width: frame.size.width,
-              height: frame.size.height,
-            }}
-          >
+          <Fragment key={index}>
             <div
-              className={styles.label}
+              className={styles.page}
+              data-pdf-document={document.id}
+              data-pdf-page={index + 1}
               style={{
-                top: -32 / camera.scale,
-                transform: `scale(${1 / camera.scale})`,
-                transformOrigin: "top left",
+                left: frame.origin.x,
+                top: frame.origin.y,
+                width: frame.size.width,
+                height: frame.size.height,
               }}
             >
-              <Section flexDirection="row" width="fit" height="fit" gap={2}>
-                <Text font="secondary-body" color="text-03">
-                  {document.label}
-                </Text>
-                <Text font="secondary-body" color="text-03">
-                  {t("evidencePage", { page: index + 1 })}
-                </Text>
-              </Section>
-            </div>
-            {visible ? (
-              <>
-                <CanvasPageImage
-                  key={snapshot?.version}
-                  documentId={document.id}
-                  pageIndex={index}
-                  scale={
-                    (Math.max(0.5, Math.ceil(camera.scale * 4) / 4) *
-                      PAGE_WIDTH) /
-                    size.width
-                  }
-                />
-                <ReviewStatusMarkers
-                  documentId={document.id}
-                  pageIndex={index}
-                  issues={locations.issues}
-                  snapshot={snapshot}
-                  selectedIssueId={selectedIssueId}
-                  original={document.role === "original"}
-                  coordinateScale={(PAGE_WIDTH / size.width) * camera.scale}
-                  displayScale={camera.scale}
-                  onSelect={onSelect}
-                />
-                {ring?.page === index + 1 ? (
-                  <div
-                    key={ring.requestId}
-                    aria-hidden="true"
-                    data-testid="pdf-attention-ring"
-                    className={cn(styles.ring, attention.blink)}
-                    style={{
-                      left:
-                        ring.target.origin.x -
-                        frame.origin.x +
-                        ring.target.size.width / 2,
-                      top:
-                        ring.target.origin.y -
-                        frame.origin.y +
-                        ring.target.size.height / 2,
-                      width: 48 / camera.scale,
-                      height: 48 / camera.scale,
-                    }}
+              <div
+                className={styles.label}
+                style={{
+                  top: -32 / camera.scale,
+                  transform: `scale(${1 / camera.scale})`,
+                  transformOrigin: "top left",
+                }}
+              >
+                <Section flexDirection="row" width="fit" height="fit" gap={2}>
+                  <Text font="secondary-body" color="text-03">
+                    {document.label}
+                  </Text>
+                  <Text font="secondary-body" color="text-03">
+                    {t("evidencePage", { page: index + 1 })}
+                  </Text>
+                </Section>
+              </div>
+              {visible ? (
+                <>
+                  <CanvasPageImage
+                    key={snapshot?.version}
+                    documentId={document.id}
+                    pageIndex={index}
+                    scale={
+                      (Math.max(0.5, Math.ceil(camera.scale * 4) / 4) *
+                        PAGE_WIDTH) /
+                      size.width
+                    }
                   />
-                ) : null}
-              </>
-            ) : null}
-          </div>
+                  {!editing ? (
+                    <ReviewStatusMarkers
+                      documentId={document.id}
+                      pageIndex={index}
+                      issues={locations.issues}
+                      snapshot={snapshot}
+                      selectedIssueId={selectedIssueId}
+                      original={document.role === "original"}
+                      coordinateScale={(PAGE_WIDTH / size.width) * camera.scale}
+                      displayScale={camera.scale}
+                      onSelect={onSelect}
+                    />
+                  ) : null}
+                  {ring?.page === index + 1 ? (
+                    <div
+                      key={ring.requestId}
+                      aria-hidden="true"
+                      data-testid="pdf-attention-ring"
+                      className={cn(styles.ring, attention.blink)}
+                      style={{
+                        left:
+                          ring.target.origin.x -
+                          frame.origin.x +
+                          ring.target.size.width / 2,
+                        top:
+                          ring.target.origin.y -
+                          frame.origin.y +
+                          ring.target.size.height / 2,
+                        width: 48 / camera.scale,
+                        height: 48 / camera.scale,
+                      }}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+            {visible && overlayContainer
+              ? createPortal(
+                  <PagePointerProvider
+                    documentId={document.id}
+                    pageIndex={index}
+                    scale={(camera.scale * PAGE_WIDTH) / size.width}
+                    rotation={0}
+                    data-pdf-annotation-page={index + 1}
+                    data-annotation-document={document.id}
+                    inert={
+                      !editing ||
+                      pan ||
+                      !controller.ready ||
+                      !snapshot ||
+                      workspace.failed ||
+                      !!workspace.openError
+                    }
+                    onPointerDownCapture={() => {
+                      if (!controller.ready) return;
+                      onActivate(document.id, index + 1);
+                      controller.annotation?.setActiveTool(
+                        tool === "select" ? null : tool
+                      );
+                    }}
+                    style={{
+                      position: "absolute",
+                      left: camera.x + frame.origin.x * camera.scale,
+                      top: camera.y + frame.origin.y * camera.scale,
+                      width: frame.size.width * camera.scale,
+                      height: frame.size.height * camera.scale,
+                      pointerEvents: editing && !pan ? "auto" : "none",
+                      zIndex: 10,
+                    }}
+                  >
+                    <SelectionLayer
+                      documentId={document.id}
+                      pageIndex={index}
+                      scale={(camera.scale * PAGE_WIDTH) / size.width}
+                      rotation={0}
+                    />
+                    <AnnotationLayer
+                      documentId={document.id}
+                      pageIndex={index}
+                      scale={(camera.scale * PAGE_WIDTH) / size.width}
+                      rotation={0}
+                    />
+                  </PagePointerProvider>,
+                  overlayContainer,
+                  `${document.id}:${index}`
+                )
+              : null}
+          </Fragment>
         );
       })}
     </>
@@ -800,7 +948,7 @@ function CanvasPageImage({
     let alive = true;
     const task = provides.forDocument(documentId).renderPage({
       pageIndex,
-      options: { scaleFactor: scale, dpr, withAnnotations: true },
+      options: { scaleFactor: scale, dpr, withAnnotations: false },
     });
     setFailed(false);
     task.wait(
