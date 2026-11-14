@@ -45,6 +45,182 @@ from onyx.tools.tool_implementations.drawing_review.vision_review_tool import (
 _MODULE = vision_review_tool.__name__
 
 
+def test_request_ownership_recovers_wrong_view_indices_from_baseline_coordinates() -> (
+    None
+):
+    from onyx.tools.tool_implementations.drawing_review.vision_diagrams import (
+        OriginalRequest,
+        OriginalRequests,
+        ReviewMark,
+        _assign_requests,
+    )
+
+    views = [
+        DetectedView(
+            kind="detail",
+            label=f"DETAIL {label}",
+            core_bbox=(x, y, x + 0.2, y + 0.15),
+            complete_bbox=(x - 0.04, y - 0.06, x + 0.25, y + 0.22),
+        )
+        for label, x, y in (
+            ("A", 0.1, 0.2),
+            ("B", 0.5, 0.2),
+            ("C", 0.1, 0.55),
+            ("D", 0.5, 0.55),
+        )
+    ]
+    header = ReviewMark("header", ViewBox(left=0.02, top=0.03, right=0.32, bottom=0.10))
+    spans = [
+        SheetSpan(label, 1, "Ø12", x + 0.05, y + 0.05, 0.02, 0.01)
+        for label, x, y in (
+            ("A", 0.1, 0.2),
+            ("B", 0.5, 0.2),
+            ("C", 0.1, 0.55),
+            ("D", 0.5, 0.55),
+        )
+    ]
+    requests = OriginalRequests(
+        requests=[
+            OriginalRequest(
+                view=1,
+                view_label="DETAIL A",
+                mark_ids=["header"],
+                target=span.span_id,
+                requested_value="Ø14",
+                baseline_span_ids=[span.span_id],
+            )
+            for span in spans
+        ]
+    )
+    assigned, unassigned = _assign_requests(requests, [header], spans, views)
+    assert not unassigned
+    assert [[mark.text for mark in group] for group in assigned] == [
+        ["A"],
+        ["B"],
+        ["C"],
+        ["D"],
+    ]
+    assert all(mark.box.top > 0.1 for group in assigned for mark in group)
+
+
+def test_colored_reviewer_text_cannot_establish_a_printed_change() -> None:
+    from dataclasses import replace
+
+    from onyx.tools.tool_implementations.drawing_review.vision_diagrams import (
+        Comparison,
+        Finding,
+        _locate_findings,
+    )
+
+    with Image.new("RGB", (200, 200), "white") as image:
+        box = ViewBox(left=0, top=0, right=1, bottom=1)
+        old = DrawingView(
+            1,
+            "detail",
+            "D",
+            box,
+            box,
+            (SheetSpan("ink", 1, "Ø14", 0.1, 0.2, 0.03, 0.02, colored=True),),
+            (),
+            image,
+            np.asarray(image.convert("L")),
+        )
+        new = replace(
+            old, spans=(SheetSpan("printed", 1, "Ø12", 0.1, 0.2, 0.03, 0.02),)
+        )
+        result = _locate_findings(
+            Comparison(
+                findings=[
+                    Finding(
+                        category="change",
+                        status="changed",
+                        title="Removed Ø14",
+                        detail="Ø14 to Ø12",
+                        original_span_id="ink",
+                        revised_span_id="printed",
+                    )
+                ]
+            ),
+            old,
+            new,
+        )
+    assert result == []
+
+
+def test_request_inventory_recovers_unassigned_targets_before_comparison() -> None:
+    from time import monotonic
+
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as vision
+
+    views = [
+        DetectedView(
+            kind="detail",
+            label="DETAIL B",
+            core_bbox=(0.4, 0.3, 0.7, 0.6),
+            complete_bbox=(0.3, 0.2, 0.8, 0.7),
+        )
+    ]
+    span = SheetSpan("baseline", 1, "10", 0.65, 0.5, 0.02, 0.02)
+    initial = vision.OriginalRequests(
+        requests=[vision.OriginalRequest(target="Thickness", requested_value="12")]
+    )
+    repaired = vision.OriginalRequests(
+        requests=[
+            vision.OriginalRequest(
+                target="Thickness",
+                requested_value="12",
+                view_label="DETAIL B",
+                baseline_span_ids=["baseline"],
+            )
+        ]
+    )
+    invocation = ToolInvocation(
+        call_id="ownership",
+        arguments={},
+        cancellation=CancellationSignal(),
+        update=lambda _: None,
+    )
+    with (
+        Image.new("RGB", (200, 200), "white") as image,
+        patch.object(vision, "_ask", side_effect=[initial, repaired]) as ask,
+    ):
+        assigned, unassigned = vision._mark_inventory(
+            image, views, [], [span], Mock(), invocation, monotonic() + 30
+        )
+    assert ask.call_count == 2
+    assert not unassigned
+    assert assigned[0][0].baseline_ids == ("baseline",)
+    assert assigned[0][0].requested == "12"
+
+
+def test_unique_native_callout_can_ground_a_model_box() -> None:
+    from dataclasses import replace
+
+    from onyx.tools.tool_implementations.drawing_review.vision_diagrams import (
+        _evidence_location,
+    )
+
+    box = ViewBox(left=0.2, top=0.2, right=0.8, bottom=0.8)
+    span = SheetSpan("width", 1, "50", 0.4, 0.5, 0.03, 0.02)
+    with Image.new("RGB", (200, 200), "white") as image:
+        view = DrawingView(
+            1,
+            "detail",
+            "B",
+            box,
+            box,
+            (span,),
+            (),
+            image,
+            np.asarray(image.convert("L")),
+        )
+        result = _evidence_location(view, None, [], (0.30, 0.40, 0.40, 0.55))
+        assert result.text == "50" and result.span_ids == frozenset({"width"})
+        ambiguous = replace(view, spans=(span, replace(span, span_id="second", x=0.42)))
+        result = _evidence_location(ambiguous, None, [], (0.30, 0.40, 0.40, 0.55))
+        assert result.text is None and not result.span_ids
+
+
 @pytest.mark.parametrize(
     ("requested", "actual", "expected"),
     [
@@ -80,6 +256,33 @@ def test_numeric_redline_verdict_uses_request_and_observation(
         EvidenceLocation(page=1, box=box, text=actual or None),
     )
     assert result.status == expected
+
+
+@pytest.mark.parametrize("located", [True, False])
+def test_scanned_request_requires_a_located_visual_observation(located: bool) -> None:
+    from onyx.tools.tool_implementations.drawing_review.vision_diagrams import (
+        EvidenceLocation,
+        Finding,
+        ReviewMark,
+        _verify_requested_value,
+    )
+
+    box = ViewBox(left=0.1, top=0.1, right=0.2, bottom=0.2)
+    finding = Finding(
+        category="comment",
+        status="resolved",
+        title="Thickness",
+        detail="Read visually",
+        observed_value="13",
+    )
+    result = _verify_requested_value(
+        finding,
+        ReviewMark("mark-1", box, "Thickness", requested="12"),
+        EvidenceLocation(page=1, box=box),
+        EvidenceLocation(page=1, box=box, localized=located),
+        visual_only=True,
+    )
+    assert result.status == ("unresolved" if located else "needs_review")
 
 
 def test_tight_crop_retains_boundary_dimensions_and_rejects_shared_reference() -> None:
@@ -342,7 +545,14 @@ def test_vision_review_rechecks_marks_and_preserves_clickable_evidence() -> None
     }
     llm.invoke.side_effect = [
         AssistantMessage(content=[TextContent(text=json.dumps(reply))])
-        for reply in (detected, inventory, detected, changes, targeted)
+        for reply in (
+            detected,
+            inventory,
+            detected,
+            changes,
+            {"findings": []},
+            targeted,
+        )
     ]
     with (
         patch.object(
@@ -407,6 +617,7 @@ def test_vision_review_compares_rendered_pages(
             '{"requests":[]}',
             single_view,
             single_change,
+            '{"findings":[]}',
         )
     ]
 
@@ -428,7 +639,7 @@ def test_vision_review_compares_rendered_pages(
     assert "configured-vision-model" in result.content
     assert "Compared 1 of 1 matched views" in result.content
     assert "FRONT (page 2) → FRONT (page 1)" in result.content
-    assert llm.invoke.call_count == 5
+    assert llm.invoke.call_count == 6
     assert isinstance(result.details, CommentReviewResult)
     stored = StoredToolResult(
         tool_name=tool.name,
@@ -446,7 +657,7 @@ def test_vision_review_compares_rendered_pages(
         assert change.revised_box is not None
     else:
         assert "120 to 100" not in result.content
-        assert "Numeric claim needs verification" in result.content
+        assert "found no clear changes" in result.content
         assert restored.details.drawing_changes.changes == []
     message = llm.invoke.call_args.args[0].messages[1]
     assert isinstance(message, UserMessage)
@@ -540,8 +751,8 @@ def test_openrouter_vision_policy_disables_reasoning() -> None:
 @pytest.mark.parametrize(
     "verdict, malformed_first, expected_calls",
     [
-        ("same_view", False, 5),
-        ("same_view", True, 6),
+        ("same_view", False, 6),
+        ("same_view", True, 7),
         ("uncertain", False, 4),
         ("different_view", False, 4),
         ("invalid", True, 5),
@@ -591,6 +802,7 @@ def test_low_similarity_requires_vision_confirmation(
                     "evidence": "Checked the arrangement of the features.",
                 }
             ),
+            '{"findings":[]}',
             '{"findings":[]}',
         )
     ]

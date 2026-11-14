@@ -30,7 +30,11 @@ one schema-constrained retry. A failed verification is reported separately from
 an ambiguous match. Ambiguous matches stay out of
 detailed comparison. Onyx inventories requests using the full original page before comparing revisions. It keeps the requested value and
 baseline spans separate from the revised evidence. Numeric verdicts compare the request with the cited revised callout.
-Onyx rechecks uncertain marks and reports requests that could not be assigned to a view.
+Onyx validates request ownership using baseline callout coordinates and exact view labels. A recovery call reconciles
+unassigned requests with the whole page and local view crops. Summary coordinates cannot replace a local target anchor.
+Comparison repairs request links by baseline evidence, rejects unknown IDs, and excludes colored text from baseline evidence.
+Each view receives a second pass for omitted independent edits. Request assignment reasons and rejected boxes are logged.
+Unresolved marks and requests that remain unassigned are reported.
 Unverified marks get an original-page anchor and a review card. The comparison prompt assigns edits to the requests they address.
 Onyx suppresses independent findings that repeat a resolved correction with the same original and revised text spans.
 Native text spans and crop-relative evidence boxes map to PDF page coordinates for the review viewer.

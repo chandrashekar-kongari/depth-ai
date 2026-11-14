@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from io import BytesIO
 from time import monotonic
@@ -176,10 +176,13 @@ class Finding(BaseModel):
     original_bbox: tuple[float, float, float, float] | None = None
     revised_bbox: tuple[float, float, float, float] | None = None
     mark_id: str | None = None
+    observed_value: str | None = Field(default=None, max_length=96)
+    target_verified: bool = False
 
 
 class Comparison(BaseModel):
     findings: list[Finding] = Field(max_length=40)
+    coverage_complete: bool = True
 
     @model_validator(mode="before")
     @classmethod
@@ -207,6 +210,7 @@ class ReviewMark:
 
 class OriginalRequest(BaseModel):
     view: int | None = None
+    view_label: str = Field(default="", max_length=140)
     mark_ids: list[str] = Field(default_factory=list, max_length=16)
     target: str = Field(min_length=1, max_length=250)
     requested_value: str | None = Field(default=None, max_length=96)
@@ -218,6 +222,7 @@ class OriginalRequest(BaseModel):
 
 class OriginalRequests(BaseModel):
     requests: list[OriginalRequest] = Field(max_length=64)
+    ignored_mark_ids: list[str] = Field(default_factory=list, max_length=64)
 
 
 @dataclass(frozen=True)
@@ -816,7 +821,6 @@ def _mark_inventory(
     deadline: float,
 ) -> tuple[list[tuple[ReviewMark, ...]], list[ReviewMark]]:
     candidates = _page_marks(image, comments)
-    assigned: list[list[ReviewMark]] = [[] for _ in views]
     if not candidates and not views:
         return [], []
     parts: list[ContentPart] = [
@@ -859,14 +863,16 @@ def _mark_inventory(
             "result. Never use a circled printed number as its own replacement. Follow arrows, "
             "circles and dimension lines to associate the correct target with the named view. "
             "Merge the circle, replacement, and summary-note mentions of the same edit. "
-            "Return JSON with requests, each with view (1-based or null if uncertain), mark_ids "
+            "Return JSON with requests, each with view (1-based or null if uncertain), "
+            "view_label (exact supplied label), mark_ids "
             "(include all local marks for the request), target, requested_value (exact desired "
             "dimension including symbols, units and tolerance, or null), baseline_span_ids "
             "(printed original only), instruction_span_ids (reviewer text only), value_scope "
             "('tolerance' if only the tolerance changes, otherwise 'full'), and bbox "
             "(normalized page coordinates of the marked target, if known). "
             "Include unclear actionable marks as requests with no requested value. "
-            "Ignore decorative graphics and page borders. "
+            "List decorative graphics and page borders under ignored_mark_ids. "
+            "Every supplied mark ID must appear in a request or ignored_mark_ids. "
             "For tolerance-only edits, give the requested tolerance with its symbol, e.g. ±0.05.",
             parts,
             invocation,
@@ -876,35 +882,157 @@ def _mark_inventory(
         logger.warning("Vision Review original request inventory failed")
         return [() for _ in views], candidates
 
+    assigned, unassigned = _assign_requests(result, candidates, spans, views)
+    if not unassigned:
+        return assigned, unassigned
+    parts.append(
+        TextContentPart(
+            text="Initial inventory: "
+            + result.model_dump_json()
+            + "\nUnresolved targets: "
+            + str([mark.text for mark in unassigned])
+        )
+    )
+    for i, view in enumerate(views, 1):
+        parts.extend(
+            [
+                TextContentPart(
+                    text=f"View {i}, exact label {view.label!r}. Local context."
+                ),
+                _image_part(_normalized_box(view.complete_bbox).crop(image)),
+            ]
+        )
+    try:
+        recovered = _ask(
+            OriginalRequests,
+            llm,
+            "Reconcile the ORIGINAL request inventory with the page and each view. "
+            "Return the complete corrected inventory in requests with view, view_label, mark_ids, "
+            "target, requested_value, baseline_span_ids, instruction_span_ids, value_scope, bbox. "
+            "Use baseline callout coordinates and leader targets to identify the view. "
+            "Fix missing or wrong view assignments and merge repeated mentions. "
+            "Review annotations outside the initial view boxes. Each request needs a local target "
+            "box or its printed baseline spans. A summary note may apply to several views. "
+            "Keep summary-note coordinates separate from the local target. "
+            "Keep unresolved requests visible with view null. "
+            "Every supplied mark ID must appear in a request or ignored_mark_ids. "
+            "Only ignore decorative content or a duplicate summary of accounted requests. "
+            "Do not use revised evidence.",
+            parts,
+            invocation,
+            deadline,
+        )
+    except (LLMTimeoutError, ValueError, *_PROVIDER_FAILURES):
+        logger.warning("Vision Review request ownership recheck failed")
+        return assigned, unassigned
+    recovered_assigned, recovered_unassigned = _assign_requests(
+        recovered, candidates, spans, views
+    )
+    previous = {
+        mark.baseline_ids for group in assigned for mark in group if mark.baseline_ids
+    }
+    recovered_ids = {
+        mark.baseline_ids
+        for group in recovered_assigned
+        for mark in group
+        if mark.baseline_ids
+    }
+    if not previous <= recovered_ids:
+        logger.warning("Vision Review ownership recheck omitted established requests")
+        return assigned, unassigned
+    return recovered_assigned, recovered_unassigned
+
+
+def _request_owner(
+    request: OriginalRequest,
+    mark: ReviewMark,
+    spans: dict[str, SheetSpan],
+    views: list[DetectedView],
+) -> tuple[int | None, str]:
+    owners = {
+        _view_owner(
+            s.x + s.width / 2, s.y + s.height / 2, views, margin=max(s.width, s.height)
+        )
+        for key in mark.baseline_ids
+        for s in [spans[key]]
+    } - {None}
+    if len(owners) == 1:
+        return owners.pop(), "baseline_geometry"
+    if len(owners) > 1:
+        return None, "baseline_crosses_views"
+    labels = [
+        i
+        for i, view in enumerate(views)
+        if request.view_label
+        and re.sub(r"\W", "", view.label).casefold()
+        == re.sub(r"\W", "", request.view_label).casefold()
+    ]
+    if mark.localized:
+        owner = _view_owner(
+            (mark.box.left + mark.box.right) / 2,
+            (mark.box.top + mark.box.bottom) / 2,
+            views,
+        )
+        if owner is not None and (not labels or labels == [owner]):
+            return owner, "target_geometry"
+    if len(labels) == 1:
+        return labels[0], "explicit_view_label"
+    # A numeric model index alone cannot establish feature ownership.
+    return None, "target_unresolved"
+
+
+def _assign_requests(
+    result: OriginalRequests,
+    candidates: list[ReviewMark],
+    spans: list[SheetSpan],
+    views: list[DetectedView],
+) -> tuple[list[tuple[ReviewMark, ...]], list[ReviewMark]]:
+    assigned: list[list[ReviewMark]] = [[] for _ in views]
     marks_by_id = {mark.id: mark for mark in candidates}
     known_spans = {span.span_id: span for span in spans}
     unassigned: list[ReviewMark] = []
     cited_marks: set[str] = set()
-    cited_baselines: set[str] = set()
     for i, request in enumerate(result.requests, 1):
         mark = _request_mark(i, request, marks_by_id, known_spans)
         cited_marks.update(request.mark_ids)
-        cited_baselines.update(mark.baseline_ids)
-        if request.view is None or not 1 <= request.view <= len(views):
+        owner, reason = _request_owner(request, mark, known_spans, views)
+        if current_turn_persists_content():
+            logger.info(
+                "Vision Review request id=%s proposed_view=%r label=%r assigned_view=%r "
+                "reason=%s target=%r requested=%r baseline_ids=%s instruction_ids=%s marks=%s",
+                mark.id,
+                request.view,
+                request.view_label,
+                owner,
+                reason,
+                mark.text,
+                mark.requested,
+                mark.baseline_ids,
+                mark.instruction_ids,
+                request.mark_ids,
+            )
+        if owner is None:
             unassigned.append(mark)
         else:
-            assigned[request.view - 1].append(mark)
+            existing = next(
+                (
+                    other
+                    for other in assigned[owner]
+                    if mark.baseline_ids
+                    and set(other.baseline_ids) == set(mark.baseline_ids)
+                ),
+                None,
+            )
+            if existing is None:
+                assigned[owner].append(mark)
+            elif existing.requested != mark.requested:
+                unassigned.append(
+                    replace(mark, text=f"Conflicting request. {mark.text}")
+                )
     unassigned.extend(
         mark
         for mark in candidates
-        if mark.id not in cited_marks
-        and (
-            mark.text
-            or any(
-                span.span_id not in cited_baselines
-                and not span.colored
-                and _DIMENSION_TOKEN.search(span.text)
-                and mark.box.contains_point(
-                    span.x + span.width / 2, span.y + span.height / 2
-                )
-                for span in spans
-            )
-        )
+        if mark.id not in cited_marks and mark.id not in result.ignored_mark_ids
     )
     return [tuple(items) for items in assigned], unassigned
 
@@ -915,21 +1043,6 @@ def _request_mark(
     marks: dict[str, ReviewMark],
     known_spans: dict[str, SheetSpan],
 ) -> ReviewMark:
-    boxes = [
-        marks[key].box
-        for key in request.mark_ids
-        if key in marks
-        and marks[key].box.right - marks[key].box.left
-        < 5 * (marks[key].box.bottom - marks[key].box.top)
-    ]
-    if request.bbox is not None:
-        try:
-            boxes.append(_normalized_box(request.bbox))
-        except ValueError:
-            pass
-    localized = bool(boxes)
-    if not localized:
-        boxes = [ViewBox(left=0, top=0, right=1, bottom=1)]
     instruction_ids = tuple(
         key for key in request.instruction_span_ids if key in known_spans
     )
@@ -940,6 +1053,10 @@ def _request_mark(
         and key not in instruction_ids
         and not known_spans[key].colored
     )
+    boxes = _request_boxes(request, marks, known_spans, baseline_ids)
+    localized = bool(boxes)
+    if not localized:
+        boxes = [ViewBox(left=0, top=0, right=1, bottom=1)]
     requested = request.requested_value
     if (
         requested
@@ -963,6 +1080,54 @@ def _request_mark(
         localized=localized,
         value_scope=request.value_scope,
     )
+
+
+def _request_boxes(
+    request: OriginalRequest,
+    marks: dict[str, ReviewMark],
+    spans: dict[str, SheetSpan],
+    baseline_ids: tuple[str, ...],
+) -> list[ViewBox]:
+    baseline_boxes = [
+        ViewBox(
+            left=spans[key].x,
+            top=spans[key].y,
+            right=spans[key].x + spans[key].width,
+            bottom=spans[key].y + spans[key].height,
+        )
+        for key in baseline_ids
+    ]
+    local = [
+        marks[key].box
+        for key in request.mark_ids
+        if key in marks
+        and (
+            not baseline_boxes
+            or any(
+                marks[key].box.contains_point(
+                    (box.left + box.right) / 2, (box.top + box.bottom) / 2
+                )
+                for box in baseline_boxes
+            )
+        )
+    ]
+    if baseline_boxes:
+        # Summary notes can mention several views and must not expand a target anchor.
+        return baseline_boxes + [
+            box
+            for box in local
+            if box.right - box.left < 0.2 and box.bottom - box.top < 0.2
+        ]
+    if request.bbox is not None:
+        try:
+            return [_normalized_box(request.bbox)]
+        except ValueError:
+            return []
+    return [
+        box
+        for box in local
+        if box.right - box.left < 0.2 and box.bottom - box.top < 0.2
+    ]
 
 
 def _include_request_evidence(
@@ -1005,6 +1170,14 @@ def _include_request_evidence(
             elif mark.localized and _overlaps_foreign_core(
                 (mark.box.left, mark.box.top, mark.box.right, mark.box.bottom), i, views
             ):
+                if current_turn_persists_content():
+                    logger.info(
+                        "Vision Review request rejected id=%s view=%d reason=foreign_core box=%s baseline_ids=%s",
+                        mark.id,
+                        i + 1,
+                        mark.box.model_dump(),
+                        mark.baseline_ids,
+                    )
                 outside.append(mark)
                 continue
             kept[i].append(mark)
@@ -1310,6 +1483,7 @@ def _compare(
     invocation: ToolInvocation,
     deadline: float,
     retry_marks: tuple[ReviewMark, ...] = (),
+    prior: Comparison | None = None,
 ) -> Comparison:
     parts: list[ContentPart] = [TextContentPart(text=request)]
     for role, view in (("Original", old), ("Revised", new)):
@@ -1379,8 +1553,26 @@ def _compare(
         " Use the supplied original requests as the source of intent. Keep the requested value "
         "separate from the original printed value and the actual revised value. "
         "Cite the revised printed dimension of the same feature even when it is unchanged or wrong. "
+        "Set target_verified=true when you established that the cited original and revised "
+        "callouts refer to the same physical feature. A wrong or unchanged revised value "
+        "does not make correspondence uncertain. Set false when target identity is unclear. "
+        "For a scanned view with no native text, report the exact revised callout in observed_value "
+        "and locate it with revised_bbox. Use needs_review when the callout or target is unclear. "
         "Never cite a redline instruction as the printed drawing value."
     )
+    if prior is not None:
+        parts.append(
+            TextContentPart(
+                text="Previously reported findings: " + prior.model_dump_json()
+            )
+        )
+        prompt += (
+            " Audit coverage across both complete views. Return only additional independent edits "
+            "omitted by the previous findings. Check every dimension, tolerance, note, feature and "
+            "datum, including edits outside the marked requests. Exclude review ink removal. "
+            "Do not repeat a reported finding or a correction from the original request inventory. "
+            "Each addition must identify its own original/revised evidence."
+        )
     if retry_marks:
         prompt += (
             " Recheck only the listed original review marks. For each, identify the "
@@ -1420,7 +1612,7 @@ def _evidence_location(
                 complete = view.complete
                 width = complete.right - complete.left
                 height = complete.bottom - complete.top
-                return EvidenceLocation(
+                location = EvidenceLocation(
                     page=view.page,
                     box=ViewBox(
                         left=complete.left + crop_box.left * width,
@@ -1430,6 +1622,16 @@ def _evidence_location(
                     ),
                     localized=True,
                 )
+                candidates = [
+                    span
+                    for span in view.spans
+                    if location.box.contains_point(
+                        span.x + span.width / 2, span.y + span.height / 2
+                    )
+                ]
+                if len(candidates) == 1:
+                    return _evidence_location(view, candidates[0].span_id, [], None)
+                return location
         return EvidenceLocation(page=view.page, box=view.complete)
     return EvidenceLocation(
         page=view.page,
@@ -1448,12 +1650,13 @@ def _evidence_location(
 def _locate_findings(
     comparison: Comparison, before: DrawingView, after: DrawingView
 ) -> list[DiagramFinding]:
-    marks = {mark.id: mark for mark in before.marks}
     reviewed: set[str] = set()
     findings: list[DiagramFinding] = []
     for finding in comparison.findings:
         source = _evidence_location(
-            before,
+            replace(
+                before, spans=tuple(span for span in before.spans if not span.colored)
+            ),
             finding.original_span_id,
             finding.original_span_ids,
             finding.original_bbox,
@@ -1464,21 +1667,36 @@ def _locate_findings(
             finding.revised_span_ids,
             finding.revised_bbox,
         )
-        mark = None
-        if finding.category == "comment" or finding.status == "resolved":
-            mark = marks.get(finding.mark_id or "")
-            if mark is None and source.text is not None:
-                candidates = [
-                    candidate
-                    for candidate in before.marks
-                    if candidate.localized
-                    and candidate.box.contains_point(
-                        (source.box.left + source.box.right) / 2,
-                        (source.box.top + source.box.bottom) / 2,
-                    )
-                ]
-                if len(candidates) == 1:
-                    mark = candidates[0]
+        if (
+            finding.category == "change"
+            and not source.text
+            and target.text
+            and _view_identity(before) == _view_identity(after)
+            and re.sub(r"\W", "", target.text).casefold()
+            == re.sub(r"\W", "", before.label).casefold()
+            and any(span.text == target.text for span in before.spans)
+        ):
+            continue
+        mark = _finding_request(finding, source, before.marks)
+        cited_original = set(finding.original_span_ids)
+        if finding.original_span_id:
+            cited_original.add(finding.original_span_id)
+        colored_ids = {span.span_id for span in before.spans if span.colored}
+        if (
+            mark is None
+            and finding.category == "change"
+            and cited_original
+            and cited_original <= colored_ids
+        ):
+            logger.info(
+                "Vision Review rejected independent candidate reason=review_ink_baseline"
+            )
+            continue
+        if (
+            mark is not None
+            or finding.category == "comment"
+            or finding.status == "resolved"
+        ):
             if mark is not None and mark.id not in reviewed:
                 reviewed.add(mark.id)
                 if mark.baseline_ids:
@@ -1491,26 +1709,55 @@ def _locate_findings(
                     update={
                         "category": "comment",
                         "mark_id": mark.id,
-                        "status": "needs_review"
+                        "status": "resolved"
                         if finding.status == "changed"
                         else finding.status,
                     }
                 )
             elif mark is not None:
                 continue
-            elif finding.status in {"resolved", "changed"}:
+            elif (
+                finding.category == "change"
+                and finding.status == "resolved"
+                and not finding.mark_id
+            ):
                 finding = finding.model_copy(
                     update={"category": "change", "status": "changed"}
                 )
             else:
-                continue
+                finding = finding.model_copy(
+                    update={
+                        "category": "comment",
+                        "status": "needs_review",
+                        "detail": "The finding could not be linked to a verified original request.",
+                    }
+                )
+        elif finding.mark_id:
+            finding = finding.model_copy(
+                update={
+                    "category": "comment",
+                    "status": "needs_review",
+                    "detail": "The finding referenced an unknown original request.",
+                }
+            )
         grounded = (
-            _verify_requested_value(finding, mark, source, target)
+            _verify_requested_value(
+                finding, mark, source, target, visual_only=not after.spans
+            )
             if mark is not None
             and mark.requested
             and _DIMENSION_TOKEN.search(mark.requested)
             else _ground_numeric_finding(finding, source, target)
         )
+        if (
+            finding.category == "change"
+            and grounded.status == "needs_review"
+            and source.text is not None
+            and target.text is not None
+            and _dimension_tokens(source.text) == _dimension_tokens(target.text)
+            and _DIMENSION_TOKEN.search(source.text)
+        ):
+            continue
         if current_turn_persists_content():
             logger.info(
                 "Vision Review evidence original_view=%r revised_view=%r "
@@ -1559,7 +1806,44 @@ def _locate_findings(
     return findings
 
 
-_NUMBER = re.compile(r"(?<![\w.])[+-]?\d+(?:\.\d+)?(?!\w|\.\d)")
+def _finding_request(
+    finding: Finding, source: EvidenceLocation, requests: tuple[ReviewMark, ...]
+) -> ReviewMark | None:
+    known = next((mark for mark in requests if mark.id == finding.mark_id), None)
+    if known is not None:
+        return known
+    candidates = [
+        mark
+        for mark in requests
+        if source.span_ids and set(mark.baseline_ids) == source.span_ids
+    ]
+    if len(candidates) == 1:
+        mark = candidates[0]
+        if mark.value_scope == "tolerance" and finding.category == "change":
+            values = set(_NUMBER.findall(f"{finding.title} {finding.detail}"))
+            prior = re.search(r"±\s*([\d.]+)", source.text or "")
+            allowed = set(_NUMBER.findall(mark.requested or ""))
+            if prior:
+                allowed.add(prior.group(1))
+            if not values <= allowed:
+                return None
+        return mark
+    if finding.category == "change" and finding.status != "resolved":
+        return None
+    candidates = [
+        mark
+        for mark in requests
+        if source.localized
+        and mark.localized
+        and mark.box.contains_point(
+            (source.box.left + source.box.right) / 2,
+            (source.box.top + source.box.bottom) / 2,
+        )
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+_NUMBER = re.compile(r"(?<![\w.])[Øø⌀Rr]?([+-]?\d+(?:\.\d+)?)(?!\w|\.\d)")
 _NUMERIC_CHANGE = re.compile(
     r"([+-]?\d+(?:\.\d+)?)\s*(?:to|→)\s*([+-]?\d+(?:\.\d+)?)",
     re.IGNORECASE,
@@ -1584,12 +1868,17 @@ def _verify_requested_value(
     mark: ReviewMark,
     source: EvidenceLocation,
     target: EvidenceLocation,
+    *,
+    visual_only: bool = False,
 ) -> Finding:
     requested = mark.requested or ""
+    observed = target.text or (
+        finding.observed_value if visual_only and target.localized else None
+    )
     if (
-        finding.status == "needs_review"
-        or not target.text
-        or not _DIMENSION_TOKEN.search(target.text)
+        (finding.status == "needs_review" and not finding.target_verified)
+        or not observed
+        or not _DIMENSION_TOKEN.search(observed)
     ):
         return finding.model_copy(
             update={
@@ -1598,7 +1887,6 @@ def _verify_requested_value(
                 "detail": f"Requested {requested}. The revised value could not be verified.",
             }
         )
-    observed = target.text
     baseline = source.text
     if mark.value_scope == "tolerance":
         tolerance = re.search(r"±\s*[\d.]+", observed)
@@ -1734,6 +2022,47 @@ def _recheck_uncertain_marks(
     return _exclude_changes_covered_by_corrections(located)
 
 
+def _audit_view_coverage(
+    comparison: Comparison,
+    before: DrawingView,
+    after: DrawingView,
+    request: str,
+    llm: LLM,
+    invocation: ToolInvocation,
+    deadline: float,
+) -> Comparison:
+    try:
+        additional = _compare(
+            before, after, request, llm, invocation, deadline, prior=comparison
+        )
+    except (LLMTimeoutError, ValueError, *_PROVIDER_FAILURES):
+        logger.warning("Vision Review independent change coverage audit failed")
+        return comparison.model_copy(update={"coverage_complete": False})
+    seen = {
+        (
+            item.original_span_id,
+            tuple(item.original_span_ids),
+            item.revised_span_id,
+            tuple(item.revised_span_ids),
+            tuple(sorted(_NUMBER.findall(item.title + item.detail))),
+        )
+        for item in comparison.findings
+    }
+    findings = list(comparison.findings)
+    for item in additional.findings:
+        key = (
+            item.original_span_id,
+            tuple(item.original_span_ids),
+            item.revised_span_id,
+            tuple(item.revised_span_ids),
+            tuple(sorted(_NUMBER.findall(item.title + item.detail))),
+        )
+        if item.category == "change" and key not in seen and len(findings) < 40:
+            findings.append(item)
+            seen.add(key)
+    return Comparison(findings=findings)
+
+
 def compare_document_views(
     original: DiagramDocument,
     revised: DiagramDocument,
@@ -1832,6 +2161,13 @@ def compare_document_views(
             reports.append("Needs review. The model did not return a valid comparison.")
             continue
         compared += 1
+        comparison = _audit_view_coverage(
+            comparison, before, after, request, llm, invocation, deadline
+        )
+        if not comparison.coverage_complete:
+            reports.append(
+                "Coverage incomplete. The independent change audit did not complete."
+            )
         located = _recheck_uncertain_marks(
             comparison, before, after, request, llm, invocation, deadline
         )
