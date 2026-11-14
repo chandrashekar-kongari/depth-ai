@@ -790,8 +790,8 @@ function CanvasDocument({
                   transformOrigin: "top left",
                 }}
               >
-                <Section flexDirection="row" width="fit" height="fit" gap={2}>
-                  <Text font="secondary-body" color="text-03">
+                <Section flexDirection="row" width="fit" height="fit" gap={1}>
+                  <Text font="secondary-action" color="text-05">
                     {document.label}
                   </Text>
                   <Text font="secondary-body" color="text-03">

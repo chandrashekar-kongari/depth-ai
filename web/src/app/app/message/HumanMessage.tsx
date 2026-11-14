@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { FileDescriptor } from "@/app/app/types";
 import "katex/dist/katex.min.css";
+import "@/app/app/message/custom-code-styles.css";
 import MessageSwitcher from "@/app/app/message/MessageSwitcher";
 import { cn } from "@opal/utils";
 import useScreenSize from "@/hooks/useScreenSize";
@@ -56,7 +57,7 @@ function MessageEditing({
           ref={textareaRef}
           dir="auto"
           className={cn(
-            "w-full h-full resize-none outline-hidden bg-transparent overflow-y-scroll whitespace-normal break-word"
+            "chat-message-type font-main-content-body w-full h-full resize-none outline-hidden bg-transparent overflow-y-scroll whitespace-normal break-word"
           )}
           value={editedContent}
           style={{ scrollbarWidth: "thin" }}
@@ -245,7 +246,7 @@ const HumanMessage = React.memo(function HumanMessage({
                   }
                 }}
               >
-                <div className="inline-block align-middle">
+                <div className="chat-message-type user-query inline-block align-middle">
                   <Text
                     as="p"
                     dir="auto"

@@ -269,15 +269,17 @@ function CommentQueue({
       justifyContent="start"
       gap={3}
       width="full"
-      className="depth-review-queue"
+      className="depth-review-queue min-w-0"
     >
       <Section
         flexDirection="row"
         justifyContent="between"
         height="fit"
         gap={2}
+        wrap
+        className="depth-review-summary"
       >
-        <Text font="main-ui-action" color="text-05">
+        <Text as="h2" font="main-ui-action" color="text-05">
           {ui("reviewSummary")}
         </Text>
         <Text font="secondary-body" color="text-03">
@@ -293,6 +295,7 @@ function CommentQueue({
         wrap
         height="fit"
         gap={1}
+        className="depth-review-filters"
       >
         {(
           [
@@ -349,7 +352,9 @@ function CommentQueue({
             padding={3}
             rounding={2}
             color={
-              selectedId === comment.id ? "background-tint-01" : "transparent"
+              selectedId === comment.id
+                ? "background-tint-02"
+                : "background-tint-00"
             }
             data-issue-id={comment.id}
             aria-current={selectedId === comment.id ? "true" : undefined}
@@ -362,7 +367,7 @@ function CommentQueue({
               height="fit"
               alignItems="stretch"
               justifyContent="start"
-              gap={2}
+              gap={1.5}
             >
               <Section
                 flexDirection="row"
@@ -374,7 +379,8 @@ function CommentQueue({
                   {pdfT("findingNumber", { number })}
                 </Text>
                 <Tag
-                  size="md"
+                  size="sm"
+                  variant="status"
                   icon={
                     comment.verdict === "solved_correct"
                       ? SvgCheckCircle
@@ -404,7 +410,7 @@ function CommentQueue({
                 gap={2}
               >
                 <Text
-                  font="main-ui-action"
+                  font="main-ui-body"
                   color="text-05"
                   wordWrap="wrap-anywhere"
                 >
@@ -598,7 +604,7 @@ function ExtraIssueRow({
   const t = useTranslations("chat.messages.commentReview");
   const pdfT = useTranslations("chat.messages.pdfWorkspace");
   return (
-    <Card border="solid" padding={3} rounding={2} color="transparent">
+    <Card border="solid" padding={3} rounding={2} color="background-tint-00">
       <Section
         flexDirection="column"
         alignItems="stretch"

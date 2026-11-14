@@ -1,3 +1,4 @@
+import "@opal/components/buttons/button/styles.css";
 import { Interactive, type InteractiveStatelessProps } from "@opal/core";
 import type {
   ContainerSizeVariants,
@@ -10,6 +11,7 @@ import { ButtonLabel } from "@opal/components/buttons/button/label";
 import type { IconFunctionComponent } from "@opal/types";
 import { iconWrapper } from "@opal/components/buttons/icon-wrapper";
 import { resolveTriggerInteraction } from "@opal/components/buttons/trigger-interaction";
+import { Section } from "@opal/layouts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,7 +59,7 @@ function Button({
   icon: Icon,
   children,
   rightIcon: RightIcon,
-  size = "lg",
+  size = "md",
   type = "button",
   width,
   tooltip,
@@ -67,7 +69,7 @@ function Button({
   interaction,
   ...interactiveProps
 }: ButtonProps) {
-  const isLarge = size === "lg";
+  const isLarge = size === "lg" || size === "md";
   // Only a popup trigger takes the open look: Popover, Dropdown and Dialog
   // triggers set `aria-haspopup`, a Collapsible or disclosure toggle sets
   // `data-state` but opens no popup. An open secondary trigger keeps its rest
@@ -95,26 +97,33 @@ function Button({
       disabled={disabled}
       interaction={resolvedInteraction}
       {...interactiveProps}
+      data-opal-button={size}
     >
       <Interactive.Container
         type={type}
         border={interactiveProps.prominence === "secondary"}
         size={size}
         width={width}
-        rounding={isLarge ? 3 : size === "2xs" ? 1 : 2}
+        rounding={isLarge ? 2 : size === "2xs" ? 1 : 1.5}
       >
-        <div className="flex flex-row items-center gap-1">
-          {iconWrapper(Icon, size, !!children)}
+        <Section flexDirection="row" gap={0.5} width="fit" height="fit">
+          {iconWrapper(Icon, size, false)}
 
           {labelEl}
           {responsiveHideText ? (
-            <span className="hidden md:inline-flex">
-              {iconWrapper(RightIcon, size, !!children)}
-            </span>
+            <Section
+              flexDirection="row"
+              gap={0}
+              width="fit"
+              height="fit"
+              className="hidden md:flex"
+            >
+              {iconWrapper(RightIcon, size, false)}
+            </Section>
           ) : (
-            iconWrapper(RightIcon, size, !!children)
+            iconWrapper(RightIcon, size, false)
           )}
-        </div>
+        </Section>
       </Interactive.Container>
     </Interactive.Stateless>
   );

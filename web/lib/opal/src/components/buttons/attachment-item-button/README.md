@@ -3,7 +3,7 @@
 **Import:** `import { AttachmentItemButton, type AttachmentItemButtonProps } from "@opal/components";`
 
 A row for a file-like resource: a large tinted tile (icon or image) beside a
-title/description, an expanding center slot, and a reserved trailing action
+title/description, a capped center slot, and a reserved trailing action
 slot. The tile's rounding (`--radius-08`) complements the row's container
 rounding (`--radius-12`).
 
@@ -14,7 +14,7 @@ root                      Interactive.Stateful + Interactive.Container
 ├─ title                  tile + icon-less Content (main-ui / section, frozen)
 │   ├─ tile               icon on tint, or image cover-filling; InputCheckbox when selected
 │   └─ Content            title, description, optional inline editing
-├─ center                 centerChildren — flex-1, caller-aligned
+├─ center                 centerChildren — natural width, capped at 30% of the row
 └─ action                 rightChildren — min-width --spacing-block-36, always reserved
 ```
 

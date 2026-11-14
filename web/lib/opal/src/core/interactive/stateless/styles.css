@@ -15,9 +15,8 @@
    Interaction override: `data-interaction="hover"` and `data-interaction="active"`
    allow JS-controlled visual state overrides without actual pointer events.
 
-   Keyboard focus paints the hover state in place of the browser's ring; a
-   ring is for inputs only. Inside a pointer-mode container (see
-   `useGridNavigation`) focus does not paint.
+   Keyboard focus paints a brand ring. Inside a pointer-mode container
+   (see `useGridNavigation`) focus does not paint.
 ============================================================================ */
 
 .interactive:is(
@@ -28,13 +27,22 @@
   outline: none;
 }
 
+.interactive[data-interactive-variant]:focus-visible:not(
+  [data-disabled],
+  [data-passive],
+  [data-opal-nav-mode="pointer"] *
+) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 /* ---------------------------------------------------------------------------
    Default + Primary
    --------------------------------------------------------------------------- */
 .interactive[data-interactive-variant="default"][data-interactive-prominence="primary"] {
   @apply bg-[var(--theme-primary-05)];
-  --interactive-foreground: var(--text-inverted-05);
-  --interactive-foreground-icon: var(--text-inverted-05);
+  --interactive-foreground: var(--text-light-05);
+  --interactive-foreground-icon: var(--text-light-05);
 }
 .interactive[data-interactive-variant="default"][data-interactive-prominence="primary"]:hover:not(
   [data-disabled],
@@ -71,8 +79,8 @@
    Default + Secondary
    --------------------------------------------------------------------------- */
 .interactive[data-interactive-variant="default"][data-interactive-prominence="secondary"] {
-  @apply bg-background-tint-01;
-  --interactive-foreground: var(--text-03);
+  @apply bg-background-neutral-00;
+  --interactive-foreground: var(--text-05);
   --interactive-foreground-icon: var(--text-03);
 }
 .interactive[data-interactive-variant="default"][data-interactive-prominence="secondary"]:hover:not(

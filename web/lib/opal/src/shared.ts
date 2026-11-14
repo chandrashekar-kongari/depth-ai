@@ -30,7 +30,7 @@ import type {
  * | Key   | Height                          | Padding  |
  * |-------|---------------------------------|----------|
  * | `lg`  | `--height-line-h1-headline`     | `p-2`   |
- * | `md`  | `--height-line-h3-section`      | `p-1`   |
+ * | `md`  | `2rem`                         | `p-2`   |
  * | `sm`  | `--height-line-label`           | `p-1`   |
  * | `xs`  | `--height-line-main`            | `p-0.5` |
  * | `2xs` | `--height-line-secondary`       | `p-0.5` |
@@ -52,9 +52,9 @@ const containerSizeVariants: Record<
     padding: "p-2",
   },
   md: {
-    height: "h-(--height-line-h3-section)",
-    minWidth: "min-w-(--height-line-h3-section)",
-    padding: "p-1",
+    height: "h-8",
+    minWidth: "min-w-8",
+    padding: "p-2",
   },
   sm: {
     height: "h-(--height-line-label)",

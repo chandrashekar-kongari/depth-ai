@@ -1,14 +1,14 @@
 {
   "shadow-box-00": {
-    "value": "0px 0px 2px 1px var(--shadow-01)",
+    "value": "0 0 0 1px var(--surface-border), 0 2px 4px 0 #0000000a, 0 1px 1px 0 #00000005, 0 0 4px 0 #0000000a",
     "type": "string"
   },
   "shadow-box-01": {
-    "value": "0px 2px 12px 0px var(--shadow-02), 0px 0px 4px 1px var(--shadow-02)",
+    "value": "0 0 0 1px var(--surface-border), 0 18px 47px 0 #00000008, 0 7.5px 19px 0 #00000005, 0 4px 10.5px 0 #00000005, 0 2.3px 5.8px 0 #00000003",
     "type": "string"
   },
   "shadow-box-02": {
-    "value": "0px 2px 24px 0px var(--shadow-03), 0px 0px 12px 1px var(--shadow-03)",
+    "value": "0 0 0 1px var(--surface-border), 0 25px 50px 0 #0000000d, 0 12px 24px 0 #0000000a, 0 6px 12px 0 #00000008",
     "type": "string"
   }
 }

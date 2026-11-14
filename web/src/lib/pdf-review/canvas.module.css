@@ -4,7 +4,7 @@
   isolation: isolate;
   touch-action: none;
   overscroll-behavior: contain;
-  background: var(--background-neutral-02);
+  background: var(--background-neutral-03);
   outline-offset: -2px;
 }
 
@@ -16,14 +16,20 @@
 
 .page {
   position: absolute;
-  background: var(--background-neutral-01);
-  box-shadow: 0 0 0 1px var(--border-02);
+  background: var(--background-neutral-light-00);
+  box-shadow:
+    0 0 0 1px var(--border-01),
+    0 3px 12px var(--shadow-02);
 }
 
 .label {
   position: absolute;
   inset-inline-start: 0;
-  top: -36px;
+  top: -32px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-01);
+  border-radius: var(--radius-04);
+  background: var(--background-tint-00);
   white-space: nowrap;
 }
 
@@ -60,8 +66,17 @@
 .dock {
   pointer-events: auto;
   max-width: 100%;
-  border: 1px solid var(--border-02);
-  border-radius: 16px;
-  background: var(--background-neutral-01);
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--border-05) 15%, transparent);
+  border: 1px solid var(--border-01);
+  border-radius: var(--radius-12);
+  background: var(--background-tint-00);
+  box-shadow: var(--shadow-box-01);
+}
+
+.statusMarker :global(.interactive[data-interactive-variant]) {
+  background-color: transparent;
+  --interactive-foreground: var(--review-marker-text);
+}
+
+.statusMarker :global(.opal-button-label) {
+  padding-inline: 0.125rem;
 }

@@ -883,17 +883,7 @@ const AppInputBar = React.memo(
             ref={containerRef}
             id="depth-chat-input"
             className={cn(
-              "depth-chat-composer relative w-full flex flex-col border border-border-02 bg-background-neutral-00 rounded-12 transition-colors focus-within:border-border-03"
-              // # Note (from @raunakab):
-              //
-              // `shadow-box-01` extends ~14px below the element (2px offset + 12px blur).
-              // Because the content area in `Root` (app-layouts.tsx) uses `overflow-auto`,
-              // shadows that exceed the container bounds are clipped.
-              //
-              // The 14px breathing room is now applied externally via animated spacer
-              // divs in `AppPage.tsx` (above and below the AppInputBar) so that the
-              // spacing can transition smoothly when switching between search and chat
-              // modes. See the corresponding note there for details.
+              "depth-chat-composer relative w-full flex flex-col border border-border-01 bg-background-tint-00 rounded-16 shadow-box-00 transition-colors focus-within:border-border-05"
             )}
           >
             {/* Voice waveform overlay (positioned outside normal flow to avoid resizing input) */}
@@ -981,7 +971,7 @@ const AppInputBar = React.memo(
                       onInput={handleContentEditableInput}
                       onCompositionStart={handleCompositionStart}
                       onCompositionEnd={handleCompositionEnd}
-                      className="p-[2px] w-full h-full font-main-ui-body outline-hidden bg-transparent whitespace-pre-wrap wrap-break-word overflow-y-auto"
+                      className="p-[2px] w-full h-full font-main-ui-body font-normal outline-hidden bg-transparent whitespace-pre-wrap wrap-break-word overflow-y-auto"
                       tabIndex={disabled ? -1 : 0}
                       style={{
                         scrollbarWidth: "thin",

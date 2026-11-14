@@ -38,7 +38,7 @@ type CardBaseProps = Omit<
    * `expandedContent` slot has no intrinsic padding — callers own any padding
    * inside the content they pass in.
    *
-   * @default 4
+   * @default 6 for elevated cards, otherwise 4.
    */
   padding?: Spacing;
 
@@ -94,7 +94,7 @@ type CardBaseProps = Omit<
    * | `"md"`   | Medium elevation (`--shadow-02`) |
    * | `"lg"`   | Strong elevation (`--shadow-03`) |
    *
-   * @default "none"
+   * @default "sm" for plain filled cards without a border, otherwise "none".
    */
   shadow?: ShadowVariants;
 
@@ -231,12 +231,16 @@ type CardProps = CardPlainProps | CardExpandableProps;
  */
 function Card(props: CardProps) {
   const {
-    padding: paddingProp = 4,
+    padding: paddingProp,
     rounding: roundingProp = 3,
     color = "background-tint-00",
     border = "none",
     borderColor = "default",
-    shadow = "none",
+    shadow = !props.expandable &&
+    border === "none" &&
+    color === "background-tint-00"
+      ? "sm"
+      : "none",
     disabled = false,
     ref,
     children,
@@ -244,7 +248,11 @@ function Card(props: CardProps) {
     ...rest
   } = props;
 
-  const paddingStyle = { padding: spacingToRem(paddingProp) };
+  const paddingStyle = {
+    padding: spacingToRem(
+      paddingProp ?? (!rest.expandable && shadow !== "none" ? 6 : 4)
+    ),
+  };
   const radius = roundingToRem(roundingProp);
   if (!rest.expandable) {
     const { expandable: _expandable, height = "fit", ...domProps } = rest;

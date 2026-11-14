@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import "@/app/css/recent-files.css";
 import { useTranslations } from "next-intl";
 import {
   Text,
@@ -18,7 +19,7 @@ import UserFilesModal from "@/sections/modals/UserFilesModal";
 import { ProjectFile, UserFileStatus } from "@/lib/projects/types";
 import { isFilePending } from "@/lib/projects/utils";
 import { Hoverable } from "@opal/core";
-import { toast } from "@opal/layouts";
+import { Section, toast } from "@opal/layouts";
 import { useProjectsContext } from "@/lib/projects/providers";
 import { MAX_FILES_TO_SHOW } from "@/lib/constants";
 import { isImageFile } from "@/lib/utils";
@@ -72,6 +73,7 @@ function FileLineItem({
     <Hoverable.Root group="FileLineItem">
       <LineItemButton
         presentational
+        data-recent-file-row
         selectVariant="select-heavy"
         interaction={highlighted ? "hover" : "rest"}
         sizePreset="main-ui"
@@ -86,12 +88,17 @@ function FileLineItem({
               : SvgFileText
         }
         rightChildren={
-          <div className="h-4 flex flex-col justify-center">
+          <Section
+            width="fit"
+            height="fit"
+            gap={0}
+            className="min-w-8 max-w-16"
+          >
             <Hoverable.Item
               group="FileLineItem"
               variant="replace-on-hover"
               resting={
-                <Text as="p" font="secondary-body" color="text-03">
+                <Text as="p" font="secondary-body" color="text-03" maxLines={1}>
                   {getFileExtension(projectFile.name)}
                 </Text>
               }
@@ -105,9 +112,10 @@ function FileLineItem({
                 size="sm"
               />
             </Hoverable.Item>
-          </div>
+          </Section>
         }
         title={projectFile.name}
+        titleMaxLines={1}
         {...rowProps}
       />
     </Hoverable.Root>

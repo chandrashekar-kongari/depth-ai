@@ -65,7 +65,8 @@
 }
 
 .opal-modal-card {
-  @apply overflow-hidden bg-background-tint-00 border rounded-16 shadow-2xl flex flex-col;
+  @apply overflow-hidden bg-background-tint-00 border rounded-16 flex flex-col;
+  box-shadow: var(--shadow-box-02);
 }
 .opal-modal-card[data-background="gray"] {
   @apply bg-background-tint-01;

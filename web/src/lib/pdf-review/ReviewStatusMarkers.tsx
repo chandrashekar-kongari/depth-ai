@@ -6,6 +6,7 @@ import { useScroll } from "@embedpdf/plugin-scroll/react";
 import { Button } from "@opal/components";
 import type { Rect } from "@embedpdf/models";
 import { cn } from "@opal/utils";
+import styles from "@/lib/pdf-review/canvas.module.css";
 import { anchorRect } from "@/lib/pdf-review/geometry";
 import { resolvedAnchor } from "@/lib/pdf-review/anchors";
 import {
@@ -28,13 +29,10 @@ interface ReviewStatusMarkersProps {
 }
 const colors = {
   success:
-    "[&_.interactive]:text-status-success-05 [&_.interactive-foreground]:text-status-success-05",
-  error:
-    "bg-status-error-05 [&_.interactive]:text-text-light-05 [&_.interactive-foreground]:text-text-light-05",
-  warning:
-    "bg-status-warning-05 [&_.interactive]:text-text-dark-05 [&_.interactive-foreground]:text-text-dark-05",
-  neutral:
-    "bg-background-neutral-04 [&_.interactive]:text-text-05 [&_.interactive-foreground]:text-text-05",
+    "bg-status-success-00 [--review-marker-text:var(--status-text-success-05)]",
+  error: "bg-status-error-05 [--review-marker-text:var(--text-light-05)]",
+  warning: "bg-status-warning-05 [--review-marker-text:var(--text-dark-05)]",
+  neutral: "bg-background-tint-00 [--review-marker-text:var(--text-05)]",
 } satisfies Record<ReviewMarkerTone, string>;
 
 /** Screen-only status controls. They never enter the PDF annotation store. */
@@ -148,9 +146,10 @@ export function ReviewStatusMarkers({
             data-testid="pdf-status-marker"
             data-tone={marker.tone}
             className={cn(
-              "absolute z-30 pointer-events-auto rounded-full print:hidden [&_.interactive]:!bg-transparent",
+              "absolute z-30 pointer-events-auto rounded-full shadow-box-00 print:hidden",
+              styles.statusMarker,
               colors[marker.tone],
-              selected >= 0 && "ring-2 ring-status-info-05"
+              selected >= 0 && "ring-2 ring-action-selection-05"
             )}
             style={{
               left: marker.rect.origin.x / displayScale,

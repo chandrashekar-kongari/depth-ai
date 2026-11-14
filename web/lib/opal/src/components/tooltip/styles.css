@@ -7,7 +7,7 @@
   /* A run with no spaces (a URL, a token) breaks at the edge instead of
      running past it. Inherited, so custom tooltip content gets it too. */
   overflow-wrap: break-word;
-  @apply rounded-08 px-3 py-2 text-sm
+  @apply rounded-[0.375rem] px-2 py-1 text-xs
     bg-background-neutral-dark-03 text-text-light-05
     animate-in fade-in-0 zoom-in-95
     data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95
@@ -18,5 +18,5 @@
 }
 
 .opal-tooltip[data-tone="neutral"] {
-  @apply border border-border-01 bg-background-neutral-00 text-text-04 shadow-box-01;
+  @apply border border-border-01 bg-background-tint-00 text-text-04 shadow-box-01;
 }

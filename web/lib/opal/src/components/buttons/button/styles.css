@@ -1,0 +1,59 @@
+@reference "#reference.css";
+
+[data-opal-button] .opal-button-label > span {
+  padding-inline: 0;
+  font-family: system-ui, var(--font-cjk-sans, sans-serif), sans-serif;
+  font-weight: 500;
+}
+
+[data-opal-button] .interactive-foreground-icon {
+  padding: 0;
+}
+
+[data-opal-button] .interactive-foreground-icon svg {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+[data-opal-button="sm"] {
+  padding-inline: 0.375rem;
+}
+
+[data-opal-button][data-interactive-prominence="primary"]:not(
+  [data-disabled],
+  [data-passive]
+) {
+  border: 1px solid transparent;
+}
+
+[data-opal-button][data-interactive-prominence="primary"]:is(
+  [data-interactive-variant="default"],
+  [data-interactive-variant="action"]
+):not([data-disabled], [data-passive]) {
+  border-color: #0f4937;
+  box-shadow: inset 0 1px 0.25px #ffffff1f;
+}
+
+[data-opal-button][data-interactive-prominence="secondary"] {
+  border-color: var(--border-01);
+  box-shadow: inset 0 -1px 1px #00000008;
+}
+
+[data-opal-button]:focus-visible:not(
+  [data-disabled],
+  [data-passive],
+  [data-opal-nav-mode="pointer"] *
+) {
+  outline: 2px solid var(--theme-primary-05);
+  outline-offset: 2px;
+}
+
+[data-opal-button][data-disabled] {
+  opacity: 0.5;
+}
+
+[data-opal-button][data-interactive-prominence="primary"][data-interactive-variant="default"][data-disabled] {
+  background-color: var(--theme-primary-05);
+  --interactive-foreground: var(--text-light-05);
+  --interactive-foreground-icon: var(--text-light-05);
+}

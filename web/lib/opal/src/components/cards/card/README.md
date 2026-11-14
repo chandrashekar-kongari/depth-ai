@@ -23,7 +23,7 @@ import { Card } from "@opal/components";
 
 | Prop          | Type                            | Default                | Description                                                                                                   |
 | ------------- | ------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `padding`     | `Spacing`                       | `4`                    | Padding, as a spacing step (`N / 4` rem)                                                                      |
+| `padding`     | `Spacing`                       | `6` elevated, `4` otherwise | Padding, as a spacing step (`N / 4` rem)                                                                      |
 | `rounding`    | `Rounding`                      | `3`                    | Corner radius step (`N / 4` rem, or `"full"`)                                                                 |
 | `color`       | `CardColor`                     | `"background-tint-00"` | Surface color, named for the token it paints (`"transparent"`, `"background-tint-01"`, `"status-info-00"`, …) |
 | `border`      | `"none" \| "dashed" \| "solid"` | `"none"`               | Border style                                                                                                  |

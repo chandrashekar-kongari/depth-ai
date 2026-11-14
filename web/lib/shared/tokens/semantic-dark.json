@@ -9,23 +9,23 @@
       "type": "color"
     },
     "text-05": {
-      "value": "{alpha-grey-00-95}",
+      "value": "#fafaf9",
       "type": "color"
     },
     "text-04": {
-      "value": "{alpha-grey-00-85}",
+      "value": "#d6d3d1",
       "type": "color"
     },
     "text-03": {
-      "value": "{alpha-grey-00-60}",
+      "value": "#a8a29e",
       "type": "color"
     },
     "text-02": {
-      "value": "{alpha-grey-00-45}",
+      "value": "#a8a29e",
       "type": "color"
     },
     "text-01": {
-      "value": "{alpha-grey-00-20}",
+      "value": "#57534e",
       "type": "color"
     },
     "text-inverted-01": {
@@ -53,7 +53,7 @@
       "type": "color"
     },
     "text-light-05": {
-      "value": "{grey-00}",
+      "value": "#f5f5f4",
       "type": "color"
     },
     "text-dark-03": {
@@ -61,27 +61,27 @@
       "type": "color"
     },
     "text-dark-05": {
-      "value": "{grey-100}",
+      "value": "#1c1917",
       "type": "color"
     },
     "background-neutral-00": {
-      "value": "{grey-100}",
+      "value": "#1c1917",
       "type": "color"
     },
     "background-neutral-01": {
-      "value": "{grey-90}",
+      "value": "#1a1614",
       "type": "color"
     },
     "background-neutral-02": {
-      "value": "{grey-85}",
+      "value": "#292524",
       "type": "color"
     },
     "background-neutral-03": {
-      "value": "{grey-80}",
+      "value": "#2e2b29",
       "type": "color"
     },
     "background-neutral-04": {
-      "value": "{grey-75}",
+      "value": "#393634",
       "type": "color"
     },
     "background-neutral-inverted-04": {
@@ -105,7 +105,7 @@
       "type": "color"
     },
     "background-neutral-light-00": {
-      "value": "{grey-00}",
+      "value": "#ffffff",
       "type": "color"
     },
     "background-neutral-light-03": {
@@ -113,27 +113,27 @@
       "type": "color"
     },
     "background-neutral-dark-03": {
-      "value": "{grey-80}",
+      "value": "#292524",
       "type": "color"
     },
     "background-tint-00": {
-      "value": "{grey-100}",
+      "value": "#292524",
       "type": "color"
     },
     "background-tint-01": {
-      "value": "{tint-95}",
+      "value": "#1a1614",
       "type": "color"
     },
     "background-tint-02": {
-      "value": "{tint-90}",
+      "value": "#292524",
       "type": "color"
     },
     "background-tint-03": {
-      "value": "{tint-85}",
+      "value": "#2e2b29",
       "type": "color"
     },
     "background-tint-04": {
-      "value": "{tint-80}",
+      "value": "#393634",
       "type": "color"
     },
     "background-tint-inverted-04": {
@@ -165,23 +165,23 @@
       "type": "color"
     },
     "border-01": {
-      "value": "{grey-80}",
+      "value": "#f0ecea12",
       "type": "color"
     },
     "border-02": {
-      "value": "{grey-60}",
+      "value": "#f0ecea33",
       "type": "color"
     },
     "border-03": {
-      "value": "{grey-50}",
+      "value": "#524f4d",
       "type": "color"
     },
     "border-04": {
-      "value": "{grey-30}",
+      "value": "#a8a29e",
       "type": "color"
     },
     "border-05": {
-      "value": "{grey-00}",
+      "value": "#1d7559",
       "type": "color"
     },
     "border-inverted-05": {
@@ -205,15 +205,15 @@
       "type": "color"
     },
     "theme-primary-06": {
-      "value": "{onyx-chrome-00}",
+      "value": "#155641",
       "type": "color"
     },
     "theme-primary-05": {
-      "value": "{onyx-chrome-10}",
+      "value": "#1d7559",
       "type": "color"
     },
     "theme-primary-04": {
-      "value": "{onyx-chrome-20}",
+      "value": "#1b6c52",
       "type": "color"
     },
     "theme-gradient-05": {
@@ -449,39 +449,39 @@
       "type": "color"
     },
     "action-selection-06": {
-      "value": "{blue-40}",
+      "value": "#155641",
       "type": "color"
     },
     "action-selection-05": {
-      "value": "{blue-50}",
+      "value": "#1d7559",
       "type": "color"
     },
     "action-selection-04": {
-      "value": "{blue-60}",
+      "value": "#1b6c52",
       "type": "color"
     },
     "action-selection-03": {
-      "value": "{blue-80}",
+      "value": "#1d755980",
       "type": "color"
     },
     "action-selection-02": {
-      "value": "{blue-85}",
+      "value": "#193127",
       "type": "color"
     },
     "action-selection-01": {
-      "value": "{blue-90}",
+      "value": "#0d8f6533",
       "type": "color"
     },
     "action-selection-00": {
-      "value": "{blue-95}",
+      "value": "#0d8f6514",
       "type": "color"
     },
     "action-danger-06": {
-      "value": "{red-40}",
+      "value": "#b91c1c",
       "type": "color"
     },
     "action-danger-05": {
-      "value": "{red-50}",
+      "value": "#cf212d",
       "type": "color"
     },
     "action-danger-04": {
@@ -501,15 +501,15 @@
       "type": "color"
     },
     "action-text-link-05": {
-      "value": "{blue-45}",
+      "value": "#62bd9b",
       "type": "color"
     },
     "action-text-danger-05": {
-      "value": "{red-45}",
+      "value": "#f87171",
       "type": "color"
     },
     "background-code-01": {
-      "value": "#151617",
+      "value": "#1a1614",
       "type": "color"
     },
     "code-code": {
@@ -589,7 +589,15 @@
       "type": "color"
     },
     "scrollbar-thumb": {
-      "value": "{alpha-grey-00-20}",
+      "value": "#f0ecea33",
+      "type": "color"
+    },
+    "focus-ring": {
+      "value": "#0d8f6533",
+      "type": "color"
+    },
+    "surface-border": {
+      "value": "#ffffff0f",
       "type": "color"
     }
   }

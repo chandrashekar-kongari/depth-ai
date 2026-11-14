@@ -1,0 +1,10 @@
+[data-recent-file-row] [data-opal-content-title] {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  font-weight: 500;
+}
+
+[data-recent-file-row] .font-secondary-body {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+}

@@ -86,3 +86,15 @@
 .opal-checkbox-surface[data-state="indeterminate"][data-disabled] {
   @apply bg-background-neutral-04;
 }
+
+.opal-checkbox-surface:focus-visible:not([data-disabled]) {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.opal-checkbox-surface[data-state="indeterminate"]:not([data-disabled]) {
+  background-color: color-mix(
+    in srgb,
+    var(--action-selection-05) 50%,
+    transparent
+  );
+}
