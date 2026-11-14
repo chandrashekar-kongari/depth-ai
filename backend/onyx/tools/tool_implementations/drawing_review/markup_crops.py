@@ -22,13 +22,12 @@ class MarkupCrop:
     image: bytes
 
 
-def render_markup_crops(
-    pdf_bytes: bytes, page_number: int, overview: bytes
-) -> list[MarkupCrop]:
-    """Run in an isolated process. Page numbers are one-based."""
-    with Image.open(BytesIO(overview)) as image:
-        image.thumbnail((_MAX_SEARCH_SIDE, _MAX_SEARCH_SIDE))
-        rgb = np.asarray(image.convert("RGB"))
+def markup_regions(
+    image: Image.Image, *, limit: int = _MAX_CROPS, padding: bool = True
+) -> list[DrawingMarkBox]:
+    preview = image.copy()
+    preview.thumbnail((_MAX_SEARCH_SIDE, _MAX_SEARCH_SIDE))
+    rgb = np.asarray(preview.convert("RGB"))
     height, width = rgb.shape[:2]
 
     # Neutral drawing lines disappear from the mask. Color is only a search cue.
@@ -47,22 +46,35 @@ def render_markup_crops(
         if pixels >= 8:
             regions.append((int(pixels), int(x), int(y), int(w), int(h)))
 
-    if not regions:
-        return []
+    boxes: list[DrawingMarkBox] = []
+    for _, x, y, w, h in sorted(regions, reverse=True)[:limit]:
+        pad = max(join, round(max(w, h) * 0.35)) if padding else 0
+        left, top = max(0, x - pad) / width, max(0, y - pad) / height
+        right, bottom = (
+            min(width, x + w + pad) / width,
+            min(height, y + h + pad) / height,
+        )
+        boxes.append(
+            DrawingMarkBox(x=left, y=top, width=right - left, height=bottom - top)
+        )
+    return boxes
 
+
+def render_markup_crops(
+    pdf_bytes: bytes, page_number: int, overview: bytes
+) -> list[MarkupCrop]:
+    """Run in an isolated process. Page numbers are one-based."""
+    with Image.open(BytesIO(overview)) as image:
+        boxes = markup_regions(image)
+    if not boxes:
+        return []
     crops: list[MarkupCrop] = []
     with pdfium.PdfDocument(pdf_bytes) as document:
         with closing(document[page_number - 1]) as page:
             page_width, page_height = page.get_size()
-            for _, x, y, w, h in sorted(regions, reverse=True)[:_MAX_CROPS]:
-                pad = max(join, round(max(w, h) * 0.35))
-                left = max(0, x - pad) / width
-                top = max(0, y - pad) / height
-                right = min(width, x + w + pad) / width
-                bottom = min(height, y + h + pad) / height
-                box = DrawingMarkBox(
-                    x=left, y=top, width=right - left, height=bottom - top
-                )
+            for box in boxes:
+                left, top = box.x, box.y
+                right, bottom = left + box.width, top + box.height
                 scale = min(
                     4.0,
                     _MAX_CROP_SIDE

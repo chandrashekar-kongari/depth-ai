@@ -5,13 +5,9 @@ from typing_extensions import override
 
 from onyx.agents.tools import ToolInvocation
 from onyx.context.search.models import PersonaSearchInfo
-from onyx.db.engine.sql_engine import get_session_with_current_tenant
 from onyx.db.models import User
-from onyx.db.user_file import get_file_id_by_user_file_id, get_user_file_metadata
 from onyx.document_index.interfaces import DocumentIndex
 from onyx.file_processing.dxf import format_measured_section, parse_dxf
-from onyx.file_store.file_store import get_default_file_store
-from onyx.file_store.utils import load_chat_file_by_id
 from onyx.llm.models import ToolDefinition, ToolResult
 from onyx.tools.interface import Tool, parse_tool_arguments
 from onyx.tools.models import (
@@ -21,6 +17,7 @@ from onyx.tools.models import (
     ToolCallException,
     ToolContext,
 )
+from onyx.tools.tool_implementations.drawing_review.files import ReviewFileLoader
 from onyx.tools.tool_implementations.drawing_review.sheet import (
     SheetReview,
     review_sheet,
@@ -58,9 +55,7 @@ class DrawingReviewTool(Tool):
         document_index: DocumentIndex | None = None,
     ) -> None:
         self._id = tool_id
-        self._user_file_ids = set(user_file_ids)
-        self._chat_file_ids = set(chat_file_ids)
-        self._chat_file_id_strings = {str(file_id) for file_id in chat_file_ids}
+        self._files = ReviewFileLoader(user_file_ids, chat_file_ids)
         self._user = user
         self._persona_search_info = persona_search_info
         self._document_index = document_index
@@ -188,33 +183,7 @@ class DrawingReviewTool(Tool):
         )
 
     def _load_original(self, raw_file_id: str) -> tuple[bytes, str]:
-        try:
-            file_id = UUID(raw_file_id)
-        except ValueError:
-            raise ToolCallException(
-                message=f"Invalid file_id: {raw_file_id}",
-                llm_facing_message=f"'{raw_file_id}' is not a valid file UUID.",
-            )
-
-        if file_id in self._user_file_ids:
-            return _read_user_file(file_id)
-        if file_id in self._chat_file_ids:
-            chat_file = load_chat_file_by_id(str(file_id))
-            return chat_file.content, chat_file.filename or str(file_id)
-
-        # Chat uploads list the UserFile id. The allowed set stores the blob id.
-        with get_session_with_current_tenant() as db_session:
-            blob_id = get_file_id_by_user_file_id(str(file_id), db_session)
-        if blob_id is not None and blob_id in self._chat_file_id_strings:
-            return _read_user_file(file_id)
-
-        raise ToolCallException(
-            message=f"File {file_id} not in available files",
-            llm_facing_message=(
-                f"File '{file_id}' is not available. "
-                "Use a file_id from the drawing file list or an attached image tag."
-            ),
-        )
+        return self._files.load(raw_file_id)
 
 
 def _present(value: str | None) -> str | None:
@@ -230,10 +199,3 @@ def _status(dxf_file_id: str | None, sheet_file_id: str | None) -> str:
     if dxf_file_id is not None:
         return "Reviewed the DXF. No sheet was attached."
     return "Reviewed the sheet. No DXF was attached."
-
-
-def _read_user_file(user_file_id: UUID) -> tuple[bytes, str]:
-    with get_session_with_current_tenant() as db_session:
-        metadata = get_user_file_metadata(user_file_id, db_session)
-    content = get_default_file_store().read_file(metadata.file_id, mode="b").read()
-    return content, metadata.name

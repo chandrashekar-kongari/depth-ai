@@ -60,6 +60,7 @@ def restore_chat_agent(
             llm=llm,
             token_counter=token_counter,
             forced_tool_id=state.forced_tool_id,
+            vision_review_file_ids=state.vision_review_file_ids,
             user_identity=user_identity,
             reasoning_effort=state.reasoning_effort,
             include_citations=state.include_citations,

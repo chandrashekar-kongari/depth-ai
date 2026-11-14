@@ -65,6 +65,7 @@ from onyx.prompts.tool_prompts import (
     PYTHON_TOOL_GUIDANCE,
     TOOL_DESCRIPTION_SEARCH_GUIDANCE,
     TOOL_SECTION_HEADER,
+    VISION_REVIEW_GUIDANCE,
     WEB_SEARCH_GUIDANCE,
     WEB_SEARCH_SITE_DISABLED_GUIDANCE,
 )
@@ -85,6 +86,7 @@ from onyx.tools.constants import (
     COMMENT_REVIEW_TOOL_NAME,
     DRAWING_REVIEW_TOOL_NAME,
     FILE_READER_TOOL_NAME,
+    VISION_REVIEW_TOOL_NAME,
 )
 from onyx.tools.interface import Tool
 from onyx.tools.models import LlmPythonExecutionResult
@@ -502,6 +504,7 @@ def build_system_prompt(
             MEMORY_GUIDANCE,
             DRAWING_REVIEW_GUIDANCE,
             COMMENT_REVIEW_GUIDANCE,
+            VISION_REVIEW_GUIDANCE,
         ]
         system_prompt += TOOL_SECTION_HEADER + "\n".join(tool_sections)
         return system_prompt
@@ -556,6 +559,12 @@ def build_system_prompt(
 
         if has_comment_review or include_all_guidance:
             tool_guidance_sections.append(COMMENT_REVIEW_GUIDANCE)
+
+        if (
+            any(tool.name == VISION_REVIEW_TOOL_NAME for tool in tools)
+            or include_all_guidance
+        ):
+            tool_guidance_sections.append(VISION_REVIEW_GUIDANCE)
 
         if tool_guidance_sections:
             system_prompt += TOOL_SECTION_HEADER + "\n".join(tool_guidance_sections)
@@ -662,7 +671,11 @@ def prepare_prompt(
 
     # Tool-dependent file notices change between rounds, so keep them after
     # the stable history and before the reminder, outside the cacheable prefix.
-    sheet_tools = {DRAWING_REVIEW_TOOL_NAME, COMMENT_REVIEW_TOOL_NAME}
+    sheet_tools = {
+        DRAWING_REVIEW_TOOL_NAME,
+        COMMENT_REVIEW_TOOL_NAME,
+        VISION_REVIEW_TOOL_NAME,
+    }
     drawing_review_offered = available_tool_names is not None and bool(
         sheet_tools & available_tool_names
     )
@@ -737,6 +750,10 @@ def _create_file_tool_metadata_message(
     safe direction to fail in.
     """
     offered: set[str] = available_tool_names or set()
+    if offered == {VISION_REVIEW_TOOL_NAME}:
+        return _drawing_review_file_notice(
+            {meta.file_id: meta for meta in file_metadata}, token_counter, offered
+        )
     if COMMENT_REVIEW_TOOL_NAME in offered:
         lines: list[str] = [
             "These files are attached. When the user asks to verify, check, or review "
@@ -831,6 +848,11 @@ def _drawing_review_file_notice(
                 "Use revised_sheet_file_id for the new PDF or image.",
                 "Use dxf_file_id for a .dxf file of the new drawing.",
             ]
+        )
+    if VISION_REVIEW_TOOL_NAME in tool_names:
+        lines.append(
+            "For an explicit vision review, pass file_id and, for a comparison, "
+            "comparison_file_id to review_with_vision."
         )
     if not lines:
         lines.append(

@@ -189,7 +189,9 @@ def test_same_drawing_has_no_changes(value: str) -> None:
 
 
 def test_registration_failure_keeps_visual_evidence_and_reports_coverage() -> None:
-    with patch("onyx.engineering.drawing_changes._estimate", return_value=None):
+    with patch(
+        "onyx.engineering.drawing_changes.estimate_drawing_transform", return_value=None
+    ):
         result = compare_drawing_pdfs(drawing(["28"]), drawing(["29"]))
     assert result.status == "partial"
     assert result.warnings

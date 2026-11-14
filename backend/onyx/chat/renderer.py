@@ -36,6 +36,7 @@ from onyx.llm.models import (
 )
 from onyx.server.query_and_chat import streaming_models as packets
 from onyx.server.query_and_chat.placement import Placement
+from onyx.tools.constants import VISION_REVIEW_TOOL_NAME
 from onyx.tools.models import (
     CommentReviewResult,
     CustomToolCallSummary,
@@ -505,7 +506,9 @@ class ToolRenderer:
                 objects = [packets.FileReaderStart()]
             elif name == DrawingReviewTool.NAME:
                 objects = [packets.DrawingReviewStart()]
-            elif name == CommentReviewTool.NAME:
+            elif name == CommentReviewTool.NAME or (
+                name == VISION_REVIEW_TOOL_NAME and args.get("comparison_file_id")
+            ):
                 objects = [packets.CommentReviewStart()]
             elif name == MemoryTool.NAME:
                 objects = [packets.MemoryToolStart()]

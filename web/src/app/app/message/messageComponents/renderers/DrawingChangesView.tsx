@@ -41,6 +41,7 @@ export function drawingChangeIssues(review: CommentReviewDelta): LinkedIssue[] {
         };
       return {
         id: change.id,
+        showMarkerBeforeSelection: change.id.startsWith("vision-change-"),
         title:
           change.vision_explanation ||
           [change.before_text, change.after_text].filter(Boolean).join(" → "),
@@ -76,7 +77,10 @@ export function DrawingChangesView({
   const shown = standalone.filter(
     (change) => !unlinkedOnly || change.possible_comment_ids.length === 0
   );
-  const visualCount = shown.filter((change) => change.kind === "visual").length;
+  const visualCount = shown.filter(
+    (change) =>
+      change.kind === "visual" && !change.id.startsWith("vision-change-")
+  ).length;
   return (
     <Section alignItems="stretch" justifyContent="start" gap={2} height="fit">
       {audit.compared_pages.length > 0 ? (
@@ -173,7 +177,12 @@ export function DrawingChangesView({
         </Button>
       ) : null}
       {shown
-        .filter((change) => change.kind !== "visual" || showVisual)
+        .filter(
+          (change) =>
+            change.kind !== "visual" ||
+            showVisual ||
+            change.id.startsWith("vision-change-")
+        )
         .map((change) => (
           <Card
             key={change.id}

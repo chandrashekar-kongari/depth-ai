@@ -15,6 +15,28 @@ Users see their own queued reviews, PDF evidence, model proposals, and append-on
 JSON export records input hashes, pipeline version, results and decision history.
 The pilot does not approve drawing release.
 
+Chat also offers `review_with_vision` for explicit vision review requests. For a
+PDF pair, the tool indexes views on the first eight pages of each revision.
+It uses the Captioning LLM to detect core and complete view boundaries and
+compare matched crops. Before matching, Onyx separates neighboring crops at visible gaps, assigns native dimensions
+using extension-line references when available, and ranks colored review marks within each view.
+The model rechecks crops that still cross a neighboring core. Unresolved overlap blocks detailed comparison.
+View matching uses normalized PDF outlines where available
+and rendered geometry otherwise. Unique view labels can break ties between
+geometrically eligible pairs. Drawing numbers and detected view types do not
+gate matching. The Captioning LLM verifies unique candidates with partial
+geometric correspondence before detailed comparison. Invalid model responses receive
+one schema-constrained retry. A failed verification is reported separately from
+an ambiguous match. Ambiguous matches stay out of
+detailed comparison. Onyx inventories requests using the full original page before comparing revisions. It keeps the requested value and
+baseline spans separate from the revised evidence. Numeric verdicts compare the request with the cited revised callout.
+Onyx rechecks uncertain marks and reports requests that could not be assigned to a view.
+Unverified marks get an original-page anchor and a review card. The comparison prompt assigns edits to the requests they address.
+Onyx suppresses independent findings that repeat a resolved correction with the same original and revised text spans.
+Native text spans and crop-relative evidence boxes map to PDF page coordinates for the review viewer.
+Explicit requests with one or two attachments run directly and return coverage
+and findings.
+
 Chat PDF attachments open a single-document EmbedPDF Headless viewer inside chat.
 Original/revised tabs share numbered findings with the chat cards. Each card opens either revision.
 EmbedPDF native annotations render and select confirmed locations. Navigation preserves zoom and waits for layout.
@@ -122,7 +144,8 @@ The ring has no annotation ID, persistence command or export representation. Rep
 Chat uses `web/src/lib/chat-workspace/ChatWorkspace.tsx` with react-resizable-panels for the document/conversation split.
 Container width selects a two-pane layout or Conversation/Document controls. Both panels stay mounted during resizing.
 Layout widths are a local preference, not engineering document state. A finding focus request opens the document pane on compact layouts.
-Review rows have status/search filters and expandable evidence; revision actions remain visible when collapsed.
+Review rows have status and search filters. Evidence appears in the title when available.
+The request appears in the expanded details. Revision actions stay visible when collapsed.
 PDF tools use an explicit annotation mode and action/zoom popovers. EmbedPDF remains responsible for rendering and geometry.
 Chat-specific surfaces and borders are scoped; admin and plugin management do not use the chat styling.
 
@@ -147,5 +170,5 @@ The main list counts confirmed printed-text findings. Confirmed geometry differe
 Unmatched text is not evidence of addition/deletion. Final-answer guidance must not invent restoration work or reopen solved comments.
 Spatial text correspondence is not verified CAD feature identity. Unmatched callouts remain separate, and visual candidates do not assert metric values.
 Spatial associations remain possible links. A verified link requires the same feature and supported requested action. Shorthand receives an independent Before-mark and After-feature check. Verified change evidence appears once on its comment card. Unrelated confirmed changes remain separate.
-The viewer uses located_difference anchors for source comparison regions. These do not confirm engineering targets.
+The viewer uses located_difference anchors for source comparison regions. These do not confirm engineering targets. Grounded Vision Review changes show numbered tags before selection. Selecting a tag uses the existing evidence focus path.
 Comment verification and change validation expose separate completion states and completed pages. Skipped pages name coverage failures. Per-page PDF isolation preserves earlier comparisons after later timeouts. Completed validation survives later failures or cancellation. Each chat tool instance claims a PDF pair once by content hash; no result cache is stored. Legacy extra-scan flags do not enable the retired model audit.

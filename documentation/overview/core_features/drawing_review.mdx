@@ -167,8 +167,9 @@ Selecting **Show in original** or **Show in revised** opens that revision and pa
 A located finding shows a two-second attention ring. Navigation preserves the current zoom.
 
 The review summary filters **All**, **Needs attention**, **Unclear**, and **Addressed** findings.
-Search finds text in requests, evidence, and remaining work. Expand a finding for details.
-Revision buttons remain available when details are collapsed. Open **Review details** to see the vision model.
+Search finds text in requests, evidence, and remaining work. The finding title shows the evidence when available.
+Expand a finding to read the request and other details. Revision buttons remain available when details are collapsed.
+Open **Review details** to see the vision model.
 
 The PDF toolbar provides page navigation, zoom, **Annotate**, search, and more actions.
 Annotation controls appear when you select **Annotate**. Print, export, rotate, and pan are in the more-actions menu.
@@ -320,3 +321,30 @@ The original-sheet action resolves native annotation comments independently of r
 The local locator also searches unique verbatim note excerpts, including finish instructions and BOM text.
 A located excerpt is evidence text, not a measured feature. Ambiguous matches still require confirmation.
 Native text-line indexing uses pdfplumber and reports explicit extraction limits.
+
+## Review with vision
+
+Attach two PDF or image files in Chat.
+Ask “Review these with vision and list the differences.” Attach the original first,
+or name the original and the revision in your request. Attach one file to ask for a visual review of that file.
+
+The **Vision Review** action uses the configured **Captioning LLM**. For two PDFs,
+it builds an index of engineering views from the first eight pages of each file.
+It matches views across those pages by their geometry.
+It uses PDF outlines when available and rendered shapes otherwise. It then compares the matched crops.
+Onyx checks crop boundaries against nearby views and assigns PDF callouts to their views.
+If a crop still includes a neighboring view after a second check, the report marks it **Needs review**.
+The vision model checks proposed matches when the views have changed enough to reduce visual similarity.
+If the model cannot return a usable decision, the report shows **Match verification failed**.
+It uses native PDF text and comments as evidence when available. The report identifies unmatched and ambiguous views,
+gives the original and revised page numbers, and shows how many pages and views the action covered.
+
+Vision Review reads the original sheet to identify redline requests before it checks the revision.
+For numeric requests, it checks the requested result against the value on the revised callout.
+It also lists independent changes.
+The redline card shows edits that address its request. The independent list shows other edits.
+If it cannot verify a redline, the review card shows **Needs review**.
+Use **Show in original** or **Show in revised** on a card to open the PDF.
+When Vision Review can locate the evidence, the PDF viewer highlights the area.
+
+**Vision Review** is available in default Chat. For a custom agent, add the **Vision Review** action.

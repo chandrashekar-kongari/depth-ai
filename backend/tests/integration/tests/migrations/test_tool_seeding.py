@@ -81,6 +81,12 @@ EXPECTED_TOOLS = {
         in_code_tool_id="CommentReviewTool",
         user_id=None,
     ),
+    "VisionReviewTool": ToolSeedingExpectedResult(
+        name="review_with_vision",
+        display_name="Vision Review",
+        in_code_tool_id="VisionReviewTool",
+        user_id=None,
+    ),
 }
 
 
@@ -121,8 +127,8 @@ def test_tool_seeding_migration() -> None:
         )
         tools = result.fetchall()
 
-        assert len(tools) == 13, (
-            f"Should have created exactly 13 builtin tools, got {len(tools)}"
+        assert len(tools) == 14, (
+            f"Should have created exactly 14 builtin tools, got {len(tools)}"
         )
 
         def validate_tool(expected: ToolSeedingExpectedResult) -> None:
@@ -169,6 +175,7 @@ def test_tool_seeding_migration() -> None:
 
         validate_tool(EXPECTED_TOOLS["DrawingReviewTool"])
         validate_tool(EXPECTED_TOOLS["CommentReviewTool"])
+        validate_tool(EXPECTED_TOOLS["VisionReviewTool"])
         persona_link = db_session.execute(
             text("""
                 SELECT 1
@@ -189,3 +196,14 @@ def test_tool_seeding_migration() -> None:
                 """)
         ).fetchone()
         assert comment_link is not None, "Comment Review is on the default assistant"
+
+        vision_link = db_session.execute(
+            text("""
+                SELECT 1
+                FROM persona__tool
+                JOIN tool ON tool.id = persona__tool.tool_id
+                WHERE tool.in_code_tool_id = 'VisionReviewTool'
+                  AND persona__tool.persona_id = 0
+                """)
+        ).fetchone()
+        assert vision_link is not None, "Vision Review is on the default assistant"

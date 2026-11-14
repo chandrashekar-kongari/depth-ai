@@ -2,7 +2,7 @@
 
 import threading
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
 from concurrent.futures import Future
 from contextlib import ExitStack, closing
 from contextvars import copy_context
@@ -93,12 +93,18 @@ from onyx.llm.interfaces import LLM, GenerationContext
 from onyx.llm.models import (
     AssistantMessage,
     GenerationDoneEvent,
+    GenerationEvent,
     GenerationLifecycleEvent,
     GenerationOptions,
     GenerationRequest,
+    GenerationStartEvent,
     Message,
     SystemMessage,
+    TextContent,
+    TextDeltaEvent,
     ToolCall,
+    ToolCallEndEvent,
+    ToolCallStartEvent,
     ToolResult,
     ToolResultMessage,
     UserMessage,
@@ -1344,6 +1350,21 @@ def _advance_loop(
     raise RuntimeError("Run exhausted its steps without a terminal decision")
 
 
+def _direct_response_events(
+    response: AssistantMessage,
+) -> Generator[GenerationEvent, None, None]:
+    yield GenerationStartEvent()
+    for index, block in enumerate(response.content):
+        if isinstance(block, TextContent):
+            yield TextDeltaEvent(content_index=index, text=block.text)
+        elif isinstance(block, ToolCall):
+            yield ToolCallStartEvent(
+                content_index=index, tool_call_id=block.id, tool_name=block.name
+            )
+            yield ToolCallEndEvent(content_index=index, tool_call=block)
+    yield GenerationDoneEvent()
+
+
 def _advance_step(run: Run, llm: LLM, prepared: PreparedStep, step: AgentStep) -> None:
     cancellation_signal = run.cancellation_signal
     if len({tool.name for tool in prepared.tools}) != len(prepared.tools):
@@ -1371,7 +1392,11 @@ def _advance_step(run: Run, llm: LLM, prepared: PreparedStep, step: AgentStep) -
         }
     )
     source = [*run._history.messages, *run._state.input_messages, *run._state.messages]
-    request = _compact_context(run, llm, source, prepared, generation_context)
+    request = (
+        _compact_context(run, llm, source, prepared, generation_context)
+        if prepared.direct_response is None
+        else GenerationRequest()
+    )
     message_id = f"{run._state.run_id}:{step.index}"
     started = MessageStartEvent(
         message_id=message_id,
@@ -1410,7 +1435,12 @@ def _advance_step(run: Run, llm: LLM, prepared: PreparedStep, step: AgentStep) -
         generation_started = time.monotonic()
         completed = False
         try:
-            with closing(llm.stream(request, generation_context)) as events:
+            stream = (
+                _direct_response_events(prepared.direct_response)
+                if prepared.direct_response is not None
+                else llm.stream(request, generation_context)
+            )
+            with closing(stream) as events:
                 for event in events:
                     cancellation_signal.check()
                     # Socket timeouts bound blocked reads; check the total budget between events.

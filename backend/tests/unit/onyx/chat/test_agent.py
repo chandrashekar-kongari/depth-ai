@@ -10,7 +10,7 @@ import pytest
 from pydantic import JsonValue, TypeAdapter
 
 from onyx.agents.events import AgentEvent
-from onyx.agents.models import AgentStep, StepInput
+from onyx.agents.models import AgentStep, StepInput, StepResult
 from onyx.agents.runtime import Run
 from onyx.chat.agent import ChatAgent
 from onyx.chat.emitter import Emitter
@@ -26,7 +26,11 @@ from onyx.configs.constants import DocumentSource
 from onyx.context.search.models import SearchDoc, SearchDocsResponse
 from onyx.deep_research.models import ResearchAgentCallResult
 from onyx.deep_research.tool_definitions import RESEARCH_AGENT_TOOL_NAME
-from onyx.file_store.models import ContextFileMetadata, ExtractedContextFiles
+from onyx.file_store.models import (
+    ContextFileMetadata,
+    ExtractedContextFiles,
+    FileToolMetadata,
+)
 from onyx.llm.cancellation import AgentCancelled, CancellationSignal
 from onyx.llm.model_response import (
     ChatCompletionDeltaToolCall,
@@ -35,6 +39,7 @@ from onyx.llm.model_response import (
 )
 from onyx.llm.models import (
     AssistantMessage,
+    GenerationOptions,
     GenerationRequest,
     Message,
     TextContent,
@@ -45,7 +50,11 @@ from onyx.llm.models import (
     UserMessage,
 )
 from onyx.server.query_and_chat.streaming_models import OverallStop, Packet
+from onyx.tools.constants import VISION_REVIEW_TOOL_NAME
 from onyx.tools.models import ChatFile
+from onyx.tools.tool_implementations.drawing_review.vision_review_tool import (
+    VisionReviewTool,
+)
 from onyx.tools.tool_implementations.search.search_tool import SearchTool
 from onyx.tools.tool_implementations.web_search.web_search_tool import WebSearchTool
 from onyx.utils.fleet_query_telemetry import QueryMode, QueryObservation
@@ -688,3 +697,110 @@ def test_user_information_is_split_out_of_the_shared_system_prompt(
         assert "prefers bullet points" in user_info.text
         assert ("works on billing" in user_info.text) == inject_memories
         assert question.text == "Question"
+
+
+def test_explicit_vision_review_offers_only_vision_then_reports_findings() -> None:
+    agent = ChatAgent(
+        messages=[],
+        tools=[EchoTool(), VisionReviewTool(42, [], [])],
+        custom_agent_prompt=None,
+        base_system_prompt="",
+        context_files=ExtractedContextFiles(
+            file_texts=[],
+            image_files=[],
+            use_as_search_filter=False,
+            total_token_count=0,
+            file_metadata=[],
+            uncapped_token_count=None,
+        ),
+        persona=None,
+        user_memory_context=None,
+        llm=ScriptedLLM([]),
+        token_counter=len,
+        forced_tool_id=42,
+        all_injected_file_metadata={
+            "before": FileToolMetadata(
+                file_id="before", filename="before.pdf", approx_char_count=0
+            ),
+            "after": FileToolMetadata(
+                file_id="after", filename="after.png", approx_char_count=0
+            ),
+        },
+    )
+    request = UserMessage(content="Review these through vision.")
+    first = agent._prepare_step(
+        StepInput(
+            history=[],
+            input_messages=[request],
+            messages=[request],
+            step=AgentStep(index=0, limit=3),
+        )
+    ).generation_request([request])
+    assert [tool.name for tool in first.tools] == [VISION_REVIEW_TOOL_NAME]
+    assert first.options.tool_choice == ToolChoiceOptions.REQUIRED
+    file_notice = next(
+        message.text for message in first.messages if 'file_id="before"' in message.text
+    )
+    assert file_notice.index("before.pdf") < file_notice.index("after.png")
+
+    tool_result = ToolResultMessage(
+        tool_name=VISION_REVIEW_TOOL_NAME,
+        tool_call_id="vision",
+        content="Vision findings",
+    )
+    previous = StepResult(
+        step=AgentStep(index=0, limit=3),
+        message=AssistantMessage(content=[]),
+        tool_results=[tool_result],
+        options=GenerationOptions(),
+    )
+    answer_step = agent._prepare_step(
+        StepInput(
+            history=[],
+            input_messages=[request],
+            messages=[request, tool_result],
+            step=AgentStep(index=1, limit=3),
+            previous=previous,
+        )
+    )
+    assert not answer_step.tools
+    assert answer_step.options.tool_choice == ToolChoiceOptions.NONE
+
+
+def test_explicit_vision_review_runs_without_chat_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    llm = ScriptedLLM([])
+    tool = VisionReviewTool(42, [], [])
+    review = Mock(return_value=ToolResult(content="Vision findings"))
+    monkeypatch.setattr(tool, "_run", review)
+    agent = ChatAgent(
+        messages=[],
+        tools=[EchoTool(), tool],
+        custom_agent_prompt=None,
+        base_system_prompt="",
+        context_files=ExtractedContextFiles(
+            file_texts=[],
+            image_files=[],
+            use_as_search_filter=False,
+            total_token_count=0,
+            file_metadata=[],
+            uncapped_token_count=None,
+        ),
+        persona=None,
+        user_memory_context=None,
+        llm=llm,
+        token_counter=len,
+        forced_tool_id=42,
+        vision_review_file_ids=["original", "revision"],
+    )
+    result = run_agent(
+        agent, messages=[UserMessage(content="Review with vision.")], max_steps=3
+    )
+    assert result.output.text == "Vision findings"
+    assert llm.requests == []
+    review.assert_called_once()
+    assert review.call_args.args[0].arguments == {
+        "file_id": "original",
+        "comparison_file_id": "revision",
+    }

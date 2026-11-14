@@ -74,6 +74,15 @@ File IDs come from `[attached image — file_id: <id>]` tags on user-attached im
 Leave `reference_image_file_ids` unset for a fresh generation.
 """.lstrip()
 
+VISION_REVIEW_GUIDANCE = """
+## review_with_vision
+When the user explicitly asks for vision, vision-only, or a vision model to review or compare attached files, use review_with_vision. This takes precedence over the drawing and comment review actions.
+Pass the attached file UUID as file_id. For a comparison, also pass the revised file UUID as comparison_file_id.
+Use the revision roles the user gives. Otherwise use the first attachment as the original and the second as the revision.
+If more than two attachments make the comparison unclear, ask which two to compare.
+Report the vision findings, uncertainty, and page coverage. If the review fails, report the failure.
+""".lstrip()
+
 DRAWING_REVIEW_GUIDANCE = """
 ## review_drawing
 Call review_drawing when the user asks you to review a mechanical drawing.

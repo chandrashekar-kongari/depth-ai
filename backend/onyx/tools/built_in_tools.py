@@ -9,6 +9,9 @@ from onyx.tools.tool_implementations.drawing_review.comment_review_tool import (
 from onyx.tools.tool_implementations.drawing_review.drawing_review_tool import (
     DrawingReviewTool,
 )
+from onyx.tools.tool_implementations.drawing_review.vision_review_tool import (
+    VisionReviewTool,
+)
 from onyx.tools.tool_implementations.file_reader.file_reader_tool import FileReaderTool
 from onyx.tools.tool_implementations.images.image_generation_tool import (
     ImageGenerationTool,
@@ -36,6 +39,7 @@ BUILT_IN_TOOL_TYPES = Union[
     FileReaderTool,
     DrawingReviewTool,
     CommentReviewTool,
+    VisionReviewTool,
     MemoryTool,
     CodingAgentTool,
 ]
@@ -50,6 +54,7 @@ BUILT_IN_TOOL_MAP: dict[str, Type[BUILT_IN_TOOL_TYPES]] = {
     FileReaderTool.__name__: FileReaderTool,
     DrawingReviewTool.__name__: DrawingReviewTool,
     CommentReviewTool.__name__: CommentReviewTool,
+    VisionReviewTool.__name__: VisionReviewTool,
     MemoryTool.__name__: MemoryTool,
     CodingAgentTool.__name__: CodingAgentTool,
 }

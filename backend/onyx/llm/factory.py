@@ -246,6 +246,7 @@ def get_llm_for_persona(
 def get_default_llm_with_vision(
     temperature: float | None = None,
     additional_headers: dict[str, str] | None = None,
+    policy_fn: Callable[[str], LlmRequestPolicy] | None = None,
 ) -> LLM | None:
     """The designated default vision model, or None.
 
@@ -285,6 +286,7 @@ def get_default_llm_with_vision(
             llm_provider=LLMProviderView.from_model(default_model.llm_provider),
             temperature=temperature,
             additional_headers=additional_headers,
+            policy_fn=policy_fn,
         )
 
 

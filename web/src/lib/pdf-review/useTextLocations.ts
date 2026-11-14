@@ -32,7 +32,8 @@ export function useTextLocations(
     const source = issue.anchors[documentId];
     if (
       source?.quality === "located_difference" ||
-      source?.quality === "located_text"
+      source?.quality === "located_text" ||
+      source?.quality === "located_comment"
     )
       return [];
     return source

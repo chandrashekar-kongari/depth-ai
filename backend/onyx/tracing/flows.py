@@ -51,6 +51,7 @@ class LLMFlow(StrEnum):
     CONTEXTUAL_RAG_CHUNK_CONTEXT = "contextual_rag_chunk_context"
     IMAGE_SUMMARIZATION = "image_summarization"
     DRAWING_REVIEW = "drawing_review"
+    VISION_REVIEW = "vision_review"
 
     # Image generation
     IMAGE_GENERATION = "image_generation"

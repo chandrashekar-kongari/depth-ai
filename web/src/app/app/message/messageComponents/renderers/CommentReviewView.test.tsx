@@ -129,19 +129,63 @@ it("gives each finding two revision buttons and creates a fresh navigation reque
 it("filters results without changing coverage or losing evidence and revision navigation", async () => {
   const user = setupUser();
   render(<CommentReviewView review={review} part="queue" />);
-  expect(screen.queryByText(/H7 exists/)).not.toBeInTheDocument();
+  expect(screen.getByText("H7 exists")).toBeVisible();
+  expect(screen.queryByText("Request: Add H7")).not.toBeInTheDocument();
   await user.click(
     screen.getByRole("button", { name: "Details for finding 1" })
   );
-  expect(screen.getByText(/H7 exists/)).toBeVisible();
+  expect(screen.getByText("Request: Add H7")).toBeVisible();
+  expect(screen.getAllByText(/H7 exists/)).toHaveLength(1);
   await user.click(screen.getByRole("button", { name: "Needs attention (1)" }));
-  expect(screen.queryByText("Bore tolerance")).not.toBeInTheDocument();
+  expect(screen.queryByText("H7 exists")).not.toBeInTheDocument();
   expect(screen.getByText("Missing datum")).toBeVisible();
   expect(screen.getByText("2 findings · 0 need review")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Addressed (1)" }));
-  expect(screen.getByText("Bore tolerance")).toBeVisible();
+  expect(screen.getByText("H7 exists")).toBeVisible();
   expect(screen.queryByText("Missing datum")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Show in revised" })).toBeEnabled();
+});
+
+it("opens a visual Vision Review change directly from its card", async () => {
+  const user = setupUser();
+  render(
+    <DrawingReviewLayoutProvider active mode="comments" reviewKey="vision">
+      <CommentReviewView
+        review={{
+          ...review,
+          comments: [],
+          extra_issues: [],
+          drawing_changes: {
+            status: "partial",
+            compared_pages: [1],
+            warnings: [],
+            changes: [
+              {
+                id: "vision-change-1",
+                page: 1,
+                revised_page: 2,
+                kind: "visual",
+                before_text: "",
+                after_text: "",
+                original_box: null,
+                revised_box: { x: 0.3, y: 0.3, width: 0.05, height: 0.05 },
+                possible_comment_ids: [],
+                vision_validation: "confirmed",
+                vision_explanation: "Datum A added",
+              },
+            ],
+          },
+        }}
+        part="queue"
+      />
+      <FocusState />
+    </DrawingReviewLayoutProvider>
+  );
+  expect(screen.getByText("Datum A added")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Show in revised" }));
+  expect(
+    JSON.parse(screen.getByLabelText("Navigation target").textContent ?? "null")
+  ).toMatchObject({ issueId: "vision-change-1", documentId: "revised", page: 2 });
 });
 
 it("searches evidence while retaining the original finding number", async () => {
@@ -176,7 +220,7 @@ it("shows the latest findings before the tool section ends", () => {
       {(steps) => <>{steps[0]?.content}</>}
     </CommentReviewRenderer>
   );
-  expect(screen.getByText("Bore tolerance")).toBeInTheDocument();
+  expect(screen.getByText("H7 exists")).toBeInTheDocument();
   expect(onComplete).not.toHaveBeenCalled();
 });
 

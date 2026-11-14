@@ -23,6 +23,7 @@ from onyx.chat.models import (
 )
 from onyx.chat.process_message import (
     _process_query,
+    _vision_review_files,
     prepare_chat_turn,
 )
 from onyx.chat.prompt_utils import build_chat_prompt, prepare_prompt
@@ -35,6 +36,7 @@ from onyx.error_handling.error_codes import OnyxErrorCode
 from onyx.error_handling.exceptions import OnyxError
 from onyx.file_store.models import (
     ChatFileInput,
+    ChatFileType,
     ChatLoadedFile,
     ExtractedContextFiles,
     UserFileMetadata,
@@ -43,7 +45,8 @@ from onyx.hooks.executor import HookSkipped, HookSoftFailed
 from onyx.hooks.points.query_processing import QueryProcessingResponse
 from onyx.llm.models import ReasoningEffort, SystemMessage, UserMessage
 from onyx.server.query_and_chat.models import SendMessageRequest
-from onyx.tools.models import PersonaToolConfiguration
+from onyx.tools.constants import VISION_REVIEW_TOOL_ID, VISION_REVIEW_TOOL_NAME
+from onyx.tools.models import PersonaToolConfiguration, ToolConfiguration
 from tests.unit.fakes import FakeCache
 from tests.unit.onyx.agents.fakes import ScriptedLLM
 
@@ -841,3 +844,108 @@ def test_project_instructions_supplement_agent_prompt(
         assert isinstance(history[1], UserMessage)
     else:
         assert isinstance(history[0], SystemMessage)
+
+
+@pytest.mark.parametrize(
+    "query, allowed_ids, forced_id",
+    [
+        ("Review these through vision and find differences", None, 42),
+        ("Compare these using the vision model", [42], 42),
+        ("Review the marked comments", None, None),
+        ("Review these without using vision", None, None),
+        ("Use vision to compare these", [], None),
+    ],
+)
+def test_chat_routes_explicit_vision_review(
+    chat_session: ChatSession,
+    _mock_chat_preparation: None,
+    query: str,
+    allowed_ids: list[int] | None,
+    forced_id: int | None,
+) -> None:
+    tool = ToolConfiguration(
+        id=42,
+        name=VISION_REVIEW_TOOL_NAME,
+        display_name="Vision Review",
+        in_code_tool_id=VISION_REVIEW_TOOL_ID,
+        enabled=True,
+        description=None,
+        openapi_schema=None,
+        mcp_input_schema=None,
+        custom_headers=None,
+        passthrough_auth=False,
+        mcp_server_id=None,
+        oauth_config_id=None,
+    )
+    configuration = PersonaToolConfiguration(
+        persona_id=chat_session.persona.id,
+        persona_name=chat_session.persona.name,
+        tools=[tool],
+        search=PersonaSearchInfo(
+            document_set_names=[],
+            search_start_date=None,
+            attached_document_ids=[],
+            hierarchy_node_ids=[],
+        ),
+    )
+    original_id, revised_id = str(uuid4()), str(uuid4())
+    request = SendMessageRequest(
+        message=query,
+        chat_session_id=chat_session.id,
+        allowed_tool_ids=allowed_ids,
+        file_descriptors=[
+            {"id": original_id, "name": "before.pdf", "type": ChatFileType.DOC},
+            {"id": revised_id, "name": "after.png", "type": ChatFileType.IMAGE},
+        ],
+    )
+    with (
+        patch(
+            "onyx.chat.process_message.execute_hook",
+            return_value=QueryProcessingResponse(query=query),
+        ),
+        patch(
+            "onyx.chat.process_message.capture_persona_tool_configuration",
+            return_value=configuration,
+        ),
+        patch(
+            "onyx.chat.process_message.create_new_chat_message",
+            return_value=ChatMessage(
+                id=2, message_type=MessageType.USER, files=request.file_descriptors
+            ),
+        ),
+        patch(
+            "onyx.chat.process_message.prepare_chat_file_inputs", return_value=[]
+        ) as prepare_files,
+    ):
+        setup = prepare_chat_turn(
+            request,
+            User(id=uuid4(), email="reader@example.com"),
+            llm_overrides=None,
+        )
+    setup.admission.release()
+    assert setup.forced_tool_id == forced_id
+    if forced_id is not None:
+        assert list(setup.all_injected_file_metadata) == [original_id, revised_id]
+        assert prepare_files.call_args.args[0] == []
+    else:
+        assert prepare_files.call_args.args[0] == request.file_descriptors
+
+
+def test_vision_review_recognizes_before_and_after_filenames() -> None:
+    before, after = str(uuid4()), str(uuid4())
+    files = _vision_review_files(
+        "Review using review_with_vision tool",
+        [
+            {
+                "id": after,
+                "name": "12_Rectangle_B_after_fixed.pdf",
+                "type": ChatFileType.DOC,
+            },
+            {
+                "id": before,
+                "name": "11_Rectangle_A_before_red_marks.pdf",
+                "type": ChatFileType.DOC,
+            },
+        ],
+    )
+    assert [file.file_id for file in files] == [before, after]

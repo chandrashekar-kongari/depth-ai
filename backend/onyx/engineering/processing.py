@@ -122,19 +122,21 @@ def _numbered_brackets(
     return brackets
 
 
-def pdf_comments(data: bytes) -> tuple[int, dict[int, list[ExtractedComment]]]:
+def pdf_comments(
+    data: bytes, *, allow_partial: bool = False
+) -> tuple[int, dict[int, list[ExtractedComment]]]:
     from pypdf import PdfReader
 
     reader = PdfReader(BytesIO(data))
     if reader.is_encrypted:
         raise ReviewInputError("Password-protected PDFs are not supported")
     count = len(reader.pages)
-    if count < 1 or count > MAX_SHEET_PAGES:
+    if count < 1 or (count > MAX_SHEET_PAGES and not allow_partial):
         raise ReviewInputError(
             f"Each PDF must contain 1–{MAX_SHEET_PAGES} pages. No pages were silently skipped."
         )
     comments: dict[int, list[ExtractedComment]] = {}
-    for index, page in enumerate(reader.pages, 1):
+    for index, page in enumerate(reader.pages[:MAX_SHEET_PAGES], 1):
         found: list[ExtractedComment] = []
         numbers: dict[int, DrawingMarkBox] = {}
         circles: list[DrawingMarkBox] = []

@@ -166,7 +166,12 @@ def review_sheet(
 
 
 def render_pdf_pngs(
-    file_bytes: bytes, max_pages: int, *, draw_annotations: bool = False
+    file_bytes: bytes,
+    max_pages: int,
+    *,
+    draw_annotations: bool = False,
+    extract_spans: bool = True,
+    split_separated_text: bool = False,
 ) -> tuple[list[bytes], int, list[SheetSpan], list[int]]:
     """Render the first pages of a PDF to PNG bytes. Runs in a child process."""
     from io import BytesIO
@@ -177,7 +182,13 @@ def render_pdf_pngs(
     try:
         total = len(pdf)
         images: list[bytes] = []
-        spans, truncated_pages = extract_pdf_spans(file_bytes, max_pages)
+        spans, truncated_pages = (
+            extract_pdf_spans(
+                file_bytes, max_pages, split_separated_text=split_separated_text
+            )
+            if extract_spans
+            else ([], [])
+        )
         for index in range(min(total, max_pages)):
             page = pdf[index]
             try:

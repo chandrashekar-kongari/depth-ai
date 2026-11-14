@@ -1,6 +1,7 @@
 import time
 from collections.abc import Callable, Mapping
 from functools import partial
+from uuid import uuid4
 
 from pydantic import JsonValue
 
@@ -43,12 +44,15 @@ from onyx.llm.models import (
     Message,
     NamedToolChoice,
     ReasoningEffort,
+    TextContent,
+    ToolCall,
     ToolChoiceOptions,
     ToolResult,
     ToolResultMessage,
     UserMessage,
 )
 from onyx.tools.built_in_tools import STOPPING_TOOLS_NAMES
+from onyx.tools.constants import VISION_REVIEW_TOOL_NAME
 from onyx.tools.file_snapshot import SavedChatFile, SavedContextFiles
 from onyx.tools.interface import Tool
 from onyx.tools.models import ChatFile, ToolContext
@@ -76,6 +80,7 @@ class ChatAgent(Agent, RestorableFeature):
         llm: LLM,
         token_counter: Callable[[str], int],
         forced_tool_id: int | None = None,
+        vision_review_file_ids: list[str] | None = None,
         user_identity: LLMUserIdentity | None = None,
         chat_files: list[ChatFile] | None = None,
         reasoning_effort: ReasoningEffort = ReasoningEffort.AUTO,
@@ -100,6 +105,7 @@ class ChatAgent(Agent, RestorableFeature):
         self.search_context = SearchContext()
         self.started = time.monotonic()
         self.forced_tool_id = forced_tool_id
+        self.vision_review_file_ids = list(vision_review_file_ids or [])
         self.chat_files = list(chat_files or [])
         self.citation_processor = DynamicCitationProcessor(
             citation_mode=CitationMode.HYPERLINK
@@ -156,6 +162,7 @@ class ChatAgent(Agent, RestorableFeature):
             include_citations=self.include_citations,
             inject_memories=self.inject_memories,
             forced_tool_id=self.forced_tool_id,
+            vision_review_file_ids=self.vision_review_file_ids,
             base_prompt=self.base_system_prompt,
             custom_prompt=self.custom_agent_prompt,
             reminders_enabled=self.reminders_enabled,
@@ -180,6 +187,7 @@ class ChatAgent(Agent, RestorableFeature):
             or saved.include_citations != self.include_citations
             or saved.inject_memories != self.inject_memories
             or saved.forced_tool_id != self.forced_tool_id
+            or saved.vision_review_file_ids != self.vision_review_file_ids
             or saved.base_prompt != self.base_system_prompt
             or saved.custom_prompt != self.custom_agent_prompt
             or saved.reminders_enabled != self.reminders_enabled
@@ -270,12 +278,43 @@ class ChatAgent(Agent, RestorableFeature):
         ]
         tools = self.application_tools
         tool_choice = ToolChoiceOptions.AUTO
+        direct_response = None
+        if self.vision_review_file_ids:
+            if state.step.index == 0:
+                arguments: dict[str, JsonValue] = {
+                    "file_id": self.vision_review_file_ids[0]
+                }
+                if len(self.vision_review_file_ids) == 2:
+                    arguments["comparison_file_id"] = self.vision_review_file_ids[1]
+                direct_response = AssistantMessage(
+                    content=[
+                        ToolCall(
+                            id=f"call_{uuid4().hex}",
+                            name=VISION_REVIEW_TOOL_NAME,
+                            arguments=arguments,
+                        )
+                    ]
+                )
+            elif state.previous and state.previous.tool_results:
+                direct_response = AssistantMessage(
+                    content=[TextContent(text=state.previous.tool_results[0].content)]
+                )
         if self.forced_tool_id is not None and state.step.index == 0:
             tools = [tool for tool in tools if tool.id == self.forced_tool_id]
             if not tools:
                 raise ValueError(f"Tool {self.forced_tool_id} not found")
             tool_choice = ToolChoiceOptions.REQUIRED
-        elif state.step.is_last or self.ran_image_gen:
+        elif (
+            state.step.is_last
+            or self.ran_image_gen
+            or (
+                state.previous is not None
+                and any(
+                    result.tool_name == VISION_REVIEW_TOOL_NAME
+                    for result in state.previous.tool_results
+                )
+            )
+        ):
             tools = []
             tool_choice = ToolChoiceOptions.NONE
         prompt = build_chat_prompt(
@@ -294,6 +333,7 @@ class ChatAgent(Agent, RestorableFeature):
         )
         available_tool_names = {tool.name for tool in tools}
         return PreparedStep(
+            direct_response=direct_response,
             tools=[tool for tool in self.tools if tool.name in available_tool_names],
             options=GenerationOptions(
                 tool_choice=tool_choice, reasoning_effort=self.reasoning_effort

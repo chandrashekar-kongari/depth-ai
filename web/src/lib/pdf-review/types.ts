@@ -82,6 +82,7 @@ export interface ReviewDocument {
 export interface LinkedIssue {
   id: string;
   locationIdentity?: string;
+  showMarkerBeforeSelection?: boolean;
   title: string;
   request: string;
   evidence: string;

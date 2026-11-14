@@ -9,14 +9,10 @@ from sqlalchemy.orm import Session
 from typing_extensions import override
 
 from onyx.agents.tools import ToolInvocation, ToolProgress
-from onyx.db.engine.sql_engine import get_session_with_current_tenant
-from onyx.db.user_file import get_file_id_by_user_file_id, get_user_file_metadata
 from onyx.engineering.checks import ground_review_highlights
 from onyx.engineering.drawing_changes import load_drawing_evidence
 from onyx.engineering.processing import pdf_comments, pdf_texts
 from onyx.file_processing.extract_file_text import get_file_ext
-from onyx.file_store.file_store import get_default_file_store
-from onyx.file_store.utils import load_chat_file_by_id
 from onyx.llm.factory import get_default_llm_with_vision
 from onyx.llm.models import ToolDefinition, ToolResult
 from onyx.tools.interface import Tool, parse_tool_arguments
@@ -32,6 +28,7 @@ from onyx.tools.tool_implementations.drawing_review.comment_queue import empty_r
 from onyx.tools.tool_implementations.drawing_review.comment_review import (
     verify_sheet_comments,
 )
+from onyx.tools.tool_implementations.drawing_review.files import ReviewFileLoader
 from onyx.tools.tool_implementations.drawing_review.sheet import _sheet_pages
 from onyx.utils.logger import setup_logger
 from onyx.utils.process_isolation import run_in_isolated_process
@@ -74,9 +71,7 @@ class CommentReviewTool(Tool):
         self._id = tool_id
         self._pair_lock = Lock()
         self._reviewed_pairs: set[tuple[str, str]] = set()
-        self._user_file_ids = set(user_file_ids)
-        self._chat_file_ids = set(chat_file_ids)
-        self._chat_file_id_strings = {str(file_id) for file_id in chat_file_ids}
+        self._files = ReviewFileLoader(user_file_ids, chat_file_ids)
 
     @property
     def id(self) -> int:
@@ -405,32 +400,7 @@ class CommentReviewTool(Tool):
         return data, filename
 
     def _load_original(self, raw_file_id: str) -> tuple[bytes, str]:
-        try:
-            file_id = UUID(raw_file_id)
-        except ValueError:
-            raise ToolCallException(
-                message=f"Invalid file_id: {raw_file_id}",
-                llm_facing_message=f"'{raw_file_id}' is not a valid file UUID.",
-            )
-
-        if file_id in self._user_file_ids:
-            return _read_user_file(file_id)
-        if file_id in self._chat_file_ids:
-            chat_file = load_chat_file_by_id(str(file_id))
-            return chat_file.content, chat_file.filename or str(file_id)
-
-        with get_session_with_current_tenant() as db_session:
-            blob_id = get_file_id_by_user_file_id(str(file_id), db_session)
-        if blob_id is not None and blob_id in self._chat_file_id_strings:
-            return _read_user_file(file_id)
-
-        raise ToolCallException(
-            message=f"File {file_id} not in available files",
-            llm_facing_message=(
-                f"File '{file_id}' is not available. "
-                "Use a file_id from the drawing file list or an attached image tag."
-            ),
-        )
+        return self._files.load(raw_file_id)
 
 
 def _validate_page_scope(
@@ -501,10 +471,3 @@ def _present(value: str | None) -> str | None:
 def _is_sheet(filename: str) -> bool:
     extension = get_file_ext(filename)
     return extension == ".pdf"
-
-
-def _read_user_file(user_file_id: UUID) -> tuple[bytes, str]:
-    with get_session_with_current_tenant() as db_session:
-        metadata = get_user_file_metadata(user_file_id, db_session)
-    content = get_default_file_store().read_file(metadata.file_id, mode="b").read()
-    return content, metadata.name

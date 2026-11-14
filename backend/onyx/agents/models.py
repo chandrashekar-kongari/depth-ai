@@ -123,6 +123,7 @@ class PreparedStep(BaseModel):
     stall_timeout_s: int | None = Field(default=None, gt=0)
     output_metadata: SerializeAsAny[BaseModel] | None = None
     assemble_messages: Callable[[Sequence[Message]], list[Message]] | None = None
+    direct_response: AssistantMessage | None = None
 
     def generation_request(self, messages: list[Message]) -> GenerationRequest:
         """Build a detached request; assembly must not mutate borrowed history."""

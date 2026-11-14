@@ -220,16 +220,16 @@ counts what is sent, not the stored token counts.
    element makes this error more frequent.
 6. `forgotten-files-need-metadata` **A forgotten-files notice needs file
    metadata.** `chat/process_message.py:prepare_chat_turn` clears the metadata
-   map when the persona has neither the file reader, drawing review, nor comment
-   review. Then a file that compaction or truncation removes is not disclosed. With the map,
+   map when the persona has no file reader, drawing review, comment review, or
+   vision review action. Then a file that compaction or truncation removes is not disclosed. With the map,
    `prepare_prompt` lists every attached file whose message is not in the
    working history.
 7. `file-notice-names-offered-tools` **A file notice names only tools the model
    has this step.** `chat/prompt_utils.py:_create_file_tool_metadata_message`
    prefers `verify_drawing_comments` when that tool is offered, then `read_file`,
    then `review_drawing`, then internal search, then the Python tool (only when
-   every file was staged for it). When `review_drawing` or
-   `verify_drawing_comments` is offered, a
+   every file was staged for it). When a drawing review or vision review
+   action is offered, a
    separate notice lists every injected file id for that tool, and the
    forgotten-files notice is skipped. A notice that names a missing tool makes
    the model guess or search the web.

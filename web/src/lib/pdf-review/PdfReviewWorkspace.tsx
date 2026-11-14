@@ -77,6 +77,7 @@ import { useDrawingWorkspace } from "@/lib/pdf-review/hooks";
 import type {
   LinkedIssue,
   PdfReviewWorkspaceProps,
+  ReviewFocusRequest,
 } from "@/lib/pdf-review/types";
 
 export function PdfReviewWorkspace(props: PdfReviewWorkspaceProps) {
@@ -190,7 +191,14 @@ function Workspace({
   );
   const issues = locations.issues;
   const [query, setQuery] = useState("");
-  const navigationRequest = focusRequest;
+  const [markerFocus, setMarkerFocus] = useState<{
+    request: ReviewFocusRequest;
+    previousFocusId: string | undefined;
+  } | null>(null);
+  const navigationRequest =
+    markerFocus && markerFocus.previousFocusId === focusRequest?.id
+      ? markerFocus.request
+      : focusRequest;
   const handledFocus = useRef<string | null>(null);
   const [radar, setRadar] = useState<{
     requestId: string;
@@ -495,6 +503,7 @@ function Workspace({
   }, [id, annotation, snapshot, submit, documentState?.document]);
 
   function switchDocument(next: string) {
+    setMarkerFocus(null);
     if (pending) return;
     cancelNavigation.current?.();
     correctionIssue.current = null;
@@ -993,7 +1002,28 @@ function Workspace({
                   <SelectionLayer documentId={id} pageIndex={pageIndex} />
                   <SearchLayer documentId={id} pageIndex={pageIndex} />
                   <AnnotationLayer documentId={id} pageIndex={pageIndex} />
-                  {!annotationMode ? <ReviewStatusMarkers documentId={id} pageIndex={pageIndex} issues={issues} snapshot={snapshot} selectedIssueId={selectedIssueId} original={descriptor?.role === "original"} onSelect={(issueId,page)=>onIssueSelect?.(issueId,page)} /> : null}
+                  {!annotationMode ? (
+                    <ReviewStatusMarkers
+                      documentId={id}
+                      pageIndex={pageIndex}
+                      issues={issues}
+                      snapshot={snapshot}
+                      selectedIssueId={selectedIssueId}
+                      original={descriptor?.role === "original"}
+                      onSelect={(issueId, page) => {
+                        onIssueSelect?.(issueId, page);
+                        setMarkerFocus({
+                          previousFocusId: focusRequest?.id,
+                          request: {
+                            id: crypto.randomUUID(),
+                            issueId,
+                            page,
+                            documentId: id,
+                          },
+                        });
+                      }}
+                    />
+                  ) : null}
                   {radar?.documentId === id && radar.page === pageIndex + 1 ? (
                     <AttentionRing
                       key={radar.requestId}

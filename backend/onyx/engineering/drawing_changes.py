@@ -133,7 +133,7 @@ def _red_review_ink(color: object) -> bool:
         or not all(isinstance(component, (int, float)) for component in color)
     ):
         return False
-    red, green, blue = color
+    red, green, blue = cast(tuple[float, float, float], color)
     return red > 0.4 and red > max(green, blue) + 0.25
 
 
@@ -250,13 +250,13 @@ def _labels(page: Page) -> list[_Label]:
                         ),
                         angle,
                         framed,
-                        None if framed else _dimension_reference(crop, x0, y0, x1, y1),
+                        None if framed else dimension_reference(crop, x0, y0, x1, y1),
                     )
                 )
     return labels
 
 
-def _dimension_reference(
+def dimension_reference(
     page: Page, x0: float, y0: float, x1: float, y1: float
 ) -> _DimensionReference | None:
     """Trace axis-aligned dimension lines to their extension-line origins.
@@ -373,7 +373,9 @@ def _same_reference(
     )
 
 
-def _estimate(old: Image, new: Image) -> Transform | None:
+def estimate_drawing_transform(
+    old: Image, new: Image, *, allow_view_transform: bool = False
+) -> Transform | None:
     detector = cv2.AKAZE.create()
     ko, do = detector.detectAndCompute(old, None)
     kn, dn = detector.detectAndCompute(new, None)
@@ -399,7 +401,10 @@ def _estimate(old: Image, new: Image) -> Transform | None:
         return None
     scale = float(math.hypot(matrix[0, 0], matrix[1, 0]))
     rotation = abs(math.degrees(math.atan2(matrix[1, 0], matrix[0, 0])))
-    if abs(scale - 1) > 0.01 or rotation > 3:
+    if allow_view_transform:
+        if not 0.2 <= scale <= 5:
+            return None
+    elif abs(scale - 1) > 0.01 or rotation > 3:
         return None
     return np.asarray(matrix, dtype=np.float64)
 
@@ -465,7 +470,7 @@ def _align(old: Image, new: Image) -> tuple[Image, list[_Mapping], Image, list[s
     identity = np.array([[1, 0, 0], [0, 1, 0]], dtype=np.float64)
     if np.array_equal(old, new):
         return old, [_Mapping(_box(0, 0, 1, 1), identity)], np.full_like(new, 255), []
-    matrix = _estimate(old, new)
+    matrix = estimate_drawing_transform(old, new)
     if matrix is None:
         # Keep evidence rather than guessing a registration for a sparse or unrelated page.
         return (

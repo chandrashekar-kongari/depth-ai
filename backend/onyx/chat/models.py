@@ -587,6 +587,7 @@ class ChatFeatureState(BaseModel):
     include_citations: bool
     inject_memories: bool
     forced_tool_id: int | None
+    vision_review_file_ids: list[str] = Field(default_factory=list)
     base_prompt: str
     custom_prompt: str | None
     reminders_enabled: bool
@@ -639,6 +640,7 @@ class ChatTurnSetup(BaseModel):
     all_injected_file_metadata: dict[str, FileToolMetadata]
     available_files: AvailableFiles
     forced_tool_id: int | None
+    vision_review_file_ids: list[str] = Field(default_factory=list)
     chat_files_for_tools: list[ChatFile]
     custom_agent_prompt: str | None
     user_memory_context: UserMemoryContext

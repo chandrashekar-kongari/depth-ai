@@ -81,6 +81,8 @@ from onyx.deep_research.tool_definitions import (
 )
 from onyx.error_handling.error_codes import OnyxErrorCode
 from onyx.error_handling.exceptions import OnyxError, log_onyx_error
+from onyx.file_processing.extract_file_text import get_file_ext
+from onyx.file_store.models import FileDescriptor, FileToolMetadata
 from onyx.file_store.utils import verify_user_files
 from onyx.hooks.executor import HookSkipped, HookSoftFailed, execute_hook
 from onyx.hooks.points.query_processing import (
@@ -115,8 +117,12 @@ from onyx.tools.constants import (
     DRAWING_REVIEW_TOOL_ID,
     FILE_READER_TOOL_ID,
     SEARCH_TOOL_ID,
+    VISION_REVIEW_TOOL_ID,
 )
 from onyx.tools.models import SearchToolUsage
+from onyx.tools.tool_implementations.drawing_review.vision_review_tool import (
+    VISION_REVIEW_EXTENSIONS,
+)
 from onyx.utils.fleet_query_telemetry import QueryObservation, telemetry_chat
 from onyx.utils.logger import setup_logger
 from onyx.utils.telemetry import mt_cloud_telemetry
@@ -229,6 +235,51 @@ def _select_models(
             )
         selected_models.append((llm, display_name))
     return selected_models
+
+
+_VISION_REVIEW_REQUEST = re.compile(
+    r"\breview_with_vision\b"
+    r"|\b(?:with|through|using|via|by)\s+(?:(?:a|the)\s+)?vision\b"
+    r"|\b(?:use|run)\s+(?:(?:a|the)\s+)?vision\b"
+    r"|\bvision[- ](?:only|review|comparison)\b",
+    re.IGNORECASE,
+)
+_VISION_REVIEW_EXCLUSION = re.compile(
+    r"\b(?:without\s+(?:(?:using|the)\s+){0,2}|(?:do not|don't|never)\s+use\s+"
+    r"(?:(?:a|the)\s+)?)vision\b",
+    re.IGNORECASE,
+)
+
+
+def _vision_review_files(
+    query: str | None, files: list[FileDescriptor]
+) -> list[FileToolMetadata]:
+    if (
+        not files
+        or not query
+        or not _VISION_REVIEW_REQUEST.search(query)
+        or _VISION_REVIEW_EXCLUSION.search(query)
+    ):
+        return []
+    attachments = [
+        FileToolMetadata(file_id=file["id"], filename=name, approx_char_count=0)
+        for file in files
+        if (name := file.get("name")) and get_file_ext(name) in VISION_REVIEW_EXTENSIONS
+    ]
+    if len(attachments) == 2:
+        first, second = attachments
+        # Attachment order can differ from the revision names.
+        first_roles = _vision_filename_roles(first.filename)
+        second_roles = _vision_filename_roles(second.filename)
+        if first_roles == {"after"} and second_roles == {"before"}:
+            return [second, first]
+    return attachments
+
+
+def _vision_filename_roles(filename: str) -> set[str]:
+    return set(
+        re.findall(r"(?<![a-z0-9])(?:before|after)(?![a-z0-9])", filename.lower())
+    )
 
 
 def _process_query(
@@ -411,6 +462,38 @@ def prepare_chat_turn(
                 replace_base_system_prompt=persona.replace_base_system_prompt,
             )
             tool_configuration = capture_persona_tool_configuration(persona)
+            vision_files = (
+                _vision_review_files(
+                    accepted_text
+                    if accepted_text is not None
+                    else chat_history[-1].message,
+                    new_msg_req.file_descriptors
+                    if accepted_text is not None
+                    else chat_history[-1].files or [],
+                )
+                if forced_tool_id is None and not new_msg_req.deep_research
+                else []
+            )
+            vision_tool_id = None
+            if 1 <= len(vision_files) <= 2:
+                vision_tool_id = next(
+                    (
+                        tool.id
+                        for tool in tool_configuration.tools
+                        if tool.in_code_tool_id == VISION_REVIEW_TOOL_ID
+                        and is_tool_available_for_persona(tool, persona_id)
+                        and (
+                            new_msg_req.allowed_tool_ids is None
+                            or tool.id in new_msg_req.allowed_tool_ids
+                        )
+                    ),
+                    None,
+                )
+            if vision_tool_id is not None:
+                forced_tool_id = vision_tool_id
+                for file in vision_files:
+                    # The vision action loads original bytes directly.
+                    descriptors.pop(file.file_id, None)
             previous_run_id = (
                 next(
                     (
@@ -474,10 +557,22 @@ def prepare_chat_turn(
         # File ids stay available when a tool on this agent reads files by id.
         if not any(
             tool.in_code_tool_id
-            in {FILE_READER_TOOL_ID, DRAWING_REVIEW_TOOL_ID, COMMENT_REVIEW_TOOL_ID}
+            in {
+                FILE_READER_TOOL_ID,
+                DRAWING_REVIEW_TOOL_ID,
+                COMMENT_REVIEW_TOOL_ID,
+                VISION_REVIEW_TOOL_ID,
+            }
             for tool in tool_configuration.tools
         ):
             history.all_injected_file_metadata = {}
+        if vision_tool_id is not None:
+            # Use the attachment order and expose image IDs even if the chat model
+            # cannot accept image inputs or drops images from its context.
+            history.all_injected_file_metadata = {
+                **{file.file_id: file for file in vision_files},
+                **history.all_injected_file_metadata,
+            }
         # Persistent history and the accepted user row are already loaded and saved.
         if not record_mode_persists_content(incognito_record_mode):
             admission.refresh()
@@ -562,6 +657,9 @@ def prepare_chat_turn(
             all_injected_file_metadata=history.all_injected_file_metadata,
             available_files=available_files,
             forced_tool_id=forced_tool_id,
+            vision_review_file_ids=[file.file_id for file in vision_files]
+            if vision_tool_id is not None
+            else [],
             chat_files_for_tools=chat_files_for_tools,
             custom_agent_prompt=custom_prompt,
             user_memory_context=memory,

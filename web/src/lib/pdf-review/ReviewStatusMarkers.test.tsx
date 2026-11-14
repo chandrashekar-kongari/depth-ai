@@ -34,3 +34,29 @@ it('does not invent a location and cycles overlapping findings',async()=>{
  await user.click(screen.getByRole('button'));
  expect(select).toHaveBeenCalledWith('c2',1);
 });
+
+it("opens a grounded change from its numbered tag before selection", async () => {
+  const user = setupUser();
+  const select = jest.fn();
+  const change: LinkedIssue = {
+    ...solved,
+    id: "vision-change-1",
+    verdict: undefined,
+    showMarkerBeforeSelection: true,
+  };
+  const unlocated = { ...change, id: "vision-change-2", anchors: {} };
+  render(
+    <ReviewStatusMarkers
+      documentId="revised"
+      pageIndex={0}
+      issues={[change, unlocated]}
+      original={false}
+      onSelect={select}
+    />
+  );
+  expect(screen.getAllByTestId("pdf-status-marker")).toHaveLength(1);
+  const tag = screen.getByRole("button", { name: /Comparison region/ });
+  expect(tag).toHaveTextContent("1");
+  await user.click(tag);
+  expect(select).toHaveBeenCalledWith("vision-change-1", 1);
+});

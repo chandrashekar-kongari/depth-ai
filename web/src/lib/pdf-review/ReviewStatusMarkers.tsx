@@ -19,12 +19,12 @@ interface ReviewStatusMarkersProps {
   original: boolean;
   onSelect: (issueId: string, page: number) => void;
 }
-const colors:Record<ReviewMarkerTone,string>={
+const colors = {
   success:"[&_.interactive]:text-status-success-05 [&_.interactive-foreground]:text-status-success-05",
   error:"bg-status-error-05 [&_.interactive]:text-text-light-05 [&_.interactive-foreground]:text-text-light-05",
   warning:"bg-status-warning-05 [&_.interactive]:text-text-dark-05 [&_.interactive-foreground]:text-text-dark-05",
   neutral:"bg-background-neutral-04 [&_.interactive]:text-text-05 [&_.interactive-foreground]:text-text-05",
-};
+} satisfies Record<ReviewMarkerTone, string>;
 
 /** Screen-only status controls. They never enter the PDF annotation store. */
 export function ReviewStatusMarkers({documentId,pageIndex,issues,snapshot,selectedIssueId,original,onSelect}:ReviewStatusMarkersProps) {
@@ -36,7 +36,16 @@ export function ReviewStatusMarkers({documentId,pageIndex,issues,snapshot,select
   const page=size?scroll?.getRectPositionForPage(pageIndex,{origin:{x:0,y:0},size}):null;
   if (!size || !page || !scroll) return null;
   const targets:ReviewMarkerTarget[]=issues.flatMap((issue,index)=>{
-    if ((original && issue.verdict==='solved_correct') || (!issue.verdict && issue.id!==selectedIssueId)) return [];
+    if (
+      (original &&
+        issue.verdict === "solved_correct" &&
+        !issue.showMarkerBeforeSelection) ||
+      (!issue.verdict &&
+        !issue.showMarkerBeforeSelection &&
+        issue.id !== selectedIssueId)
+    ) {
+      return [];
+    }
     const anchor=resolvedAnchor(snapshot,documentId,issue);
     if (!anchor || anchor.page!==pageIndex+1) return [];
     const rect=scroll.getRectPositionForPage(pageIndex,anchorRect(anchor,size));

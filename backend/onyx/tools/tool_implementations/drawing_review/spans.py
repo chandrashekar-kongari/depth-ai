@@ -7,7 +7,9 @@ The model chooses a span id. It does not choose coordinates.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
+
+from pdfplumber.page import CroppedPage, FilteredPage
 
 from onyx.utils.logger import setup_logger
 
@@ -27,6 +29,7 @@ class SheetSpan:
     y: float
     width: float
     height: float
+    colored: bool = False
 
 
 def page_box() -> tuple[float, float, float, float]:
@@ -170,7 +173,55 @@ def _clamp(value: float) -> float:
     return min(1.0, max(0.0, value))
 
 
-def extract_pdf_spans(data: bytes, max_pages: int) -> tuple[list[SheetSpan], list[int]]:
+def _split_text_lines(page: CroppedPage | FilteredPage) -> list[dict[str, Any]]:
+    from pdfplumber.utils import extract_text
+
+    lines: list[dict[str, Any]] = []
+    for line in page.extract_text_lines(return_chars=True):
+        chars = sorted(line["chars"], key=lambda char: char["x0"])
+        if not chars:
+            continue
+        group = [chars[0]]
+        for char in chars[1:]:
+            previous = group[-1]
+            gap = float(char["x0"]) - float(previous["x1"])
+            height = max(float(char["height"]), float(previous["height"]))
+            if gap > max(3.0, 1.25 * height):
+                lines.append(_span_from_group(group, extract_text(group)))
+                group = []
+            group.append(char)
+        lines.append(
+            line
+            if len(group) == len(chars)
+            else _span_from_group(group, extract_text(group))
+        )
+    return lines
+
+
+def _span_from_group(chars: list[dict[str, Any]], text: str) -> dict[str, Any]:
+    return {
+        "text": text,
+        "x0": min(char["x0"] for char in chars),
+        "x1": max(char["x1"] for char in chars),
+        "top": min(char["top"] for char in chars),
+        "bottom": max(char["bottom"] for char in chars),
+        "chars": chars,
+    }
+
+
+def _is_colored_text(line: dict[str, Any]) -> bool:
+    colors = [char.get("non_stroking_color") for char in line.get("chars", [])]
+    return bool(colors) and all(
+        isinstance(color, (list, tuple))
+        and len(color) == 3
+        and max(color) - min(color) >= 0.2
+        for color in colors
+    )
+
+
+def extract_pdf_spans(
+    data: bytes, max_pages: int, *, split_separated_text: bool = False
+) -> tuple[list[SheetSpan], list[int]]:
     """Index native text lines with library geometry, including crop and rotation."""
     from io import BytesIO
 
@@ -182,7 +233,11 @@ def extract_pdf_spans(data: bytes, max_pages: int) -> tuple[list[SheetSpan], lis
         for number, page in enumerate(document.pages[:max_pages], 1):
             crop = page.crop(page.cropbox)
             upright = crop.filter(lambda obj: obj.get("upright", True))
-            lines = upright.extract_text_lines(return_chars=False)
+            lines = (
+                _split_text_lines(upright)
+                if split_separated_text
+                else upright.extract_text_lines(return_chars=False)
+            )
             for positive, direction in ((True, "btt"), (False, "ttb")):
                 rotated = crop.filter(
                     lambda obj, positive=positive: (
@@ -195,6 +250,7 @@ def extract_pdf_spans(data: bytes, max_pages: int) -> tuple[list[SheetSpan], lis
                     rotated.extract_words(
                         line_dir_rotated="ltr",
                         char_dir_rotated=direction,
+                        return_chars=split_separated_text,
                     )
                 )
             if len(lines) > _MAX_SPANS_PER_PAGE or any(
@@ -226,6 +282,7 @@ def extract_pdf_spans(data: bytes, max_pages: int) -> tuple[list[SheetSpan], lis
                         y=y,
                         width=width,
                         height=height,
+                        colored=_is_colored_text(line),
                     )
                 )
     return spans, truncated

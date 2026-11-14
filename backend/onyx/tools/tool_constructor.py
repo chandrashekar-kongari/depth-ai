@@ -51,6 +51,9 @@ from onyx.tools.tool_implementations.drawing_review.comment_review_tool import (
 from onyx.tools.tool_implementations.drawing_review.drawing_review_tool import (
     DrawingReviewTool,
 )
+from onyx.tools.tool_implementations.drawing_review.vision_review_tool import (
+    VisionReviewTool,
+)
 from onyx.tools.tool_implementations.drawing_review.workspace_tool import (
     DrawingWorkspaceTool,
 )
@@ -431,6 +434,16 @@ def _construct_tools_impl(
                         chat_file_ids=cfg.chat_file_ids,
                     ),
                     DrawingWorkspaceTool(tool_id=db_tool_model.id, user=user),
+                ]
+
+            elif tool_cls.__name__ == VisionReviewTool.__name__:
+                cfg = file_reader_tool_config or FileReaderToolConfig()
+                tool_dict[db_tool_model.id] = [
+                    VisionReviewTool(
+                        tool_id=db_tool_model.id,
+                        user_file_ids=cfg.user_file_ids,
+                        chat_file_ids=cfg.chat_file_ids,
+                    )
                 ]
 
         # Handle custom tools

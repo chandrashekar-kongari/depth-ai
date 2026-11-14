@@ -113,11 +113,16 @@ export function CommentReviewView({
           issues={[
             ...(review.comments ?? []).map((comment) => {
               const anchors: LinkedIssue["anchors"] = {};
+              const isVisionComment = comment.id.startsWith("vision-comment-");
               if (review.commented_sheet_file_id)
                 anchors[review.commented_sheet_file_id] = {
                   page: comment.page,
                   box: comment.box,
                   pageLevel: comment.page_level,
+                  quality:
+                    isVisionComment && comment.box
+                      ? "located_comment"
+                      : undefined,
                 };
               if (review.revised_sheet_file_id)
                 anchors[review.revised_sheet_file_id] = {
@@ -130,6 +135,7 @@ export function CommentReviewView({
                 };
               return {
                 id: comment.id,
+                showMarkerBeforeSelection: isVisionComment,
                 title: comment.text,
                 request: comment.request,
                 evidence: comment.evidence,
@@ -332,7 +338,9 @@ function CommentQueue({
           ? comment.request
           : comment.text;
         const title =
-          titleSource.split(/\n|Required change:/i)[0]?.trim() || comment.text;
+          comment.evidence.trim() ||
+          titleSource.split(/\n|Required change:/i)[0]?.trim() ||
+          comment.text;
         const open = expanded[comment.id] ?? false;
         return (
           <Card
@@ -479,13 +487,6 @@ function CommentQueue({
                     wordWrap="wrap-anywhere"
                   >
                     {t("request.text", { request: comment.request })}
-                  </Text>
-                  <Text
-                    font="secondary-body"
-                    color="text-03"
-                    wordWrap="wrap-anywhere"
-                  >
-                    {t("evidence.text", { evidence: comment.evidence })}
                   </Text>
                   {review.drawing_changes?.changes
                     .filter(

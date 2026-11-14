@@ -668,6 +668,7 @@ def create_chat_agent(
             llm=llm,
             token_counter=get_llm_token_counter(llm),
             forced_tool_id=setup.forced_tool_id,
+            vision_review_file_ids=setup.vision_review_file_ids,
             user_identity=setup.user_identity,
             chat_files=setup.chat_files_for_tools,
             reasoning_effort=setup.reasoning_effort,
