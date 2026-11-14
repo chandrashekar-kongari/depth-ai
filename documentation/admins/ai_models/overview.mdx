@@ -18,9 +18,14 @@ choose which models users can see, set the default model, and control model sett
 
 The page has these sections:
 
-- **Default Model**: the model Onyx uses for new chat sessions unless a user or agent picks another one.
+- **Default Model**: the saved workspace default. When configured for chat, `qwen/qwen3.8-max-0902` takes precedence.
 - **Available Providers**: the providers you have connected. You cannot delete the provider that owns the default model.
 - **Add Provider**, **Gateways & Routers**, and **Self-hosted & Custom**: the providers you can connect.
+
+The chat input does not show a model selector. New chats use **Qwen3.8 Max 0902** when configured for chat.
+Image processing and Vision Review use **Qwen3.8 27B** (`qwen/qwen3.8-27b`) when configured for vision.
+If a preferred model is unavailable, Onyx uses the saved default for that task. Existing chat selections,
+personal preferences, and agent model settings can override the chat default.
 
 ### Provider Types
 

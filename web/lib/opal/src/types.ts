@@ -53,6 +53,7 @@ export type ContainerSizeVariants = Exclude<SizeVariants, "full" | "xl">;
  * |----------|---------|-----|
  * | `0.5`    | `0.125` | 2   |
  * | `1`      | `0.25`  | 4   |
+ * | `1.5`    | `0.375` | 6   |
  * | `2`      | `0.5`   | 8   |
  * | `3`      | `0.75`  | 12  |
  * | `4`      | `1`     | 16  |
@@ -66,7 +67,7 @@ export type ContainerSizeVariants = Exclude<SizeVariants, "full" | "xl">;
  *
  * Converted with {@link roundingToRem}, not looked up as a class.
  */
-export type Rounding = 0.5 | 1 | 2 | 3 | 4 | 5 | "full";
+export type Rounding = 0.5 | 1 | 1.5 | 2 | 3 | 4 | 5 | "full";
 
 /**
  * A line height on the {@link Spacing} scale, one of the `--height-line-*`

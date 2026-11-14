@@ -5,7 +5,7 @@
    -------------------------------------------------------------------------- */
 
 .opal-input-field {
-  @apply w-full h-6 bg-transparent p-0.5 font-main-ui-body focus:outline-hidden;
+  @apply w-full h-6 bg-transparent p-0.5 font-main-ui-body font-normal focus:outline-hidden;
 }
 
 /* A chosen option's icon, sized like the search icon. */
@@ -29,7 +29,7 @@
 .opal-input[data-variant="primary"] .opal-input-field,
 .opal-input[data-variant="internal"] .opal-input-field,
 .opal-input[data-variant="error"] .opal-input-field {
-  @apply text-text-04;
+  @apply text-text-05;
 }
 
 .opal-input[data-variant="disabled"] .opal-input-field {
@@ -37,7 +37,7 @@
 }
 
 .opal-input-field::placeholder {
-  @apply font-main-ui-muted text-text-02;
+  @apply font-main-ui-muted font-normal text-text-02;
 }
 
 /* dir="auto" resolves to LTR while the value is empty, which would pin the

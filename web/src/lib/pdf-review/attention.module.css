@@ -1,0 +1,23 @@
+.blink {
+  border-color: var(--theme-lime-05);
+  background-color: color-mix(in srgb, var(--theme-lime-05) 12%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--theme-lime-05) 65%, transparent);
+  animation: location-blink 400ms steps(1, end) 2 forwards;
+}
+
+@keyframes location-blink {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink {
+    animation: none;
+  }
+}

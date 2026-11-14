@@ -35,10 +35,10 @@ export default function ContextRing({
 
   const arcColor =
     view.level === "crit"
-      ? "stroke-status-error-05"
+      ? "text-status-error-05"
       : view.level === "warn"
-        ? "stroke-status-warning-05"
-        : "stroke-text-04";
+        ? "text-status-warning-05"
+        : "text-text-04";
 
   const tooltip = `${view.displayPct}% of context used`;
 

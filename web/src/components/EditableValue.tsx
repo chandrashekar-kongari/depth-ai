@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { FiEdit2 } from "react-icons/fi";
+import { SvgEdit as FiEdit2 } from "@opal/icons";
 import { SvgCheck } from "@opal/icons";
 
 export function EditableValue({

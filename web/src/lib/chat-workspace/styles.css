@@ -1,11 +1,11 @@
 /* Chat-only composition; admin and plugin management retain their own surfaces. */
 body:has([data-depth-chat-workspace]) {
-  --sidebar-width-expanded: 14.5rem;
+  --sidebar-width-expanded: 13.5rem;
   --sidebar-width-folded: 3.5rem;
   --chrome-header-height: 3rem;
 }
 body:has([data-depth-chat-workspace]) .opal-sidebar-root__column {
-  background: var(--background-tint-01);
+  background: var(--background-neutral-01);
   border-inline-end: 1px solid var(--border-01);
 }
 body:has([data-depth-chat-workspace]) .opal-sidebar-header {
@@ -14,26 +14,35 @@ body:has([data-depth-chat-workspace]) .opal-sidebar-header {
 .depth-workspace-separator {
   width: 5px;
   flex-shrink: 0;
-  background: var(--border-01);
+  background: linear-gradient(var(--border-01), var(--border-01)) center / 1px
+    100% no-repeat;
   transition: background 120ms ease;
 }
 .depth-workspace-separator:hover,
 .depth-workspace-separator:focus-visible {
-  background: var(--action-selection-05);
+  background: var(--action-selection-01);
   outline: 2px solid var(--action-selection-05);
   outline-offset: -2px;
 }
 .depth-conversation {
   container-type: inline-size;
 }
-.depth-chat-composer {
-  box-shadow: none;
+[data-depth-chat-workspace][data-document-open="true"]
+  .depth-workspace-conversation {
+  background: var(--background-neutral-00);
 }
 .depth-review-queue {
   overflow-wrap: anywhere;
 }
-.depth-review-queue [aria-current="true"] {
-  border-color: var(--border-03);
+.depth-review-summary {
+  border-block-end: 1px solid var(--border-01);
+  padding-block-end: 0.75rem;
+}
+
+.depth-review-filters [aria-pressed="true"]:not([data-disabled]) {
+  background-color: var(--action-selection-01);
+  border-color: transparent;
+  --interactive-foreground: var(--action-text-link-05);
 }
 .depth-review-details > summary {
   cursor: pointer;
@@ -62,13 +71,13 @@ body:has([data-depth-chat-workspace]) .opal-root-layout__footer {
   border-color: var(--border-01);
 }
 .depth-review-queue .opal-card[aria-current="true"] {
-  border-color: var(--border-03);
+  border-color: var(--action-selection-03);
 }
 .depth-review-queue .opal-card:focus-within {
   border-color: var(--action-selection-05);
 }
-.depth-chat-composer {
-  padding: 0.25rem;
+[data-document-open="true"] .depth-chat-composer {
+  padding: 0.375rem;
 }
 .depth-composer-controls {
   flex-shrink: 0;
@@ -102,4 +111,18 @@ body:has(
 .depth-composer-models .opal-select-content > span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.opal-sidebar-root__column:has([data-testid="AppSidebar/new-session"])
+  .opal-sidebar-tab__fold
+  > .font-main-ui-body {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.opal-sidebar-root__column:has([data-testid="AppSidebar/new-session"])
+  .opal-sidebar-section__title
+  .font-secondary-body {
+  font-size: 0.6875rem;
+  line-height: 1rem;
 }

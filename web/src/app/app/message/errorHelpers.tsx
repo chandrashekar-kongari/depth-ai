@@ -1,4 +1,4 @@
-import { Wifi } from "lucide-react";
+import { SvgWifiHigh as Wifi } from "@opal/icons";
 import { SvgAlertCircle, SvgClock, SvgLock, SvgServer } from "@opal/icons";
 
 /**

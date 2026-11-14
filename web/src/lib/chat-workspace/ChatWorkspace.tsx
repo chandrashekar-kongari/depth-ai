@@ -171,7 +171,7 @@ export function ChatWorkspace({
           minSize={compact || !hasDocument ? 0 : 360}
           collapsible
           collapsedSize={0}
-          className="min-h-0 min-w-0 overflow-hidden"
+          className="depth-workspace-conversation min-h-0 min-w-0 overflow-hidden"
           inert={hasDocument && compact && pane !== "conversation"}
         >
           {children}

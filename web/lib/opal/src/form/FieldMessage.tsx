@@ -19,11 +19,11 @@ type MessageVariant =
   | "idle";
 
 const iconMap: Record<MessageVariant, React.ReactNode> = {
-  error: <SvgXOctagon className="h-3 w-3 stroke-status-error-05" />,
-  success: <SvgCheckCircle className="h-3 w-3 stroke-status-success-05" />,
-  loading: <SvgLoader className="h-3 w-3 stroke-text-02 animate-spin" />,
-  warning: <SvgAlertCircle className="h-3 w-3 stroke-status-warning-05" />,
-  info: <SvgAlertCircle className="h-3 w-3 stroke-text-03" />,
+  error: <SvgXOctagon className="h-3 w-3 text-status-error-05" />,
+  success: <SvgCheckCircle className="h-3 w-3 text-status-success-05" />,
+  loading: <SvgLoader className="h-3 w-3 text-text-02 animate-spin" />,
+  warning: <SvgAlertCircle className="h-3 w-3 text-status-warning-05" />,
+  info: <SvgAlertCircle className="h-3 w-3 text-text-03" />,
   idle: null,
 };
 

@@ -254,7 +254,7 @@ function OutputsBrowser({
             >
               <SvgChevronRight
                 size={12}
-                className="stroke-text-03 shrink-0"
+                className="text-text-03 shrink-0"
                 aria-hidden
               />
               <Button

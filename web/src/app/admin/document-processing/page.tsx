@@ -122,7 +122,7 @@ function Main() {
                       ••••••••••••••••
                     </Text>
                   </div>
-                  <SvgLock className="h-4 w-4 stroke-text-03" aria-hidden />
+                  <SvgLock className="h-4 w-4 text-text-03" aria-hidden />
                 </div>
               ) : (
                 <InputTypeIn

@@ -1,22 +1,21 @@
+// Phosphor Icons 2.1.1: tree-structure (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgListTree = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M14 8H7.5M14 12H7.5M7.5 4H14M5 12H4.5C3.67157 12 3 11.3284 3 10.5V6.5M3 6.5V4.91465M3 6.5C3 7.32843 3.67157 8 4.5 8H5M3.5 5C4.32843 5 5 4.32843 5 3.5C5 2.67158 4.32842 2 3.5 2C2.67157 2 2 2.67158 2 3.5C2 4.32843 2.67157 5 3.5 5Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+function SvgListTree({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M160,112h48a16,16,0,0,0,16-16V48a16,16,0,0,0-16-16H160a16,16,0,0,0-16,16V64H128a24,24,0,0,0-24,24v32H72v-8A16,16,0,0,0,56,96H24A16,16,0,0,0,8,112v32a16,16,0,0,0,16,16H56a16,16,0,0,0,16-16v-8h32v32a24,24,0,0,0,24,24h16v16a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V160a16,16,0,0,0-16-16H160a16,16,0,0,0-16,16v16H128a8,8,0,0,1-8-8V88a8,8,0,0,1,8-8h16V96A16,16,0,0,0,160,112ZM56,144H24V112H56v32Zm104,16h48v48H160Zm0-112h48V96H160Z" />
+      </g>
+    </svg>
+  );
+}
 
 export default SvgListTree;

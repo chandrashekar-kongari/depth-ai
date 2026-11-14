@@ -24,7 +24,7 @@ function getStatusIcon(status: TodoStatus) {
   switch (status) {
     case "completed":
       return (
-        <SvgCheckCircle className="size-4 stroke-status-success-05 mt-0.5 shrink-0" />
+        <SvgCheckCircle className="size-4 text-status-success-05 mt-0.5 shrink-0" />
       );
     case "in_progress":
       // Gray circle with inset filled circle to indicate work in progress
@@ -114,7 +114,7 @@ export default function TodoListCard({
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {/* Status indicator in header - no spinner, only static icons */}
               {allCompleted ? (
-                <SvgCheckCircle className="size-4 stroke-status-success-05 shrink-0" />
+                <SvgCheckCircle className="size-4 text-status-success-05 shrink-0" />
               ) : (
                 <div className="size-4 rounded-sm border-2 border-text-03 shrink-0 flex items-center justify-center">
                   <div className="size-2 bg-text-03 rounded-xs" />
@@ -143,7 +143,7 @@ export default function TodoListCard({
             {/* Expand arrow */}
             <SvgChevronDown
               className={cn(
-                "size-4 stroke-text-03 transition-transform duration-150 shrink-0",
+                "size-4 text-text-03 transition-transform duration-150 shrink-0",
                 !isOpen && "-rotate-90"
               )}
             />

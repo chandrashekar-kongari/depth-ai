@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: dots-six-vertical (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgHandle = ({ size = 16, ...props }: IconProps) => (
-  <svg
-    width={Math.round((size * 3) / 17)}
-    height={size}
-    viewBox="0 0 3 17"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    {...props}
-  >
-    <path
-      d="M0.5 0.5V16.5M2.5 0.5V16.5"
-      stroke="currentColor"
-      strokeLinecap="round"
-    />
-  </svg>
-);
+function SvgHandle({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M104,60A12,12,0,1,1,92,48,12,12,0,0,1,104,60Zm60,12a12,12,0,1,0-12-12A12,12,0,0,0,164,72ZM92,116a12,12,0,1,0,12,12A12,12,0,0,0,92,116Zm72,0a12,12,0,1,0,12,12A12,12,0,0,0,164,116ZM92,184a12,12,0,1,0,12,12A12,12,0,0,0,92,184Zm72,0a12,12,0,1,0,12,12A12,12,0,0,0,164,184Z" />
+      </g>
+    </svg>
+  );
+}
 
 export default SvgHandle;

@@ -138,10 +138,10 @@ export default function Divider({
             <div className="flex items-center justify-center size-5 p-0.5">
               <Icon
                 className={cn(
-                  "size-4 stroke-text-03",
-                  foldable && "group-hover/divider:stroke-text-04",
-                  foldable && expanded && "stroke-text-04",
-                  foldable && isHighlighted && "stroke-text-04"
+                  "size-4 text-text-03",
+                  foldable && "group-hover/divider:text-text-04",
+                  foldable && expanded && "text-text-04",
+                  foldable && isHighlighted && "text-text-04"
                 )}
               />
             </div>
@@ -169,10 +169,10 @@ export default function Divider({
             <div className="flex items-center justify-center size-5 p-0.5">
               <SvgInfoSmall
                 className={cn(
-                  "size-3 stroke-text-03",
-                  foldable && "group-hover/divider:stroke-text-04",
-                  foldable && expanded && "stroke-text-04",
-                  foldable && isHighlighted && "stroke-text-04"
+                  "size-3 text-text-03",
+                  foldable && "group-hover/divider:text-text-04",
+                  foldable && expanded && "text-text-04",
+                  foldable && isHighlighted && "text-text-04"
                 )}
               />
             </div>
@@ -215,18 +215,18 @@ export default function Divider({
             {expanded ? (
               <SvgChevronDown
                 className={cn(
-                  "size-4 stroke-text-03",
-                  "group-hover/divider:stroke-text-04",
-                  expanded && "stroke-text-04",
-                  isHighlighted && "stroke-text-04"
+                  "size-4 text-text-03",
+                  "group-hover/divider:text-text-04",
+                  expanded && "text-text-04",
+                  isHighlighted && "text-text-04"
                 )}
               />
             ) : (
               <SvgChevronRight
                 className={cn(
-                  "size-4 stroke-text-03",
-                  "group-hover/divider:stroke-text-04",
-                  isHighlighted && "stroke-text-04"
+                  "size-4 text-text-03",
+                  "group-hover/divider:text-text-04",
+                  isHighlighted && "text-text-04"
                 )}
               />
             )}

@@ -15,3 +15,7 @@
 .opal-input-single-select[data-trigger="button"] .opal-input-field {
   @apply cursor-pointer caret-transparent select-none;
 }
+
+.opal-input-single-select[data-trigger="button"] .opal-input {
+  @apply min-h-8 py-0.5;
+}

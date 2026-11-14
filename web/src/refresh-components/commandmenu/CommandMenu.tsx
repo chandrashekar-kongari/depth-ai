@@ -465,7 +465,7 @@ function CommandMenuHeader({
       <div className="px-3 pt-3 flex flex-row justify-between items-center">
         <Section flexDirection="row" justifyContent="start" gap={2} width="fit">
           {/* Standalone search icon */}
-          <SvgSearch className="w-6 h-6 stroke-text-04" />
+          <SvgSearch className="w-6 h-6 text-text-04" />
           {filters.map((filter) => (
             <Tag
               variant="editable"
@@ -769,7 +769,7 @@ function CommandMenuFooterAction({
 }: CommandMenuFooterActionProps) {
   return (
     <div className="flex items-center gap-1" aria-label={label}>
-      <Icon className="w-3.5 h-3.5 stroke-text-02" aria-hidden="true" />
+      <Icon className="w-3.5 h-3.5 text-text-02" aria-hidden="true" />
       <Text font="main-ui-body" color="text-03">
         {label}
       </Text>

@@ -28,11 +28,11 @@ type IconTooltipProps = {
 };
 
 const STROKES: Record<IconTooltipStatus, string> = {
-  default: "stroke-text-03",
-  info: "stroke-status-info-05",
-  success: "stroke-status-success-05",
-  warning: "stroke-status-warning-05",
-  error: "stroke-status-error-05",
+  default: "text-text-03",
+  info: "text-status-info-05",
+  success: "text-status-success-05",
+  warning: "text-status-warning-05",
+  error: "text-status-error-05",
 };
 
 /**

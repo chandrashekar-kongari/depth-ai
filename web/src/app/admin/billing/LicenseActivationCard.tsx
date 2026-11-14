@@ -106,12 +106,9 @@ export default function LicenseActivationCard({
               width="auto"
             >
               {isExpired ? (
-                <SvgXOctagon size={16} className="stroke-status-error-05" />
+                <SvgXOctagon size={16} className="text-status-error-05" />
               ) : (
-                <SvgCheckCircle
-                  size={16}
-                  className="stroke-status-success-05"
-                />
+                <SvgCheckCircle size={16} className="text-status-success-05" />
               )}
               <Text font="secondary-body" color="text-03">
                 {isExpired

@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: file-code (regular).
 import type { IconProps } from "@opal/types";
-const SvgBinaryFile = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M5.5 13.5V9.25003M10.5 6.75003V2.5M12.67 14C13.4045 14 14 13.4045 14 12.67V3.33C14 2.59546 13.4045 2 12.67 2M3.33 14C2.59546 14 2 13.4045 2 12.67V3.33C2 2.59546 2.59546 2 3.33 2M8.25 4C8.25 3.17157 7.57843 2.5 6.75 2.5C5.92157 2.5 5.25 3.17157 5.25 4V5.25003C5.25 6.07846 5.92157 6.75003 6.75 6.75003C7.57843 6.75003 8.25 6.07846 8.25 5.25003V4ZM9.25 9.25003C8.42157 9.25003 7.75 9.9216 7.75 10.75V12C7.75 12.8284 8.42157 13.5 9.25 13.5C10.0784 13.5 10.75 12.8284 10.75 12V10.75C10.75 9.9216 10.0784 9.25003 9.25 9.25003Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgBinaryFile({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M181.66,146.34a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L164.69,152l-18.35-18.34a8,8,0,0,1,11.32-11.32Zm-72-24a8,8,0,0,0-11.32,0l-24,24a8,8,0,0,0,0,11.32l24,24a8,8,0,0,0,11.32-11.32L91.31,152l18.35-18.34A8,8,0,0,0,109.66,122.34ZM216,88V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88Zm-56-8h28.69L160,51.31Zm40,136V96H152a8,8,0,0,1-8-8V40H56V216H200Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgBinaryFile;

@@ -24,7 +24,7 @@
 
 /* The card: the bordered box with the search field and the rows. */
 .opal-dropdown-card {
-  @apply relative flex flex-col overflow-hidden border bg-background-neutral-00 rounded-12 shadow-box-01;
+  @apply relative flex flex-col overflow-hidden border bg-background-tint-00 rounded-08 shadow-box-01;
   max-height: var(--opal-dropdown-available-height);
 }
 
@@ -51,8 +51,8 @@
 .opal-dropdown-scroll
   .interactive[data-interactive-variant="select-heavy"][data-interactive-state="selected"][data-disabled] {
   @apply bg-[var(--action-selection-01)];
-  --interactive-foreground: var(--action-selection-05);
-  --interactive-foreground-icon: var(--action-selection-05);
+  --interactive-foreground: var(--action-text-link-05);
+  --interactive-foreground-icon: var(--action-text-link-05);
 }
 
 .opal-dropdown-scroll[data-under-search] {

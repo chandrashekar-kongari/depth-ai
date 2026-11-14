@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: file-arrow-down (regular).
 import type { IconProps } from "@opal/types";
-const SvgFileRefresh = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M13.33333 5.33333V13.33333C13.33333 14.0596 12.72623 14.66667 12 14.66667H4C3.27377 14.66667 2.66667 14.0596 2.66667 13.33333V2.66667C2.66667 1.94044 3.27377 1.33333 4 1.33333H9.33333L11.00003 3.00003M9.25 7.08137H11V5.33004M11 7.08137L10.12207 6.20504C9.57912 5.66169 8.8288 5.33004 7.99999 5.33004C6.69377 5.33004 5.58253 6.16484 5.17069 7.33004M10.82919 9.33031C10.41728 10.49536 9.30611 11.33004 7.99999 11.33004C7.17052 11.33004 6.41967 11.0042 5.87661 10.46009L5 9.58007M6.75 9.58007H5V11.33004"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgFileRefresh({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-42.34-61.66a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L120,164.69V120a8,8,0,0,1,16,0v44.69l10.34-10.35A8,8,0,0,1,157.66,154.34Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgFileRefresh;

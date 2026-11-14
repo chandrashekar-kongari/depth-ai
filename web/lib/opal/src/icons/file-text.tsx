@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: file-text (regular).
 import type { IconProps } from "@opal/types";
-const SvgFileText = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M13.3333 5.33337L9.33334 1.33337H4.00001C3.27378 1.33337 2.66667 1.94048 2.66667 2.66671V13.3334C2.66667 14.0596 3.27378 14.6667 4.00001 14.6667H12C12.7262 14.6667 13.3333 14.0596 13.3333 13.3334V5.33337ZM9.33334 1.33337L9.33334 5.33337L13.3333 5.33337M10.6667 8.66671H5.33334M10.6667 11.3334H5.33334M6.66667 6.00004H5.33334"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgFileText({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgFileText;

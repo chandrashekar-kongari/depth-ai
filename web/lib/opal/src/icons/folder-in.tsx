@@ -1,21 +1,21 @@
+// Phosphor Icons 2.1.1: folder-open (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgFolderIn = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M5 2.5L3 2.50001C2.17157 2.50001 1.5 3.17158 1.5 4.00001V12C1.5 12.8284 2.17157 13.5 3 13.5H13C13.8284 13.5 14.5 12.8284 14.5 12V6.00001C14.5 5.17158 13.8284 4.50001 13 4.50001L11 4.5M11 7.5L8.47141 10.0286C8.34124 10.1588 8.17062 10.2239 8.00001 10.2239M5.00001 7.5L7.52861 10.0286C7.65877 10.1588 7.82939 10.2239 8.00001 10.2239M7.99999 1.5L8.00001 10.2239"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+function SvgFolderIn({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M245,110.64A16,16,0,0,0,232,104H216V88a16,16,0,0,0-16-16H130.67L102.94,51.2a16.14,16.14,0,0,0-9.6-3.2H40A16,16,0,0,0,24,64V208h0a8,8,0,0,0,8,8H211.1a8,8,0,0,0,7.59-5.47l28.49-85.47A16.05,16.05,0,0,0,245,110.64ZM93.34,64,123.2,86.4A8,8,0,0,0,128,88h72v16H69.77a16,16,0,0,0-15.18,10.94L40,158.7V64Zm112,136H43.1l26.67-80H232Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgFolderIn;

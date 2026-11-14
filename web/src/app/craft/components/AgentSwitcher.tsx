@@ -35,10 +35,10 @@ function SubagentStatus({ subagent }: { subagent: SubagentState }) {
         />
       )}
       {subagent.status === "done" && (
-        <SvgCheckCircle className="w-3.5 h-3.5 stroke-status-success-05 shrink-0" />
+        <SvgCheckCircle className="w-3.5 h-3.5 text-status-success-05 shrink-0" />
       )}
       {subagent.status === "failed" && (
-        <SvgAlertTriangle className="w-3.5 h-3.5 stroke-status-error-05 shrink-0" />
+        <SvgAlertTriangle className="w-3.5 h-3.5 text-status-error-05 shrink-0" />
       )}
     </div>
   );
@@ -104,7 +104,7 @@ export default function AgentSwitcher() {
   const labelNode = (
     <span className="flex min-w-0 items-center gap-1.5">
       {isViewingSubagent && (
-        <SvgCpu className="w-4 h-4 stroke-text-03 shrink-0" />
+        <SvgCpu className="w-4 h-4 text-text-03 shrink-0" />
       )}
       <Text font="main-ui-action" color="text-04" wordWrap="whitespace-nowrap">
         {triggerLabel}
@@ -182,7 +182,7 @@ export default function AgentSwitcher() {
           )}
         >
           <span className="truncate">{labelNode}</span>
-          <SvgChevronDown className="w-4 h-4 stroke-text-03 shrink-0" />
+          <SvgChevronDown className="w-4 h-4 text-text-03 shrink-0" />
         </button>
       </Dropdown.Trigger>
       <Dropdown.Data label={t("switch.ariaLabel")} items={items} />

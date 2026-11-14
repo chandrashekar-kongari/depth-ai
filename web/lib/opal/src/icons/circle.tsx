@@ -1,16 +1,21 @@
+// Phosphor Icons 2.1.1: circle (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgCircle = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <circle cx="8" cy="8" r="4" strokeWidth={1.5} />
-  </svg>
-);
+function SvgCircle({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgCircle;

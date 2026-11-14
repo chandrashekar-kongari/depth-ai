@@ -1,23 +1,19 @@
+// Phosphor Icons 2.1.1: magnifying-glass (regular).
 import Svg, { Path } from "react-native-svg";
-
 import type { IconProps } from "@/icons/types";
 
-const SvgSearchSmall = ({ size = 16, ...props }: IconProps) => (
-  <Svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    {...props}
-  >
-    <Path
-      d="M9.69454 9.69454C10.7685 8.6206 10.7685 6.8794 9.69454 5.80546C8.6206 4.73151 6.8794 4.73151 5.80546 5.80546C4.73151 6.8794 4.73151 8.6206 5.80546 9.69454C6.8794 10.7685 8.6206 10.7685 9.69454 9.69454ZM9.69454 9.69454L11 11"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+function SvgSearchSmall({ size = 16, ...props }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      {...props}
+    >
+      <Path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z" />
+    </Svg>
+  );
+}
 
 export default SvgSearchSmall;

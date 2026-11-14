@@ -67,8 +67,8 @@ export default function ButtonTile({
               size={16}
               className={cn(
                 disabled
-                  ? "stroke-text-01"
-                  : "stroke-text-03 group-hover/Tile:stroke-text-04"
+                  ? "text-text-01"
+                  : "text-text-03 group-hover/Tile:text-text-04"
               )}
             />
           </div>

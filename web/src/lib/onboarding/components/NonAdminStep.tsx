@@ -70,7 +70,7 @@ export default function NonAdminStep() {
           <ContentAction
             icon={({ className, ...props }) => (
               <SvgCheckCircle
-                className={cn(className, "stroke-status-success-05")}
+                className={cn(className, "text-status-success-05")}
                 {...props}
               />
             )}
@@ -178,10 +178,7 @@ export default function NonAdminStep() {
                       <IconContainer
                         icon={({ className, ...props }) => (
                           <SvgCheckCircle
-                            className={cn(
-                              className,
-                              "stroke-status-success-05"
-                            )}
+                            className={cn(className, "text-status-success-05")}
                             {...props}
                           />
                         )}

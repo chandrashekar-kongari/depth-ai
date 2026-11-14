@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: arrow-up-right (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgArrowUpRight = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M4.66667 11.3333L11 5M4.66667 4.66663H11.3333V11.3333"
-      strokeWidth={1.5}
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+function SvgArrowUpRight({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M200,64V168a8,8,0,0,1-16,0V83.31L69.66,197.66a8,8,0,0,1-11.32-11.32L172.69,72H88a8,8,0,0,1,0-16H192A8,8,0,0,1,200,64Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgArrowUpRight;

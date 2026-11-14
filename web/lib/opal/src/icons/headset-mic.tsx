@@ -1,21 +1,21 @@
+// Phosphor Icons 2.1.1: headset (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgHeadsetMic = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M2.5 7.75002L2.5 7.25C2.5 4.21243 4.96243 1.75 8 1.75C11.0376 1.75 13.5 4.21243 13.5 7.25V7.75M2.5 7.75002L4 7.75C4.55228 7.75 5 8.19772 5 8.75V10.25C5 10.8023 4.55228 11.25 4 11.25H3.5C2.94772 11.25 2.5 10.8023 2.5 10.25V7.75002ZM13.5 7.75H12C11.4477 7.75 11 8.19772 11 8.75V10.25C11 10.8023 11.4477 11.25 12 11.25H12.5C13.0523 11.25 13.5 10.8023 13.5 10.25M13.5 7.75V10.25M13.5 10.25V11.25C13.5 12.9069 12.1569 14.25 10.5 14.25L8 14.25"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+function SvgHeadsetMic({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M201.89,54.66A103.43,103.43,0,0,0,128.79,24H128A104,104,0,0,0,24,128v56a24,24,0,0,0,24,24H64a24,24,0,0,0,24-24V144a24,24,0,0,0-24-24H40.36A88.12,88.12,0,0,1,190.54,65.93,87.39,87.39,0,0,1,215.65,120H192a24,24,0,0,0-24,24v40a24,24,0,0,0,24,24h24a24,24,0,0,1-24,24H136a8,8,0,0,0,0,16h56a40,40,0,0,0,40-40V128A103.41,103.41,0,0,0,201.89,54.66ZM64,136a8,8,0,0,1,8,8v40a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V136Zm128,56a8,8,0,0,1-8-8V144a8,8,0,0,1,8-8h24v56Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgHeadsetMic;

@@ -40,7 +40,7 @@ export function PreviewUnavailable({
         >
           <FileIcon
             size={40}
-            className="stroke-text-03 [&_*]:stroke-1"
+            className="text-text-03 [&_*]:stroke-1"
             aria-hidden
           />
         </Section>

@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: arrow-line-right (regular).
 import type { IconProps } from "@opal/types";
-const SvgArrowRightDot = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M14 8H7.50002M10.5 11.5L14 8L10.5 4.5M5.00002 8C5.00002 8.82844 4.32844 9.50001 3.50001 9.50001C2.67159 9.50001 2.00002 8.82844 2.00002 8C2.00002 7.17156 2.67159 6.50001 3.50001 6.50001C4.32844 6.50001 5.00002 7.17156 5.00002 8Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgArrowRightDot({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M189.66,122.34a8,8,0,0,1,0,11.32l-72,72a8,8,0,0,1-11.32-11.32L164.69,136H32a8,8,0,0,1,0-16H164.69L106.34,61.66a8,8,0,0,1,11.32-11.32ZM216,32a8,8,0,0,0-8,8V216a8,8,0,0,0,16,0V40A8,8,0,0,0,216,32Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgArrowRightDot;

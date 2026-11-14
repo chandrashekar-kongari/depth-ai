@@ -41,10 +41,22 @@ Native text spans and crop-relative evidence boxes map to PDF page coordinates f
 Explicit requests with one or two attachments run directly and return coverage
 and findings.
 
-Chat PDF attachments open a single-document EmbedPDF Headless viewer inside chat.
-Original/revised tabs share numbered findings with the chat cards. Each card opens either revision.
-EmbedPDF native annotations render and select confirmed locations. Navigation preserves zoom and waits for layout.
-Hover previews and custom issue overlays are removed. Legacy comment/text boxes remain proposed locations.
+Chat PDF attachments open an EmbedPDF-backed shared camera canvas inside chat.
+Original/revised PDFs occupy separate columns, with pages stacked in each column.
+Card requests resolve document/page anchors into canvas coordinates and center the camera without changing zoom.
+The canvas renders visible pages with native annotations and screen-sized status controls.
+Raster resolution follows camera zoom and device pixel density, including changes between displays.
+Annotate opens an icon palette and edits on the mounted comparison canvas. Select and Pan use pointer and hand icons.
+Hover labels identify tools; saving, history, location correction, print and export share the workspace ledger.
+Native annotation layers use screen-space portals beside the transformed page surface, with the full camera/page scale.
+Raster page images exclude annotations to avoid drawing native marks twice.
+Document controllers stay mounted when pages leave the viewport so saved edits and subscriptions survive page culling.
+SDK update events carry the previous object plus a patch. Persist the updated SDK object, not the event's previous object.
+Replay suppression wraps synchronous SDK mutations, not asynchronous page reads or commits, so user gestures still save.
+The canvas owns its camera transform. Native annotation controls receive its effective page scale once.
+The floating dock is a sibling of the viewport, outside its wheel and pointer handlers.
+Page fitting and card navigation reserve space above the dock. Document/page and zoom controls use separate popovers.
+Legacy comment/text boxes remain proposed locations.
 The owner-scoped locations endpoint uses local pdfplumber native text geometry. Unique isolated dimension
 labels matched to evidence can produce located_text anchors; these identify text, not verified geometric features.
 Repeated or missing labels remain unmarked. No edge-placeholder annotations are generated.
@@ -139,7 +151,8 @@ An empty comment review raises an actionable tool error, rather than returning a
 Each run evaluates the inputs afresh and publishes per-comment progress.
 
 Read-only PDF/page navigation is independent of workspace saving and inference. The SDK handles scroll coordinates,
-rotation and crop transforms. A transient page-relative ring lasts two seconds after visibility confirmation.
+rotation and crop transforms. A transient page-relative ring blinks twice and clears after 800 ms.
+Reduced-motion users see a static ring for that interval.
 The ring has no annotation ID, persistence command or export representation. Repeated requests restart its lifetime.
 
 

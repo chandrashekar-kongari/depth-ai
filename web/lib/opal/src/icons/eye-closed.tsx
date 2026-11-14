@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: eye-closed (regular).
 import type { IconProps } from "@opal/types";
-const SvgEyeClosed = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M10 10.2377C9.38456 10.459 8.71701 10.5909 8 10.5909C7.28299 10.5909 6.61544 10.459 6 10.2377C4.7928 9.80351 3.78612 9.02522 3 8.22328C1.69706 6.89413 1 5.5 1 5.5M3 8.22328L1 10.2233M6 10.2377L5 12.9991M15 5.5C15 5.5 14.3029 6.89413 13 8.22328C12.2139 9.02522 11.2072 9.80351 10 10.2377M10 10.2377L11 12.9991M13 8.22328L15 10.2233"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgEyeClosed({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M228,175a8,8,0,0,1-10.92-3l-19-33.2A123.23,123.23,0,0,1,162,155.46l5.87,35.22a8,8,0,0,1-6.58,9.21A8.4,8.4,0,0,1,160,200a8,8,0,0,1-7.88-6.69l-5.77-34.58a133.06,133.06,0,0,1-36.68,0l-5.77,34.58A8,8,0,0,1,96,200a8.4,8.4,0,0,1-1.32-.11,8,8,0,0,1-6.58-9.21L94,155.46a123.23,123.23,0,0,1-36.06-16.69L39,172A8,8,0,1,1,25.06,164l20-35a153.47,153.47,0,0,1-19.3-20A8,8,0,1,1,38.22,99c16.6,20.54,45.64,45,89.78,45s73.18-24.49,89.78-45A8,8,0,1,1,230.22,109a153.47,153.47,0,0,1-19.3,20l20,35A8,8,0,0,1,228,175Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgEyeClosed;

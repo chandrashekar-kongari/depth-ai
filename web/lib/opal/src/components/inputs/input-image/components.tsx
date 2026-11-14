@@ -77,21 +77,21 @@ const inputImageClasses = {
   placeholder: {
     empty: {
       enabled: [
-        "stroke-text-02",
-        "group-hover:stroke-text-03",
-        "group-active:stroke-text-04",
-        "group-focus-visible:stroke-text-02",
-        "group-hover:group-focus-visible:stroke-text-03",
+        "text-text-02",
+        "group-hover:text-text-03",
+        "group-active:text-text-04",
+        "group-focus-visible:text-text-02",
+        "group-hover:group-focus-visible:text-text-03",
       ],
-      disabled: ["stroke-text-01"],
+      disabled: ["text-text-01"],
     },
     withImage: {
       enabled: [],
       disabled: [],
     },
     dragActive: {
-      enabled: ["stroke-action-selection-05"],
-      disabled: ["stroke-action-selection-05"],
+      enabled: ["text-action-selection-05"],
+      disabled: ["text-action-selection-05"],
     },
   },
 } as const;
@@ -219,7 +219,7 @@ export default function InputImage({
           {/* Drag overlay indicator */}
           {isDragActive && (
             <div className="absolute inset-0 bg-action-selection-05/10 flex items-center justify-center rounded-full pointer-events-none">
-              <SvgPlus className="w-8 h-8 stroke-action-selection-05" />
+              <SvgPlus className="w-8 h-8 text-action-selection-05" />
             </div>
           )}
 
@@ -275,7 +275,7 @@ export default function InputImage({
                   "active:bg-theme-primary-06"
                 )}
               >
-                <SvgX className="h-4 w-4 stroke-text-inverted-05" />
+                <SvgX className="h-4 w-4 text-text-inverted-05" />
               </button>
             </Hoverable.Item>
           </div>

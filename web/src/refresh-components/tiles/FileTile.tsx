@@ -108,7 +108,7 @@ export default function FileTile({
       >
         <Icon
           size={16}
-          className={cn(isMuted ? "stroke-text-01" : "stroke-text-02")}
+          className={cn(isMuted ? "text-text-01" : "text-text-02")}
         />
       </div>
 

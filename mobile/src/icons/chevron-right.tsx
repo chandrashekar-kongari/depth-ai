@@ -1,19 +1,19 @@
+// Phosphor Icons 2.1.1: caret-right (regular).
 import Svg, { Path } from "react-native-svg";
-
 import type { IconProps } from "@/icons/types";
 
-const SvgChevronRight = ({ size = 16, ...props }: IconProps) => (
-  <Svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.5}
-    {...props}
-  >
-    <Path d="M6 12L10 8L6 4" strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
+function SvgChevronRight({ size = 16, ...props }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      {...props}
+    >
+      <Path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z" />
+    </Svg>
+  );
+}
 
 export default SvgChevronRight;

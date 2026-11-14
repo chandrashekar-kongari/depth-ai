@@ -1,5 +1,5 @@
 import { Callout } from "@/components/ui/callout";
-import { FiAlertTriangle } from "react-icons/fi";
+import { SvgAlertTriangle as FiAlertTriangle } from "@opal/icons";
 
 export function ErrorCallout({
   errorTitle,

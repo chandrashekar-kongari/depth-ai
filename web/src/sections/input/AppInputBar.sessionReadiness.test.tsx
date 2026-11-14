@@ -91,8 +91,6 @@ function props(chatState: AppInputBarProps["chatState"]): AppInputBarProps {
     onSubmit: jest.fn(),
     stopGenerating: jest.fn(),
     handleFileUpload: jest.fn(),
-    toggleDeepResearch: jest.fn(),
-    deepResearchEnabled: false,
     disabled: false,
     activeAgent: undefined,
     llmManager: { isLoadingProviders: false } as AppInputBarProps["llmManager"],

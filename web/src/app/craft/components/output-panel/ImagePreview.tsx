@@ -42,7 +42,7 @@ function ImageContent({
         justifyContent="center"
         padding={8}
       >
-        <SvgImage size={48} className="stroke-text-02" />
+        <SvgImage size={48} className="text-text-02" />
         <Text font="heading-h3" color="text-03">
           {t("error.title")}
         </Text>

@@ -448,5 +448,5 @@ up its own branding.
 `web/src/lib/chat-workspace/ChatWorkspace.tsx` owns responsive presentation and local pane-width preferences.
 It uses react-resizable-panels and retains both pane trees when switching compact views. It consumes finding focus requests,
 without owning PDF coordinates, chat settlement or annotation persistence. `web/src/lib/chat-workspace/styles.css` scopes the chat surface treatment.
-The model selector is composed into AppInputBar through its modelControls slot. The input footer can wrap without a fixed height.
+AppPage does not compose a model selector into AppInputBar. The input footer can wrap without a fixed height.
 Light is the default theme; saved account/browser theme choices still apply. Review titles use full-contrast text and neutral borders.

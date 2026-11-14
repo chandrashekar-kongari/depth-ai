@@ -1,23 +1,19 @@
+// Phosphor Icons 2.1.1: question-mark (regular).
 import Svg, { Path } from "react-native-svg";
-
 import type { IconProps } from "@/icons/types";
 
-const SvgQuestionMarkSmall = ({ size = 16, ...props }: IconProps) => (
-  <Svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    {...props}
-  >
-    <Path
-      d="M6.06 5.99995C6.21673 5.5544 6.5261 5.17869 6.9333 4.93937C7.3405 4.70006 7.81926 4.61258 8.28478 4.69243C8.7503 4.77228 9.17254 5.0143 9.47672 5.37564C9.78089 5.73697 9.94737 6.1943 9.94666 6.66662C9.94666 7.99995 7.94666 8.66662 7.94666 8.66662M8 11.3333H8.00666"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+function SvgQuestionMarkSmall({ size = 16, ...props }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      {...props}
+    >
+      <Path d="M192,96c0,28.51-24.47,52.11-56,55.56V160a8,8,0,0,1-16,0V144a8,8,0,0,1,8-8c26.47,0,48-17.94,48-40s-21.53-40-48-40S80,73.94,80,96a8,8,0,0,1-16,0c0-30.88,28.71-56,64-56S192,65.12,192,96Zm-64,96a16,16,0,1,0,16,16A16,16,0,0,0,128,192Z" />
+    </Svg>
+  );
+}
 
 export default SvgQuestionMarkSmall;

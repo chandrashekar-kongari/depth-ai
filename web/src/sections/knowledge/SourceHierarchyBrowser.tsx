@@ -106,7 +106,7 @@ function HierarchyBreadcrumb({
       {/* Collapsed indicator */}
       {shouldCollapse && (
         <>
-          <SvgChevronRight size={12} className="stroke-text-04" />
+          <SvgChevronRight size={12} className="text-text-04" />
           <Text color="text-03" font="secondary-body">
             ...
           </Text>
@@ -122,7 +122,7 @@ function HierarchyBreadcrumb({
 
         return (
           <React.Fragment key={node.id}>
-            <SvgChevronRight size={12} className="stroke-text-04" />
+            <SvgChevronRight size={12} className="text-text-04" />
             {isLast ? (
               <Text color="text-03">{node.title}</Text>
             ) : (
@@ -842,7 +842,7 @@ export default function SourceHierarchyBrowser({
             placeholder={t("table.filter.placeholder")}
             variant="internal"
             rightChildren={
-              <SvgFilter className="w-4 h-4 stroke-text-02 shrink-0" />
+              <SvgFilter className="w-4 h-4 text-text-02 shrink-0" />
             }
           />
         </GeneralLayouts.Section>

@@ -1,3 +1,4 @@
+// Phosphor Icons 2.1.1: arrow-circle-down (regular).
 import type { IconProps } from "@opal/types";
 
 function SvgArrowDownCircle({ size, ...props }: IconProps) {
@@ -5,18 +6,14 @@ function SvgArrowDownCircle({ size, ...props }: IconProps) {
     <svg
       width={size}
       height={size}
-      viewBox="0 0 16 16"
-      fill="none"
+      viewBox="0 0 256 256"
+      fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
-      stroke="currentColor"
       {...props}
     >
-      <path
-        d="M5.33333 8L8 10.6667L10.6667 8M8 10.6667L8 5.33331M8 14.6667C11.6819 14.6667 14.6667 11.6819 14.6667 8C14.6667 4.31808 11.6819 1.33331 8 1.33331C4.31809 1.33331 1.33333 4.31808 1.33333 8C1.33333 11.6819 4.31809 14.6667 8 14.6667Z"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <g stroke="none">
+        <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm37.66-85.66a8,8,0,0,1,0,11.32l-32,32a8,8,0,0,1-11.32,0l-32-32a8,8,0,0,1,11.32-11.32L120,148.69V88a8,8,0,0,1,16,0v60.69l18.34-18.35A8,8,0,0,1,165.66,130.34Z" />
+      </g>
     </svg>
   );
 }

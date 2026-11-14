@@ -157,7 +157,7 @@ export function AddPeoplePicker({
               className="flex items-center gap-1 rounded-08 bg-background-tint-02 px-2 py-1"
               key={user.id}
             >
-              <SvgUser className="h-4 w-4 stroke-text-03" />
+              <SvgUser className="h-4 w-4 text-text-03" />
               <Text color="text-04" font="main-ui-body">
                 {user.email}
               </Text>
@@ -175,7 +175,7 @@ export function AddPeoplePicker({
               className="flex items-center gap-1 rounded-08 bg-background-tint-02 px-2 py-1"
               key={group.id}
             >
-              <SvgUsers className="h-4 w-4 stroke-text-03" />
+              <SvgUsers className="h-4 w-4 text-text-03" />
               <Text color="text-04" font="main-ui-body">
                 {group.name}
               </Text>

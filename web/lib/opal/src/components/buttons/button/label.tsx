@@ -136,7 +136,7 @@ function ButtonLabel({ children, font, responsiveHide }: ButtonLabelProps) {
     <span
       ref={ref}
       className={cn(
-        "overflow-x-clip whitespace-nowrap transition-opacity duration-150 ease-out motion-reduce:transition-none",
+        "opal-button-label overflow-x-clip whitespace-nowrap transition-opacity duration-150 ease-out motion-reduce:transition-none",
         responsiveHide ? "hidden md:inline-block" : "inline-block",
         (phase === "out" || phase === "resize") && "opacity-0"
       )}
@@ -149,7 +149,7 @@ function ButtonLabel({ children, font, responsiveHide }: ButtonLabelProps) {
         if (step) advance(phase);
       }}
     >
-      <Text font={font} color="inherit" wordWrap="whitespace-nowrap">
+      <Text as="span" font={font} color="inherit" wordWrap="whitespace-nowrap">
         {shown}
       </Text>
     </span>

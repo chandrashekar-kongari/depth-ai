@@ -15,6 +15,7 @@ import { loginPath } from "@/lib/auth/paths";
 import {
   Dropdown,
   LineItemButton,
+  OverflowText,
   SidebarTab,
   useDropdownViews,
   type DropdownMenuItem,
@@ -28,19 +29,18 @@ import {
   SvgHelpCircle,
   SvgLogOut,
   SvgSliders,
+  SvgSettings,
   SvgUser,
   SvgNotificationBubble,
 } from "@opal/icons";
-import { Content, toast, useSidebarFolded } from "@opal/layouts";
-import { Section } from "@/layouts/general-layouts";
+import { Section, toast, useSidebarFolded } from "@opal/layouts";
 import { useAppPosition } from "@/lib/position/hooks";
 import useScreenSize from "@/hooks/useScreenSize";
 import { useSettings } from "@/lib/settings/hooks";
 import UserAvatar from "@/refresh-components/avatars/UserAvatar";
 import { useNotificationSummary } from "@/hooks/useNotifications";
-import { SvgDepthLogo } from "@opal/logos";
 import { SidebarLoader } from "@opal/loaders";
-import { markdown } from "@opal/utils";
+import { getFirstPermittedAdminRoute } from "@/lib/permissions/utils";
 import { useTranslations } from "next-intl";
 
 interface SettingsItemsProps {
@@ -52,7 +52,8 @@ function useSettingsItems({
   undismissedCount,
 }: SettingsItemsProps): DropdownMenuItem[] {
   const t = useTranslations("accountPopover");
-  const { user, userResolution } = useUser();
+  const adminLabel = useTranslations("sidebar")("appSidebar.adminPanel.label");
+  const { user, userResolution, hasAdminAccess, adminCapabilities } = useUser();
   const settings = useSettings();
   const enterpriseSettings = settings.enterprise;
   const router = useRouter();
@@ -97,14 +98,11 @@ function useSettingsItems({
       disabled: true,
       render: ({ props }) => (
         <div {...props} className="p-2">
-          <Content
-            sizePreset="main-ui"
-            title={
-              userResolution === "unavailable"
-                ? t("profileUnavailable.title")
-                : getUserEmail(user)
-            }
-          />
+          <OverflowText as="p" font="secondary-action" color="text-04">
+            {userResolution === "unavailable"
+              ? t("profileUnavailable.title")
+              : getUserEmail(user)}
+          </OverflowText>
         </div>
       ),
     },
@@ -118,6 +116,17 @@ function useSettingsItems({
           title: t("settings.label"),
           href: "/app/settings",
         },
+        ...(hasAdminAccess
+          ? [
+              {
+                kind: "action" as const,
+                id: "admin-panel",
+                icon: SvgSettings,
+                title: adminLabel,
+                href: getFirstPermittedAdminRoute(adminCapabilities),
+              },
+            ]
+          : []),
         {
           kind: "custom",
           id: "notifications",
@@ -128,8 +137,9 @@ function useSettingsItems({
               presentational
               selectVariant="select-heavy"
               interaction={highlighted ? "hover" : "rest"}
-              sizePreset="main-ui"
+              sizePreset="secondary"
               variant="section"
+              padding={0}
               rounding={2}
               icon={SvgBell}
               title={t("notifications.label")}
@@ -187,32 +197,6 @@ function useSettingsItems({
               },
             ]
           : []),
-      ],
-    },
-    {
-      kind: "group",
-      items: [
-        {
-          kind: "custom",
-          id: "version",
-          disabled: true,
-          render: ({ props }) => (
-            <div {...props} className="p-2">
-              <Content
-                sizePreset="secondary"
-                variant="body"
-                color="muted"
-                orientation="reverse"
-                icon={SvgDepthLogo}
-                title={markdown(
-                  `[${settings.appName} ${
-                    settings.version ?? "dev"
-                  }](https://docs.onyx.app/changelog)`
-                )}
-              />
-            </div>
-          ),
-        },
       ],
     },
   ];
@@ -330,6 +314,7 @@ export default function AccountPopover({ onShowBuildIntro }: SettingsProps) {
       </Dropdown.Trigger>
       <Dropdown.Data
         label={userDisplayName}
+        sizePreset="secondary"
         // The notifications page scrolls itself at its own height; the
         // list must not add a second cap around it.
         maxHeight="none"

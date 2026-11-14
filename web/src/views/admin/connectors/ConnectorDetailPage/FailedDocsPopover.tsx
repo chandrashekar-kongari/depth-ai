@@ -94,7 +94,7 @@ function FailedDocRow({
             height="fit"
             className="min-w-0"
           >
-            <SvgFile size={12} className="shrink-0 stroke-text-02" />
+            <SvgFile size={12} className="shrink-0 text-text-02" />
             <OverflowText
               font="secondary-mono"
               color="text-02"

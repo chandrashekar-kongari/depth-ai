@@ -1,5 +1,7 @@
 "use client";
 
+import "@/app/css/recent-files.css";
+
 import { IconLoader } from "@opal/loaders";
 import React, { useRef, useState, useEffect, useMemo } from "react";
 import { InputTypeIn } from "@opal/components";
@@ -93,6 +95,7 @@ function FileAttachment({
     <Hoverable.Root group="user-file-row">
       <AttachmentItemButton
         prominence="primary"
+        data-recent-file-row
         onClick={onClick}
         icon={Icon}
         title={file.name}
@@ -100,7 +103,7 @@ function FileAttachment({
         state={isSelected ? "selected" : undefined}
         centerChildren={
           rightText ? (
-            <Section alignItems="end">
+            <Section alignItems="end" gap={0} height="fit">
               <Text font="secondary-body" color="text-03" maxLines={1}>
                 {rightText}
               </Text>
@@ -241,6 +244,7 @@ export default function UserFilesModal({
               {handleUploadChange && (
                 <Button
                   icon={SvgPlusCircle}
+                  size="sm"
                   prominence="internal"
                   onClick={triggerUploadPicker}
                 >
@@ -310,7 +314,7 @@ export default function UserFilesModal({
             {/* Left side: file count and controls */}
             {onPickRecent && (
               <Section flexDirection="row" justifyContent="start" gap={2}>
-                <Text as="p" color="text-03">
+                <Text as="p" font="secondary-body" color="text-03">
                   {t("selectedCount.label", { count: selectedCount })}
                 </Text>
                 <Button

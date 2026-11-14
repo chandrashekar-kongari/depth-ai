@@ -2,7 +2,12 @@ import React, { JSX } from "react";
 import { DocumentSetSummary, Tag } from "@/lib/types";
 import { listSourceMetadata } from "@/lib/connectors/utils";
 import { SourceMetadata, ValidSources } from "@/lib/connectors/types/source";
-import { FiBook, FiBookmark, FiMap, FiX } from "react-icons/fi";
+import {
+  SvgBook as FiBook,
+  SvgBookmark as FiBookmark,
+  SvgMapTrifold as FiMap,
+  SvgX as FiX,
+} from "@opal/icons";
 import { SearchDateRangeSelector } from "@/components/dateRangeSelectors/SearchDateRangeSelector";
 import { InputDateRangePickerValue } from "@opal/components";
 import { SourceIcon } from "@/components/SourceIcon";

@@ -13,7 +13,8 @@
     "dist",
     "tailwind-preset.cjs",
     "README.md",
-    "NOTICE.md"
+    "NOTICE.md",
+    "PHOSPHOR-LICENSE.txt"
   ],
   "type": "module",
   "sideEffects": [

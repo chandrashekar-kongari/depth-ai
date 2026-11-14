@@ -65,7 +65,7 @@ export default function TurnOutputCards({
                 !output.deleted && (
                   <SvgChevronRight
                     size={16}
-                    className="stroke-text-03"
+                    className="text-text-03"
                     aria-hidden
                   />
                 )

@@ -210,7 +210,7 @@ export function KnowledgeSearchResultsPanel({
         gap={2}
         aria-label="search-empty-state"
       >
-        <SvgSearch size={32} className="stroke-text-04" />
+        <SvgSearch size={32} className="text-text-04" />
         <Text font="secondary-body" color="text-03">
           {t("search.prompt.description")}
         </Text>

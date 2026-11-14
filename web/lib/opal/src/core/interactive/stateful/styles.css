@@ -94,8 +94,8 @@
    --------------------------------------------------------------------------- */
 .interactive[data-interactive-variant="select-heavy"][data-interactive-state="filled"] {
   @apply bg-transparent;
-  --interactive-foreground: var(--action-selection-05);
-  --interactive-foreground-icon: var(--action-selection-05);
+  --interactive-foreground: var(--action-text-link-05);
+  --interactive-foreground-icon: var(--action-text-link-05);
 }
 .interactive[data-interactive-variant="select-heavy"][data-interactive-prominence="secondary"][data-interactive-state="filled"] {
   @apply bg-background-tint-01;
@@ -138,8 +138,8 @@
    --------------------------------------------------------------------------- */
 .interactive[data-interactive-variant="select-heavy"][data-interactive-state="selected"] {
   @apply bg-[var(--action-selection-01)];
-  --interactive-foreground: var(--action-selection-05);
-  --interactive-foreground-icon: var(--action-selection-05);
+  --interactive-foreground: var(--action-text-link-05);
+  --interactive-foreground-icon: var(--action-text-link-05);
 }
 .interactive[data-interactive-variant="select-heavy"][data-interactive-state="selected"]:hover:not(
   [data-disabled],
@@ -264,8 +264,8 @@
    --------------------------------------------------------------------------- */
 .interactive[data-interactive-variant="select-card"][data-interactive-state="selected"] {
   @apply bg-[var(--action-selection-01)];
-  --interactive-foreground: var(--action-selection-05);
-  --interactive-foreground-icon: var(--action-selection-05);
+  --interactive-foreground: var(--action-text-link-05);
+  --interactive-foreground-icon: var(--action-text-link-05);
 }
 .interactive[data-interactive-variant="select-card"][data-interactive-state="selected"]:hover:not(
   [data-disabled],
@@ -347,8 +347,8 @@
    --------------------------------------------------------------------------- */
 .interactive[data-interactive-variant="select-light"][data-interactive-state="filled"] {
   @apply bg-transparent;
-  --interactive-foreground: var(--action-selection-05);
-  --interactive-foreground-icon: var(--action-selection-05);
+  --interactive-foreground: var(--action-text-link-05);
+  --interactive-foreground-icon: var(--action-text-link-05);
 }
 .interactive[data-interactive-variant="select-light"][data-interactive-state="filled"]:hover:not(
   [data-disabled],
@@ -385,8 +385,8 @@
    --------------------------------------------------------------------------- */
 .interactive[data-interactive-variant="select-light"][data-interactive-state="selected"] {
   @apply bg-transparent;
-  --interactive-foreground: var(--action-selection-05);
-  --interactive-foreground-icon: var(--action-selection-05);
+  --interactive-foreground: var(--action-text-link-05);
+  --interactive-foreground-icon: var(--action-text-link-05);
 }
 .interactive[data-interactive-variant="select-light"][data-interactive-state="selected"]:hover:not(
   [data-disabled],

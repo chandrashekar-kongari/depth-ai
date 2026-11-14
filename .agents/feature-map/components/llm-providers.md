@@ -13,6 +13,11 @@ restricting a provider to groups needs EE.
 
 ## User experience
 
+Configured `qwen/qwen3.8-max-0902` and `qwen/qwen3.8-27b` models take precedence over
+the saved CHAT and VISION defaults, respectively. Each model must have the matching flow mapping.
+Without the preferred model, `db/llm.py:fetch_default_model` uses the saved default.
+Explicit chat, personal and agent selections retain their existing precedence.
+
 - **An admin** adds a provider at Admin > Language Models (OpenAI, Anthropic,
   Bedrock, Ollama, an OpenAI-compatible endpoint and others), enters
   credentials, and picks which models users can see. They choose the default

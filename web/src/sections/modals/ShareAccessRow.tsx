@@ -17,7 +17,7 @@ function ShareAvatar({ initial, icon: Icon }: ShareAvatarProps) {
   return (
     <div className="flex h-7 w-7 items-center justify-center rounded-full bg-background-neutral-inverted-00">
       {Icon ? (
-        <Icon size={12} className="stroke-text-inverted-05" aria-hidden />
+        <Icon size={12} className="text-text-inverted-05" aria-hidden />
       ) : (
         <Text font="secondary-action" color="text-inverted-05">
           {initial}
@@ -92,7 +92,7 @@ export function ShareAccessRow({
       <div className="flex min-h-11 w-full items-center justify-between gap-2 rounded-12 bg-background-tint-01 px-1 py-1">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center">
-            <LeadingIcon size={16} className="stroke-text-03" aria-hidden />
+            <LeadingIcon size={16} className="text-text-03" aria-hidden />
           </div>
           {titleSlot}
         </div>

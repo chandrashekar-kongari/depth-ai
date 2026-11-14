@@ -37,7 +37,7 @@ Both `Stateless` and `Stateful` support `interaction?: "rest" | "hover" | "activ
 
 |              | Primary                 | Secondary               | Tertiary             | Internal             |
 | ------------ | ----------------------- | ----------------------- | -------------------- | -------------------- |
-| **Rest**     | `theme-primary-05`      | `background-tint-01`    | `transparent`        | `transparent`        |
+| **Rest**     | `theme-primary-05`      | `background-neutral-00` | `transparent`        | `transparent`        |
 | **Hover**    | `theme-primary-04`      | `background-tint-02`    | `background-tint-02` | `background-tint-00` |
 | **Active**   | `theme-primary-06`      | `background-tint-00`    | `background-tint-00` | `background-tint-00` |
 | **Disabled** | `background-neutral-04` | `background-neutral-03` | `transparent`        | `transparent`        |
@@ -46,9 +46,9 @@ Both `Stateless` and `Stateful` support `interaction?: "rest" | "hover" | "activ
 
 |              | Primary            | Secondary | Tertiary  | Internal  |
 | ------------ | ------------------ | --------- | --------- | --------- |
-| **Rest**     | `text-inverted-05` | `text-03` | `text-03` | `text-03` |
-| **Hover**    | `text-inverted-05` | `text-04` | `text-04` | `text-04` |
-| **Active**   | `text-inverted-05` | `text-05` | `text-05` | `text-05` |
+| **Rest**     | `text-light-05` | `text-05` | `text-03` | `text-03` |
+| **Hover**    | `text-light-05` | `text-04` | `text-04` | `text-04` |
+| **Active**   | `text-light-05` | `text-05` | `text-05` | `text-05` |
 | **Disabled** | `text-inverted-04` | `text-01` | `text-01` | `text-01` |
 
 ### Stateless: Action
@@ -124,9 +124,9 @@ Both `Stateless` and `Stateful` support `interaction?: "rest" | "hover" | "activ
 
 |              | Text                  | Icon                  |
 | ------------ | --------------------- | --------------------- |
-| **Rest**     | `action-selection-05` | `action-selection-05` |
-| **Hover**    | `action-selection-05` | `action-selection-05` |
-| **Active**   | `action-selection-05` | `action-selection-05` |
+| **Rest**     | `action-text-link-05` | `action-text-link-05` |
+| **Hover**    | `action-text-link-05` | `action-text-link-05` |
+| **Active**   | `action-text-link-05` | `action-text-link-05` |
 | **Disabled** | `action-selection-03` | `action-selection-03` |
 
 ### Stateful: Sidebar

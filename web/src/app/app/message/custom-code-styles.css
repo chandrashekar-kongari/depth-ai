@@ -44,6 +44,37 @@
   --tw-prose-td-borders: var(--border-01);
 }
 
+.chat-message-type {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.user-query > p {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* The Markdown paragraph component and Typography headings set their own sizes. */
+.model-response {
+  overflow-wrap: anywhere;
+}
+
+.model-response
+  :where(p, li, h1, h2, h3, h4, h5, h6):not(:where(.not-prose, .not-prose *)) {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.model-response
+  :where(h1, h2, h3, h4, h5, h6):not(:where(.not-prose, .not-prose *)) {
+  font-weight: 600;
+  margin-block: 0.875rem 0.375rem;
+}
+
+.model-response :where(strong):not(:where(.not-prose, .not-prose *)) {
+  font-weight: 600;
+}
+
 /* Light mode syntax highlighting (Atom One Light) */
 .hljs {
   color: #383a42 !important;

@@ -77,7 +77,7 @@ function UnevenIcon({
   ...props
 }: ComponentProps<IconFunctionComponent>) {
   return (
-    <SvgAlertTriangle {...props} className={cn(className, "stroke-text-02")} />
+    <SvgAlertTriangle {...props} className={cn(className, "text-text-02")} />
   );
 }
 

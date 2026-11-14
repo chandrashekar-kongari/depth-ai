@@ -49,7 +49,7 @@ function Header({ children, onClose }: HeaderProps) {
     <div className="sticky top-0 z-sticky bg-background-tint-01">
       <div className="flex flex-row w-full items-center justify-between gap-2 py-3">
         <div className="flex items-center gap-2 w-full px-3">
-          <SvgSearchMenu className="w-[1.3rem] h-[1.3rem] stroke-text-03" />
+          <SvgSearchMenu className="w-[1.3rem] h-[1.3rem] text-text-03" />
           <Text as="p" font="heading-h3" color="text-03">
             {children}
           </Text>

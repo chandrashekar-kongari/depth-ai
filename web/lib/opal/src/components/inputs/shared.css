@@ -17,8 +17,7 @@
    ========================================================================== */
 
 .opal-input {
-  /* `--interactive-duration` (150ms) felt too laggy, so we're using 100ms instead. */
-  @apply flex flex-row items-center justify-between h-fit p-1.5 rounded-08 relative w-full transition-all duration-100 ease-(--interactive-easing);
+  @apply flex flex-row items-center justify-between h-fit min-h-10 px-2.5 py-1.5 rounded-08 relative w-full transition-all duration-200 ease-out;
 }
 
 .opal-input[data-variant="primary"] {
@@ -39,10 +38,11 @@
 .opal-input[data-variant="primary"]:focus-within:not(:active),
 .opal-input[data-variant="primary"][data-open] {
   border-color: var(--border-05);
-  box-shadow: inset 0px 0px 0px 2px var(--background-tint-04);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .opal-input[data-variant="internal"] {
+  @apply min-h-0 p-1.5;
   background-color: transparent;
   border: 1px solid transparent;
 }
@@ -54,7 +54,8 @@
 
 .opal-input[data-variant="error"]:focus-within:not(:active),
 .opal-input[data-variant="error"][data-open] {
-  box-shadow: inset 0px 0px 0px 2px var(--background-tint-04);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--status-error-05) 20%, transparent);
 }
 
 .opal-input[data-variant="disabled"] {

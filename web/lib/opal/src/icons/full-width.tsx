@@ -1,26 +1,21 @@
+// Phosphor Icons 2.1.1: arrows-out-line-horizontal (regular).
 import type { IconProps } from "@opal/types";
-const SvgFullWidth = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M5.5 10L3.5 7.99998L5.5 6M3.5 7.99998H12.5M10.5 10L12.5 7.99998L10.5 6"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M13.336 2.67L2.66 2.66992C1.92545 2.66992 1.32998 3.26538 1.32999 3.99992L1.33 12.0099C1.33 12.7445 1.92546 13.3399 2.66 13.3399H13.336C14.0705 13.3399 14.666 12.7445 14.666 12.0099V4C14.666 3.26547 14.0705 2.67001 13.336 2.67Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgFullWidth({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M136,40V216a8,8,0,0,1-16,0V40a8,8,0,0,1,16,0ZM96,120H35.31l18.35-18.34A8,8,0,0,0,42.34,90.34l-32,32a8,8,0,0,0,0,11.32l32,32a8,8,0,0,0,11.32-11.32L35.31,136H96a8,8,0,0,0,0-16Zm149.66,2.34-32-32a8,8,0,0,0-11.32,11.32L220.69,120H160a8,8,0,0,0,0,16h60.69l-18.35,18.34a8,8,0,0,0,11.32,11.32l32-32A8,8,0,0,0,245.66,122.34Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgFullWidth;

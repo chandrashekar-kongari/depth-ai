@@ -134,10 +134,7 @@ function ScopeOption({
         center
         rightChildren={
           selected ? (
-            <SvgCheck
-              size={16}
-              className="shrink-0 stroke-action-selection-05"
-            />
+            <SvgCheck size={16} className="shrink-0 text-action-selection-05" />
           ) : undefined
         }
       />

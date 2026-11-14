@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: arrow-line-up (regular).
 import type { IconProps } from "@opal/types";
-const SvgArrowUpDot = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M8.00002 2V8.49999M11.5 5.5L8.00002 2L4.5 5.5M8.00002 11C8.82845 11 9.50003 11.6716 9.50003 12.5C9.50003 13.3284 8.82845 14 8.00002 14C7.17158 14 6.50003 13.3284 6.50003 12.5C6.50003 11.6716 7.17158 11 8.00002 11Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgArrowUpDot({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M205.66,138.34a8,8,0,0,1-11.32,11.32L136,91.31V224a8,8,0,0,1-16,0V91.31L61.66,149.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0ZM216,32H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgArrowUpDot;

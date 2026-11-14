@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: arrow-square-in (regular).
 import type { IconProps } from "@opal/types";
-const SvgImport = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M7.5 5.33333L10.1667 8L7.5 10.6667M10.1667 8L1.5 7.99667M3.5 5V3.33C3.5 2.59546 4.09546 2 4.83 2H12.1667C12.8929 2 13.5 2.60711 13.5 3.33333V12.6667C13.5 13.3929 12.8929 14 12.1667 14H4.83C4.09546 14 3.5 13.4045 3.5 12.67V11"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgImport({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M128,136v64a8,8,0,0,1-16,0V155.32L45.66,221.66a8,8,0,0,1-11.32-11.32L100.68,144H56a8,8,0,0,1,0-16h64A8,8,0,0,1,128,136ZM208,32H80A16,16,0,0,0,64,48V96a8,8,0,0,0,16,0V48H208V176H160a8,8,0,0,0,0,16h48a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgImport;

@@ -119,9 +119,9 @@ export function TransferOwnershipView({
         <div className="flex items-center justify-between rounded-12 border border-border-01 bg-background-tint-00 px-3 py-2">
           <div className="flex items-center gap-2">
             {selectedTarget.type === "group" ? (
-              <SvgUsers className="h-4 w-4 stroke-text-03" />
+              <SvgUsers className="h-4 w-4 text-text-03" />
             ) : (
-              <SvgUser className="h-4 w-4 stroke-text-03" />
+              <SvgUser className="h-4 w-4 text-text-03" />
             )}
 
             <Text color="text-04" font="main-ui-body">

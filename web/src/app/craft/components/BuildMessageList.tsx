@@ -307,7 +307,7 @@ export default function BuildMessageList({
               )}
               role="alert"
             >
-              <SvgAlertCircle className="mt-0.5 size-4 shrink-0 stroke-status-error-05" />
+              <SvgAlertCircle className="mt-0.5 size-4 shrink-0 text-status-error-05" />
               <span className="min-w-0 break-words">{item.content}</span>
             </div>
           );

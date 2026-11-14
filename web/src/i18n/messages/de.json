@@ -13292,6 +13292,10 @@
         "zoomIn": "Vergrößern",
         "fitWidth": "Breite anpassen",
         "fitPage": "Seite einpassen",
+        "fitAll": "Beide einpassen",
+        "documentControls": "Dokumente und Seiten",
+        "zoomControls": "Zoom-Steuerung",
+        "backToCanvas": "Zurück zur Arbeitsfläche",
         "select": "Auswählen",
         "highlight": "Hervorheben",
         "ink": "Zeichnen",
@@ -14334,7 +14338,7 @@
     },
     "filePicker": {
       "allRecentFilesButton": {
-        "title": "Alle zuletzt verwendeten Dateien"
+        "title": "Mehr laden"
       },
       "recentFiles": {
         "title": "Zuletzt verwendete Dateien"
@@ -17067,7 +17071,7 @@
         "tooltip": "Neues Projekt"
       },
       "newSession": {
-        "label": "Neue Sitzung"
+        "label": "Neuer Chat"
       },
       "projects": {
         "title": "Projekte"

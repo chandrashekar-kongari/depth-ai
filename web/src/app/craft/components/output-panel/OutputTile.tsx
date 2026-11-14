@@ -83,7 +83,7 @@ export function OutputTile({
               fallback={
                 <FileIcon
                   size={32}
-                  className="size-8 stroke-text-03 @[40rem]:size-10 [&_*]:stroke-1"
+                  className="size-8 text-text-03 @[40rem]:size-10 [&_*]:stroke-1"
                 />
               }
             />
@@ -117,7 +117,7 @@ export function OutputTile({
           ) : (
             <FileIcon
               size={32}
-              className="size-8 stroke-text-03 @[40rem]:size-10 [&_*]:stroke-1"
+              className="size-8 text-text-03 @[40rem]:size-10 [&_*]:stroke-1"
             />
           )}
         </>
@@ -166,7 +166,7 @@ export function OutputFolderTile({
       onClick={onOpen}
     >
       <div className="flex min-w-0 items-center gap-2">
-        <SvgFolder size={20} className="shrink-0 stroke-text-03" aria-hidden />
+        <SvgFolder size={20} className="shrink-0 text-text-03" aria-hidden />
         <div className="min-w-0 flex-1">
           <Text
             font="secondary-body"
@@ -201,7 +201,7 @@ export function OutputAppTile({
       preview={
         <SvgGlobe
           size={32}
-          className="size-8 stroke-text-03 @[40rem]:size-10 [&_*]:stroke-1"
+          className="size-8 text-text-03 @[40rem]:size-10 [&_*]:stroke-1"
         />
       }
     />
@@ -232,7 +232,7 @@ export function OutputUnavailableTile({
           <Icon
             size={32}
             className={cn(
-              "stroke-text-03",
+              "text-text-03",
               card.kind === "file" && "[&_*]:stroke-1"
             )}
             aria-hidden

@@ -9,12 +9,12 @@ import type { IconProps } from "@opal/types";
 const variantStyles = {
   display: {
     container: "flex items-center p-1",
-    icon: "size-4 stroke-text-03",
+    icon: "size-4 text-text-03",
     text: { font: "secondary-body", color: "text-03" },
   },
   editable: {
     container: "flex items-center gap-1 px-2 py-1",
-    icon: "size-3 stroke-text-03",
+    icon: "size-3 text-text-03",
     text: { font: "main-ui-body", color: "text-04" },
   },
 } as const;
@@ -61,7 +61,7 @@ export default function Tag({
             e.stopPropagation();
             onRemove();
           }}
-          className="p-0.5 stroke-text-02 hover:stroke-text-03"
+          className="p-0.5 text-text-02 hover:text-text-03"
           aria-label={`Remove ${label} filter`}
         >
           <SvgX className="size-3" />

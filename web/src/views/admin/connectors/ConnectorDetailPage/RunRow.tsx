@@ -330,7 +330,7 @@ function Count({ icon: Icon, value, tooltip, look }: CountProps) {
         <Text font="secondary-body" color="text-03">
           {format.number(value)}
         </Text>
-        <Icon size={12} className="shrink-0 stroke-text-02" />
+        <Icon size={12} className="shrink-0 text-text-02" />
       </Section>
     </Tooltip>
   );

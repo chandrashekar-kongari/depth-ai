@@ -1,21 +1,21 @@
+// Phosphor Icons 2.1.1: thermometer (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgThermometer = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M8 1C8.9078 1 9.6667 1.7589 9.6667 2.6667L9.6667 8.4215C10.7586 9.0139 11.5 10.1704 11.5 11.5C11.5 13.433 9.933 15 8 15C6.067 15 4.5 13.433 4.5 11.5C4.5 10.1704 5.2414 9.0139 6.3333 8.4215L6.3333 2.6667C6.3333 1.7589 7.0922 1 8 1Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+function SvgThermometer({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M212,56a28,28,0,1,0,28,28A28,28,0,0,0,212,56Zm0,40a12,12,0,1,1,12-12A12,12,0,0,1,212,96Zm-84,57V88a8,8,0,0,0-16,0v65a32,32,0,1,0,16,0Zm-8,47a16,16,0,1,1,16-16A16,16,0,0,1,120,200Zm40-66V48a40,40,0,0,0-80,0v86a64,64,0,1,0,80,0Zm-40,98a48,48,0,0,1-27.42-87.4A8,8,0,0,0,96,138V48a24,24,0,0,1,48,0v90a8,8,0,0,0,3.42,6.56A48,48,0,0,1,120,232Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgThermometer;

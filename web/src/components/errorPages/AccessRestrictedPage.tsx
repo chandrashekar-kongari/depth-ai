@@ -103,7 +103,7 @@ export default function AccessRestricted() {
         <Text font="heading-h2" color="text-05">
           {t("accessRestricted.heading.title")}
         </Text>
-        <SvgLock className="stroke-status-error-05 w-6 h-6" />
+        <SvgLock className="text-status-error-05 w-6 h-6" />
       </div>
 
       <Text color="text-03">{initialModalMessage}</Text>

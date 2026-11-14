@@ -12,7 +12,7 @@
 .input-normal:focus:not(:active),
 .input-normal:focus-within:not(:active) {
   border-color: var(--border-05);
-  box-shadow: inset 0px 0px 0px 2px var(--background-tint-04);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .input-error {
@@ -21,7 +21,8 @@
 }
 .input-error:focus:not(:active),
 .input-error:focus-within:not(:active) {
-  box-shadow: inset 0px 0px 0px 2px var(--background-tint-04);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--status-error-05) 20%, transparent);
 }
 
 .input-disabled {

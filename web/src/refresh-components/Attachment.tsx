@@ -1,4 +1,5 @@
-import { Text, Button } from "@opal/components";
+import { Text, Button, OverflowText } from "@opal/components";
+import { Section } from "@opal/layouts";
 import { SvgFileText, SvgMaximize2 } from "@opal/icons";
 import { useTranslations } from "next-intl";
 export interface AttachmentsProps {
@@ -9,18 +10,32 @@ export interface AttachmentsProps {
 export default function Attachments({ fileName, open }: AttachmentsProps) {
   const t = useTranslations("common.attachment");
   return (
-    <div className="flex items-center border bg-background-tint-00 rounded-12 p-1 gap-1">
-      <div className="p-2 bg-background-tint-01 rounded-08">
-        <SvgFileText className="w-5 h-5 stroke-text-02" />
+    <Section
+      flexDirection="row"
+      justifyContent="start"
+      width="fit"
+      height="fit"
+      gap={2}
+      padding={1.5}
+      className="max-w-full min-w-0 border border-border-01 bg-background-tint-00 rounded-08"
+    >
+      <div className="shrink-0 p-2 bg-background-neutral-02 rounded-08">
+        <SvgFileText className="w-5 h-5 text-text-03" />
       </div>
-      <div className="flex flex-col px-2">
-        <Text as="p" font="secondary-action" color="text-05">
+      <Section
+        alignItems="stretch"
+        width="fit"
+        height="fit"
+        gap={0}
+        className="min-w-0 flex-1"
+      >
+        <OverflowText as="p" font="secondary-action" color="text-05">
           {fileName}
-        </Text>
+        </OverflowText>
         <Text as="p" font="secondary-body" color="text-03">
           {t("document.label")}
         </Text>
-      </div>
+      </Section>
 
       {open && (
         <Button
@@ -31,6 +46,6 @@ export default function Attachments({ fileName, open }: AttachmentsProps) {
           size="sm"
         />
       )}
-    </div>
+    </Section>
   );
 }

@@ -50,7 +50,6 @@ import { FederatedConnectorDetail } from "@/lib/types";
 import DocumentsSidebar from "@/sections/document-sidebar/DocumentsSidebar";
 import useChatController from "@/hooks/useChatController";
 import useMultiModelChat from "@/hooks/useMultiModelChat";
-import MultiModelSelector from "@/sections/model-selector/MultiModelSelector";
 import { useActiveAgent } from "@/lib/agents/hooks";
 import useChatSessionController from "@/hooks/useChatSessionController";
 import useDeepResearchToggle from "@/hooks/useDeepResearchToggle";
@@ -283,7 +282,7 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
     toolConfiguration,
   ]);
 
-  const { deepResearchEnabled, toggleDeepResearch } = useDeepResearchToggle({
+  const { deepResearchEnabled } = useDeepResearchToggle({
     chatSessionId: currentChatSessionId,
     agentId: activeAgent?.id,
   });
@@ -390,9 +389,6 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
   );
   const messageHistory = useCurrentMessageHistory();
   const [attachmentPage, setAttachmentPage] = useState(1);
-  const pendingPdfs = currentMessageFiles.filter((file) =>
-    file.name.toLowerCase().endsWith(".pdf")
-  );
   const recentPdfMessage = [...messageHistory]
     .reverse()
     .find(
@@ -400,14 +396,12 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
         message.type === "user" &&
         message.files.some((file) => file.name?.toLowerCase().endsWith(".pdf"))
     );
-  const attachmentPdfs = pendingPdfs.length
-    ? pendingPdfs.map((file) => ({ id: file.id, name: file.name }))
-    : (recentPdfMessage?.files ?? [])
-        .filter((file) => file.name?.toLowerCase().endsWith(".pdf"))
-        .map((file) => ({
-          id: file.user_file_id ?? file.id,
-          name: file.name ?? "drawing.pdf",
-        }));
+  const attachmentPdfs = (recentPdfMessage?.files ?? [])
+    .filter((file) => file.name?.toLowerCase().endsWith(".pdf"))
+    .map((file) => ({
+      id: file.user_file_id ?? file.id,
+      name: file.name ?? "drawing.pdf",
+    }));
   const attachmentKey = attachmentPdfs.map((file) => file.id).join(":");
   useEffect(() => {
     setAttachmentPage(1);
@@ -846,10 +840,8 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
 
   const hasAgentStarterMessages =
     (activeAgent?.starter_messages?.length ?? 0) > 0;
-  const showDrawingReview =
-    appPosition.isChat() && drawingReview !== null && pendingPdfs.length === 0;
-  const showCommentReview =
-    appPosition.isChat() && commentReview !== null && pendingPdfs.length === 0;
+  const showDrawingReview = appPosition.isChat() && drawingReview !== null;
+  const showCommentReview = appPosition.isChat() && commentReview !== null;
   const showAttachmentPdfs =
     attachmentPdfs.length > 0 && !showDrawingReview && !showCommentReview;
   const showSheetPanel =
@@ -1288,29 +1280,9 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
                             )}
                           />
                           <AppInputBar
-                            modelControls={
-                              !isSearch &&
-                              activeAgent &&
-                              llmManager.hasAnyProvider ? (
-                                <MultiModelSelector
-                                  compact
-                                  selectedModels={multiModel.selectedModels}
-                                  onAdd={multiModel.addModel}
-                                  onRemove={multiModel.removeModel}
-                                  onReplace={multiModel.replaceModel}
-                                  temperatureManager={llmManager}
-                                  reasoningManager={llmManager}
-                                />
-                              ) : undefined
-                            }
                             toolConfiguration={toolConfiguration}
                             memberPlugins={memberPlugins.plugins}
                             ref={chatInputBarRef}
-                            deepResearchEnabled={
-                              deepResearchEnabledForCurrentWorkflow
-                            }
-                            toggleDeepResearch={toggleDeepResearch}
-                            isMultiModelActive={multiModel.isMultiModelActive}
                             llmManager={llmManager}
                             initialMessage={
                               searchParams?.get(

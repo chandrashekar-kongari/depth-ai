@@ -13292,6 +13292,10 @@
         "zoomIn": "拡大",
         "fitWidth": "幅に合わせる",
         "fitPage": "ページに合わせる",
+        "fitAll": "両方を表示",
+        "documentControls": "ドキュメントとページ",
+        "zoomControls": "ズーム操作",
+        "backToCanvas": "キャンバスに戻る",
         "select": "選択",
         "highlight": "ハイライト",
         "ink": "描画",
@@ -14334,7 +14338,7 @@
     },
     "filePicker": {
       "allRecentFilesButton": {
-        "title": "最近のファイルをすべて表示"
+        "title": "さらに表示"
       },
       "recentFiles": {
         "title": "最近のファイル"
@@ -17067,7 +17071,7 @@
         "tooltip": "新しいプロジェクト"
       },
       "newSession": {
-        "label": "新しいセッション"
+        "label": "新しいチャット"
       },
       "projects": {
         "title": "プロジェクト"

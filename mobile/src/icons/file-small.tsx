@@ -1,23 +1,19 @@
+// Phosphor Icons 2.1.1: file (regular).
 import Svg, { Path } from "react-native-svg";
-
 import type { IconProps } from "@/icons/types";
 
-const SvgFileSmall = ({ size = 16, ...props }: IconProps) => (
-  <Svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    {...props}
-  >
-    <Path
-      d="M8.75 4.75H5.75001C5.47386 4.75 5.25001 4.97386 5.25001 5.25V10.75C5.25001 11.0261 5.47386 11.25 5.75001 11.25H10.25C10.5261 11.25 10.75 11.0261 10.75 10.75V6.75M8.75 4.75L10.75 6.75M8.75 4.75V6.75H10.75"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+function SvgFileSmall({ size = 16, ...props }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      {...props}
+    >
+      <Path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Z" />
+    </Svg>
+  );
+}
 
 export default SvgFileSmall;

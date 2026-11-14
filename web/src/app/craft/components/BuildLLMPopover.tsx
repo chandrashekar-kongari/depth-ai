@@ -272,7 +272,7 @@ export function BuildLLMPopover({
           onClick={() => applySelection(option)}
           rightChildren={
             isSelected ? (
-              <SvgCheck className="h-4 w-4 stroke-action-selection-05 shrink-0" />
+              <SvgCheck className="h-4 w-4 text-action-selection-05 shrink-0" />
             ) : null
           }
           title={option.displayName}
@@ -344,9 +344,9 @@ export function BuildLLMPopover({
                               <div className="flex-1" />
                               <div className="flex items-center justify-center size-6 shrink-0">
                                 {isExpanded ? (
-                                  <SvgChevronDown className="h-4 w-4 stroke-text-04 shrink-0" />
+                                  <SvgChevronDown className="h-4 w-4 text-text-04 shrink-0" />
                                 ) : (
-                                  <SvgChevronRight className="h-4 w-4 stroke-text-04 shrink-0" />
+                                  <SvgChevronRight className="h-4 w-4 text-text-04 shrink-0" />
                                 )}
                               </div>
                             </AccordionTrigger>

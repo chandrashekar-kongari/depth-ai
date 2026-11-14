@@ -17,13 +17,28 @@ function decodeAppearance(value: string): ArrayBuffer {
     .buffer;
 }
 export async function reconcileAnnotations(
-  api: Pick<AnnotationScope, "getPageAnnotations" | "getAnnotationById" | "deleteAnnotation" | "updateAnnotation" | "importAnnotations" | "commit">,
+  api: Pick<
+    AnnotationScope,
+    | "getPageAnnotations"
+    | "getAnnotationById"
+    | "deleteAnnotation"
+    | "updateAnnotation"
+    | "importAnnotations"
+    | "commit"
+  >,
   records: WorkspaceSnapshot["state"]["annotations"][string],
   baselines: Map<string, PdfAnnotationObject>,
   managed: Set<string>,
-  nativePages: number[] = []
+  nativePages: number[] = [],
+  replay: (mutation: () => void) => void = (mutation) => mutation()
 ) {
-  records = Object.fromEntries(Object.entries(records ?? {}).filter(([id,record])=>!isGeneratedReviewMark(id) && !isGeneratedReviewMark(record.annotation.id)));
+  records = Object.fromEntries(
+    Object.entries(records ?? {}).filter(
+      ([id, record]) =>
+        !isGeneratedReviewMark(id) &&
+        !isGeneratedReviewMark(record.annotation.id)
+    )
+  );
   const needed = new Set([
     ...nativePages,
     ...Object.values(records ?? {}).map((item) => item.annotation.pageIndex),
@@ -32,7 +47,7 @@ export async function reconcileAnnotations(
     const native = await api.getPageAnnotations({ pageIndex }).toPromise();
     for (const annotation of native) {
       if (isGeneratedReviewMark(annotation.id)) {
-        api.deleteAnnotation(pageIndex,annotation.id);
+        replay(() => api.deleteAnnotation(pageIndex, annotation.id));
         baselines.delete(annotation.id);
         managed.delete(annotation.id);
       } else if (!managed.has(annotation.id) && !baselines.has(annotation.id))
@@ -41,8 +56,8 @@ export async function reconcileAnnotations(
   }
   for (const id of managed) {
     if (isGeneratedReviewMark(id)) {
-      const current=api.getAnnotationById(id)?.object;
-      if (current) api.deleteAnnotation(current.pageIndex,id);
+      const current = api.getAnnotationById(id)?.object;
+      if (current) replay(() => api.deleteAnnotation(current.pageIndex, id));
       baselines.delete(id);
       managed.delete(id);
       continue;
@@ -51,8 +66,8 @@ export async function reconcileAnnotations(
     const current = api.getAnnotationById(id)?.object;
     const original = baselines.get(id);
     if (current && original)
-      api.updateAnnotation(current.pageIndex, id, original);
-    else if (current) api.deleteAnnotation(current.pageIndex, id);
+      replay(() => api.updateAnnotation(current.pageIndex, id, original));
+    else if (current) replay(() => api.deleteAnnotation(current.pageIndex, id));
   }
   for (const record of Object.values(records ?? {})) {
     const annotation = { ...record.annotation };
@@ -61,15 +76,18 @@ export async function reconcileAnnotations(
       annotation.modified = new Date(annotation.modified);
     const existing = api.getAnnotationById(annotation.id)?.object;
     if (record.deleted) {
-      if (existing) api.deleteAnnotation(annotation.pageIndex, annotation.id);
+      if (existing)
+        replay(() => api.deleteAnnotation(annotation.pageIndex, annotation.id));
     } else if (existing) {
       if (JSON.stringify(existing) !== JSON.stringify(annotation))
-        api.updateAnnotation(annotation.pageIndex, annotation.id, annotation);
+        replay(() =>
+          api.updateAnnotation(annotation.pageIndex, annotation.id, annotation)
+        );
     } else {
       const item: AnnotationTransferItem = { annotation };
       if (record.appearance)
         item.ctx = { data: decodeAppearance(record.appearance) };
-      api.importAnnotations([item]);
+      replay(() => api.importAnnotations([item]));
     }
     managed.add(annotation.id);
   }

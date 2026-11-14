@@ -574,7 +574,7 @@ function OutputResources({
                 onClick={onOpen}
               >
                 <div className="flex items-center gap-3">
-                  <Icon size={20} className="stroke-text-03" aria-hidden />
+                  <Icon size={20} className="text-text-03" aria-hidden />
                   <Text font="main-ui-muted">{label}</Text>
                 </div>
               </SelectCard>

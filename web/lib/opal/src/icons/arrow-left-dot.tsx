@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: arrow-line-left (regular).
 import type { IconProps } from "@opal/types";
-const SvgArrowLeftDot = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M2.00002 8H8.50001M5.50002 11.5L2.00002 8L5.50002 4.5M11 8C11 8.82844 11.6716 9.50001 12.5 9.50001C13.3284 9.50001 14 8.82844 14 8C14 7.17156 13.3284 6.50001 12.5 6.50001C11.6716 6.50001 11 7.17156 11 8Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgArrowLeftDot({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M232,128a8,8,0,0,1-8,8H91.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L91.31,120H224A8,8,0,0,1,232,128ZM40,32a8,8,0,0,0-8,8V216a8,8,0,0,0,16,0V40A8,8,0,0,0,40,32Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgArrowLeftDot;
