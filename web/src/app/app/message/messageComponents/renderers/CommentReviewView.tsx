@@ -169,13 +169,11 @@ export function CommentReviewView({
             {
               id: review.commented_sheet_file_id,
               filename: review.commented_sheet_filename,
-              label: t("markedSheet.label"),
               role: "original" as const,
             },
             {
               id: review.revised_sheet_file_id,
               filename: review.revised_sheet_filename,
-              label: t("newSheet.label"),
               role: "revised" as const,
             },
           ].flatMap((document) =>
@@ -184,7 +182,7 @@ export function CommentReviewView({
                   {
                     id: document.id,
                     filename: document.filename ?? "drawing.pdf",
-                    label: document.label,
+                    label: document.filename ?? "drawing.pdf",
                     role: document.role,
                     url:
                       fileUrl?.(document.id) ??
