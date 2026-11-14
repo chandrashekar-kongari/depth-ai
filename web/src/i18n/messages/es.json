@@ -13292,6 +13292,8 @@
         "zoomIn": "Acercar",
         "fitWidth": "Ajustar al ancho",
         "fitPage": "Ajustar página",
+        "fitAll": "Ajustar ambos",
+        "backToCanvas": "Volver al lienzo",
         "select": "Seleccionar",
         "highlight": "Resaltar",
         "ink": "Dibujar",

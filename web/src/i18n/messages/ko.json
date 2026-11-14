@@ -13292,6 +13292,8 @@
         "zoomIn": "확대",
         "fitWidth": "너비에 맞추기",
         "fitPage": "페이지에 맞추기",
+        "fitAll": "둘 다 맞추기",
+        "backToCanvas": "캔버스로 돌아가기",
         "select": "선택",
         "highlight": "강조",
         "ink": "그리기",

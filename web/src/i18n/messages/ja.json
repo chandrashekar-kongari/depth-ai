@@ -13292,6 +13292,8 @@
         "zoomIn": "拡大",
         "fitWidth": "幅に合わせる",
         "fitPage": "ページに合わせる",
+        "fitAll": "両方を表示",
+        "backToCanvas": "キャンバスに戻る",
         "select": "選択",
         "highlight": "ハイライト",
         "ink": "描画",

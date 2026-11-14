@@ -13292,6 +13292,8 @@
         "zoomIn": "Aumentar zoom",
         "fitWidth": "Ajustar largura",
         "fitPage": "Ajustar página",
+        "fitAll": "Ajustar ambos",
+        "backToCanvas": "Voltar à tela",
         "select": "Selecionar",
         "highlight": "Destacar",
         "ink": "Desenhar",

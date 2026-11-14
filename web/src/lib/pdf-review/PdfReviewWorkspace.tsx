@@ -74,6 +74,7 @@ import {
 } from "@/lib/pdf-review/AttentionRing";
 import { useTextLocations } from "@/lib/pdf-review/useTextLocations";
 import { useDrawingWorkspace } from "@/lib/pdf-review/hooks";
+import { PdfCanvas } from "@/lib/pdf-review/PdfCanvas";
 import type {
   LinkedIssue,
   PdfReviewWorkspaceProps,
@@ -123,7 +124,10 @@ export function PdfReviewWorkspace(props: PdfReviewWorkspaceProps) {
   }
   return (
     <PdfEngineProvider documents={props.documents}>
-      <Workspace {...props} />
+      <PdfCanvas
+        {...props}
+        editor={<Workspace {...props} startInAnnotationMode />}
+      />
     </PdfEngineProvider>
   );
 }
@@ -137,10 +141,11 @@ function Workspace({
   focusRequest,
   onIssueSelect,
   fill = false,
-}: PdfReviewWorkspaceProps) {
+  startInAnnotationMode = false,
+}: PdfReviewWorkspaceProps & { startInAnnotationMode?: boolean }) {
   const t = useTranslations("chat.messages.pdfWorkspace");
   const ui = useTranslations("chat.workspace");
-  const [annotationMode, setAnnotationMode] = useState(false);
+  const [annotationMode, setAnnotationMode] = useState(startInAnnotationMode);
   const [searchOpen, setSearchOpen] = useState(false);
   const { pluginsReady } = useRegistry();
   const { activeDocumentId } = useActiveDocument();

@@ -13292,6 +13292,8 @@
         "zoomIn": "放大",
         "fitWidth": "适合宽度",
         "fitPage": "适合页面",
+        "fitAll": "适应两个文档",
+        "backToCanvas": "返回画布",
         "select": "选择",
         "highlight": "高亮",
         "ink": "绘制",

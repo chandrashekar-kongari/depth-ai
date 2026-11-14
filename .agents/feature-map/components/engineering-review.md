@@ -41,10 +41,14 @@ Native text spans and crop-relative evidence boxes map to PDF page coordinates f
 Explicit requests with one or two attachments run directly and return coverage
 and findings.
 
-Chat PDF attachments open a single-document EmbedPDF Headless viewer inside chat.
-Original/revised tabs share numbered findings with the chat cards. Each card opens either revision.
-EmbedPDF native annotations render and select confirmed locations. Navigation preserves zoom and waits for layout.
-Hover previews and custom issue overlays are removed. Legacy comment/text boxes remain proposed locations.
+Chat PDF attachments open an EmbedPDF-backed shared camera canvas inside chat.
+Original/revised PDFs occupy separate columns, with pages stacked in each column.
+Card requests resolve document/page anchors into canvas coordinates and center the camera without changing zoom.
+The canvas renders visible pages with native annotations and screen-sized status controls.
+Raster resolution follows camera zoom and device pixel density, including changes between displays.
+Annotate opens the existing document editor; returning preserves the canvas camera and reloads saved state.
+The canvas owns its camera transform. It does not wrap the editor's scrolling viewport in another zoom transform.
+Legacy comment/text boxes remain proposed locations.
 The owner-scoped locations endpoint uses local pdfplumber native text geometry. Unique isolated dimension
 labels matched to evidence can produce located_text anchors; these identify text, not verified geometric features.
 Repeated or missing labels remain unmarked. No edge-placeholder annotations are generated.
@@ -139,7 +143,8 @@ An empty comment review raises an actionable tool error, rather than returning a
 Each run evaluates the inputs afresh and publishes per-comment progress.
 
 Read-only PDF/page navigation is independent of workspace saving and inference. The SDK handles scroll coordinates,
-rotation and crop transforms. A transient page-relative ring lasts two seconds after visibility confirmation.
+rotation and crop transforms. A transient page-relative ring blinks twice and clears after 800 ms.
+Reduced-motion users see a static ring for that interval.
 The ring has no annotation ID, persistence command or export representation. Repeated requests restart its lifetime.
 
 

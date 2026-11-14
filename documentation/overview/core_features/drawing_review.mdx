@@ -160,19 +160,22 @@ When native text omits a target, visual evidence receives a separate verificatio
 Unconfirmed observations retain their evidence and the specific reason they remain unclear.
 Visual evidence does not create an exact text highlight or establish a CAD measurement.
 
-On a wide screen, one PDF opens beside the conversation. Drag the divider to resize either pane. On smaller screens,
-switch between **Conversation** and **Document**. The desktop drawing view starts with the PDF toolbar.
-The extra workspace title and layout-reset bar are removed.
+On a wide screen, both PDFs appear side by side on a shared canvas beside the conversation.
+Drag the divider to resize either pane. On smaller screens, switch between **Conversation** and **Document**.
+The desktop drawing view starts with the PDF toolbar. The extra workspace title and layout-reset bar are removed.
 Selecting **Show in original** or **Show in revised** opens that revision and page.
-A located finding shows a two-second attention ring. Navigation preserves the current zoom.
+A located finding shows a location ring that blinks twice, then disappears. Navigation preserves the current zoom.
 
 The review summary filters **All**, **Needs attention**, **Unclear**, and **Addressed** findings.
 Search finds text in requests, evidence, and remaining work. The finding title shows the evidence when available.
 Expand a finding to read the request and other details. Revision buttons remain available when details are collapsed.
 Open **Review details** to see the vision model.
 
-The PDF toolbar provides page navigation, zoom, **Annotate**, search, and more actions.
-Annotation controls appear when you select **Annotate**. Print, export, rotate, and pan are in the more-actions menu.
+The canvas toolbar provides **Select**, **Pan**, and **Annotate**. The bottom bar provides page navigation, zoom,
+**Fit both**, and **Fit page**. Hold Space and drag to pan.
+Use Ctrl or Cmd with the scroll wheel to zoom around the pointer. Select **Annotate** to open the document editor.
+The editor provides markup, search, print, export, and rotation.
+Select **Back to canvas** to return to the comparison at the previous camera position.
 
 The check uses the Captioning LLM. When it is not set, no verdict is invented.
 Onyx checks the first 8 pages of each sheet.
@@ -266,13 +269,17 @@ Identical original and revision PDFs are rejected before inference.
 
 ## Review PDFs in chat
 
-Attach one or two PDFs to your chat. The drawing viewer opens beside the conversation.
-Use the tabs above the viewer to switch between the original and revised PDFs.
+Attach one or two PDFs to your chat. The PDFs open on a shared canvas beside the conversation.
+Each revision has its own column. Pages appear below each other within a column.
+Select a document name above the canvas to center that document's current page.
+Use **Fit both** to bring the first page of each revision into view. Use **Fit page** to fit the current page.
+
+<img className="rounded-image" src="/assets/overview/core_features/pdf-canvas.webp" alt="Original and revised PDF sheets on a shared canvas beside a review finding"/>
 
 Each comment result has a numbered card with its request, evidence, and status.
 Select **Show in original** or **Show in revised** to open that PDF at the finding.
-A confirmed location uses native PDF annotations. Navigation preserves zoom, opens the target page,
-and shows a two-second attention ring. Green indicates a completed correction.
+Confirmed locations appear as numbered markers. Navigation preserves zoom, centers the target page or region,
+and shows a location ring that blinks twice, then disappears. Green indicates a completed correction.
 Red indicates an open or incorrect correction. Amber indicates an uncertain result.
 
 There is no hover preview. Read the request and evidence in the chat card. Use **Correct this location**,
@@ -339,14 +346,13 @@ If the model cannot return a usable decision, the report shows **Match verificat
 It uses native PDF text and comments as evidence when available. The report identifies unmatched and ambiguous views,
 gives the original and revised page numbers, and shows how many pages and views the action covered.
 
-Vision Review reads the original sheet to identify redline requests before it checks the revision.
-For numeric requests, it checks the requested result against the value on the revised callout.
+Vision Review reads the original sheet to identify redline requests before it checks the revision. For numeric requests,
+it checks the requested result against the value on the revised callout.
 It rechecks requests with uncertain view assignments and reports requests that remain unassigned.
-Each matched view receives an additional check for omitted independent changes.
-It also lists independent changes.
+Each matched view receives an additional check for omitted independent changes. It also lists independent changes.
 The redline card shows edits that address its request. The independent list shows other edits.
 If it cannot verify a redline, the review card shows **Needs review**.
-Use **Show in original** or **Show in revised** on a card to open the PDF.
-When Vision Review can locate the evidence, the PDF viewer highlights the area.
+Use **Show in original** or **Show in revised** on a card to open the PDF. When Vision Review can locate the evidence,
+the PDF viewer highlights the area.
 
 **Vision Review** is available in default Chat. For a custom agent, add the **Vision Review** action.

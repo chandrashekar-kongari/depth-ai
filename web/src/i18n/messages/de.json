@@ -13292,6 +13292,8 @@
         "zoomIn": "Vergrößern",
         "fitWidth": "Breite anpassen",
         "fitPage": "Seite einpassen",
+        "fitAll": "Beide einpassen",
+        "backToCanvas": "Zurück zur Arbeitsfläche",
         "select": "Auswählen",
         "highlight": "Hervorheben",
         "ink": "Zeichnen",

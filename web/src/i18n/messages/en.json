@@ -13292,6 +13292,8 @@
         "zoomIn": "Zoom in",
         "fitWidth": "Fit width",
         "fitPage": "Fit page",
+        "fitAll": "Fit both",
+        "backToCanvas": "Back to canvas",
         "select": "Select",
         "highlight": "Highlight",
         "ink": "Draw",

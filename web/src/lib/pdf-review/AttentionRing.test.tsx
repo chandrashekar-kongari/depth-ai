@@ -34,14 +34,14 @@ it("uses SDK page-relative coordinates for the transient ring", () => {
     top: "105px",
   });
 });
-it("ends at two seconds and cancels an old timer on a newer request", () => {
+it("ends after two brief blinks and cancels an old timer on a newer request", () => {
   jest.useFakeTimers();
   const first = jest.fn(),
     second = jest.fn();
   const cancel = scheduleAttentionEnd(first);
   cancel();
   scheduleAttentionEnd(second);
-  jest.advanceTimersByTime(1999);
+  jest.advanceTimersByTime(799);
   expect(second).not.toHaveBeenCalled();
   jest.advanceTimersByTime(1);
   expect(second).toHaveBeenCalledTimes(1);

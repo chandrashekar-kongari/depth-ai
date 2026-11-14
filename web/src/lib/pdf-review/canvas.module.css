@@ -1,0 +1,45 @@
+.viewport {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  touch-action: none;
+  overscroll-behavior: contain;
+  background: var(--background-neutral-02);
+  outline-offset: -2px;
+}
+
+.surface {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+.page {
+  position: absolute;
+  background: var(--background-neutral-01);
+  box-shadow: 0 0 0 1px var(--border-02);
+}
+
+.label {
+  position: absolute;
+  inset-inline-start: 0;
+  top: -36px;
+  white-space: nowrap;
+}
+
+.ring {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border: 2px solid var(--theme-lime-05);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
