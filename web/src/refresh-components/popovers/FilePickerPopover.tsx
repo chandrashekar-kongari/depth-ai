@@ -268,7 +268,15 @@ export default function FilePickerPopover({
       onFileClick?.(file);
       setOpen(false);
     },
-    triggerUploadPicker: () => fileInputRef.current?.click(),
+    triggerUploadPicker: () => {
+      const input = fileInputRef.current;
+      if (!input) return;
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+      } else {
+        input.click();
+      }
+    },
   });
 
   return (
@@ -278,6 +286,7 @@ export default function FilePickerPopover({
         type="file"
         className="hidden"
         multiple
+        onClick={(event) => event.stopPropagation()}
         onChange={handleUploadChange}
         accept={"*/*"}
       />
