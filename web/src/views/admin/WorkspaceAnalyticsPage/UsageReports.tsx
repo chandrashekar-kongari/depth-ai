@@ -88,7 +88,7 @@ function PendingReportRow({ rangeLabel, slow }: PendingReportRowProps) {
         rightChildren={
           <IconLoader
             size={16}
-            className="shrink-0 animate-spin stroke-text-03 motion-reduce:animate-none"
+            className="shrink-0 animate-spin text-text-03 motion-reduce:animate-none"
           />
         }
       />

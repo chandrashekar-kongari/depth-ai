@@ -22,14 +22,14 @@ export default function CompactionMarker({ summary }: CompactionMarkerProps) {
   function label(withChevron: boolean) {
     return (
       <span className="flex items-center gap-1.5">
-        <SvgFold className="size-3.5 shrink-0 stroke-text-04" />
+        <SvgFold className="size-3.5 shrink-0 text-text-04" />
         <Text font="main-ui-muted" color="text-04" wordWrap="whitespace-nowrap">
           {t("marker.label")}
         </Text>
         {withChevron && (
           <SvgChevronDown
             className={cn(
-              "size-3.5 shrink-0 stroke-text-04 transition-transform duration-200",
+              "size-3.5 shrink-0 text-text-04 transition-transform duration-200",
               "motion-reduce:transition-none",
               open && "rotate-180"
             )}

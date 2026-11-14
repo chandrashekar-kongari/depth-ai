@@ -15,7 +15,7 @@ export default function Error() {
         <Text as="p" font="heading-h2" color="text-05">
           {t("configError.heading.title")}
         </Text>
-        <SvgAlertCircle className="w-6 h-6 stroke-text-04" />
+        <SvgAlertCircle className="w-6 h-6 text-text-04" />
       </div>
 
       <Text as="p" color="text-03">

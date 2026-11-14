@@ -26,7 +26,7 @@ export default function UserAvatar({
         className="flex items-center justify-center rounded-full bg-background-tint-01"
         style={{ width: size, height: size }}
       >
-        <SvgUser size={size * 0.55} className="stroke-text-03" aria-hidden />
+        <SvgUser size={size * 0.55} className="text-text-03" aria-hidden />
       </div>
     );
   }

@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: image (regular).
 import type { IconProps } from "@opal/types";
-const SvgImageSmall = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M9.5 11.5L6.20711 8.20711C5.81658 7.81658 5.18342 7.81658 4.79289 8.20711L4 9M9.75 7.5C10.4404 7.5 11 6.94037 11 6.25C11 5.55964 10.4404 5 9.75 5C9.05963 5 8.5 5.55964 8.5 6.25C8.5 6.94037 9.05963 7.5 9.75 7.5Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgImageSmall({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgImageSmall;

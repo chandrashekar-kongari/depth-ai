@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: file-minus (regular).
 import type { IconProps } from "@opal/types";
-const SvgFileMinus = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M13.33333 5.33333L9.33333 1.33333H4C3.27377 1.33333 2.66667 1.94044 2.66667 2.66667V13.33333C2.66667 14.0596 3.27377 14.66667 4 14.66667H12C12.72623 14.66667 13.33333 14.0596 13.33333 13.33333V5.33333ZM9.33333 1.33333L9.33333 5.33333L13.33333 5.33333M6 10H10"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgFileMinus({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-40-64a8,8,0,0,1-8,8H104a8,8,0,0,1,0-16h48A8,8,0,0,1,160,152Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgFileMinus;

@@ -39,7 +39,7 @@ test.describe("Default Agent Tests", () => {
     const apiClient = new DepthApiClient(adminPage.request);
     try {
       imageGenConfigId = await apiClient.createImageGenerationConfig(
-        `test-default-assistant-${Date.now()}`,
+        `test-default-assistant-${Date.now()}`
       );
     } catch (error) {
       console.warn(`Failed to create image generation config: ${error}`);
@@ -111,12 +111,12 @@ test.describe("Default Agent Tests", () => {
       // First verify greeting appears for default agent
       const greetingElement = await page.waitForSelector(
         '[data-testid="depth-logo"]',
-        { timeout: 5000 },
+        { timeout: 5000 }
       );
       expect(greetingElement).toBeTruthy();
 
       // Create a custom agent to test non-default behavior
-      await page.getByTestId("AppSidebar/more-agents").click();
+      await page.goto("/app/agents");
       await page.getByLabel("AgentsPage/new-agent-button").click();
       await page
         .locator('input[name="name"]')
@@ -144,13 +144,13 @@ test.describe("Default Agent Tests", () => {
       // Look for Depth logo
       const logoElement = await page.waitForSelector(
         '[data-testid="depth-logo"]',
-        { timeout: 5000 },
+        { timeout: 5000 }
       );
       expect(logoElement).toBeTruthy();
 
       // Should NOT show agent name for default agent
       const agentNameElement = await page.$(
-        '[data-testid="agent-name-display"]',
+        '[data-testid="agent-name-display"]'
       );
       expect(agentNameElement).toBeNull();
     });
@@ -159,7 +159,7 @@ test.describe("Default Agent Tests", () => {
       page,
     }) => {
       // Create a custom agent
-      await page.getByTestId("AppSidebar/more-agents").click();
+      await page.goto("/app/agents");
       await page.getByLabel("AgentsPage/new-agent-button").click();
       await page
         .locator('input[name="name"]')
@@ -179,7 +179,7 @@ test.describe("Default Agent Tests", () => {
       // Should show agent name and icon, not Depth logo
       const agentNameElement = await page.waitForSelector(
         '[data-testid="agent-name-display"]',
-        { timeout: 5000 },
+        { timeout: 5000 }
       );
       const nameText = await agentNameElement.textContent();
       expect(nameText).toContain("Custom Agent");
@@ -194,7 +194,7 @@ test.describe("Default Agent Tests", () => {
     test("default agent should NOT have starter messages", async ({ page }) => {
       // Check that starter messages container does not exist for default agent
       const starterMessagesContainer = await page.$(
-        '[data-testid="starter-messages"]',
+        '[data-testid="starter-messages"]'
       );
       expect(starterMessagesContainer).toBeNull();
 
@@ -205,7 +205,7 @@ test.describe("Default Agent Tests", () => {
 
     test("custom agents should display starter messages", async ({ page }) => {
       // Create a custom agent with starter messages
-      await page.getByTestId("AppSidebar/more-agents").click();
+      await page.goto("/app/agents");
       await page.getByLabel("AgentsPage/new-agent-button").click();
       await page
         .locator('input[name="name"]')
@@ -227,12 +227,12 @@ test.describe("Default Agent Tests", () => {
 
       // Starter messages container might exist but be empty for custom agents
       const starterMessagesContainer = await page.$(
-        '[data-testid="starter-messages"]',
+        '[data-testid="starter-messages"]'
       );
       // It's okay if it exists but has no messages, or doesn't exist at all
       if (starterMessagesContainer) {
         const starterButtons = await page.$$(
-          '[data-testid^="starter-message-"]',
+          '[data-testid^="starter-message-"]'
         );
         // Custom agent without configured starter messages should have none
         expect(starterButtons.length).toBe(0);
@@ -250,7 +250,7 @@ test.describe("Default Agent Tests", () => {
       page,
     }) => {
       // Open agent selector
-      await page.getByTestId("AppSidebar/more-agents").click();
+      await page.goto("/app/agents");
 
       // Wait for modal or assistant list to appear
       // The selector might be in a modal or dropdown.
@@ -261,7 +261,7 @@ test.describe("Default Agent Tests", () => {
       // Look for default agent by name - it should NOT be there
       const assistantElements = await page.$$('[data-testid^="agent-"]');
       const assistantTexts = await Promise.all(
-        assistantElements.map((el) => el.textContent()),
+        assistantElements.map((el) => el.textContent())
       );
 
       // Check that the default agent is not in the list
@@ -269,7 +269,7 @@ test.describe("Default Agent Tests", () => {
         (text) =>
           text?.includes("Assistant") &&
           !text?.includes("Test") &&
-          !text?.includes("Custom"),
+          !text?.includes("Custom")
       );
       expect(hasDefaultAssistant).toBe(false);
 
@@ -281,7 +281,7 @@ test.describe("Default Agent Tests", () => {
       page,
     }) => {
       // Create a custom agent
-      await page.getByTestId("AppSidebar/more-agents").click();
+      await page.goto("/app/agents");
       await page.getByLabel("AgentsPage/new-agent-button").click();
       await page
         .locator('input[name="name"]')
@@ -328,7 +328,7 @@ test.describe("Default Agent Tests", () => {
       const apiClient = new DepthApiClient(adminPage.request);
       try {
         imageGenConfigId = await apiClient.createImageGenerationConfig(
-          `test-action-toggle-${Date.now()}`,
+          `test-action-toggle-${Date.now()}`
         );
       } catch (error) {
         console.warn(`Failed to create image generation config: ${error}`);
@@ -379,18 +379,18 @@ test.describe("Default Agent Tests", () => {
         // Set up a web search provider so the tool is available
         webSearchProviderId = await apiClient.createWebSearchProvider(
           "exa",
-          `Test Web Search Provider ${Date.now()}`,
+          `Test Web Search Provider ${Date.now()}`
         );
       } catch (error) {
         console.warn(
-          `Failed to create web search provider for test: ${error}. Test may fail.`,
+          `Failed to create web search provider for test: ${error}. Test may fail.`
         );
       }
 
       // Enable the tools in default agent config via API
       // Get current tools to find their IDs
       const toolsListResp = await page.request.get(
-        "http://localhost:3000/api/tool",
+        "http://localhost:3000/api/tool"
       );
       const allTools = await toolsListResp.json();
       const toolIdsByCodeId: { [key: string]: number } = {};
@@ -428,7 +428,7 @@ test.describe("Default Agent Tests", () => {
           await apiClient.deleteWebSearchProvider(webSearchProviderId);
         } catch (error) {
           console.warn(
-            `Failed to delete web search provider ${webSearchProviderId}: ${error}`,
+            `Failed to delete web search provider ${webSearchProviderId}: ${error}`
           );
         }
       }
@@ -446,13 +446,13 @@ test.describe("Default Agent Tests", () => {
       // Find the image-generation tool option
       const imageGenerationToolOption = toolOption(
         page,
-        TOOL_NAMES.imageGeneration,
+        TOOL_NAMES.imageGeneration
       );
       await expect(imageGenerationToolOption).toBeVisible();
 
       // Look for a checkbox or switch within the tool option
       const imageGenerationToggle = imageGenerationToolOption.locator(
-        TOOL_IDS.toggleInput,
+        TOOL_IDS.toggleInput
       );
 
       if ((await imageGenerationToggle.count()) > 0) {
@@ -492,7 +492,7 @@ test.describe("Default Agent Tests", () => {
       // Find the internet image-generation tool option and its toggle
       const imageGenerationToolOption = toolOption(
         page,
-        TOOL_NAMES.imageGeneration,
+        TOOL_NAMES.imageGeneration
       );
       await expect(imageGenerationToolOption).toBeVisible();
 
@@ -524,7 +524,7 @@ test.describe("Default Agent Tests", () => {
       // Check if state persisted
       const imageGenerationToggleAfterReload = toolOption(
         page,
-        TOOL_NAMES.imageGeneration,
+        TOOL_NAMES.imageGeneration
       )
         .locator(TOOL_IDS.toggleInput)
         .first();
@@ -554,7 +554,7 @@ test.describe("End-to-End Default Agent Flow", () => {
     const apiClient = new DepthApiClient(adminPage.request);
     try {
       imageGenConfigId = await apiClient.createImageGenerationConfig(
-        `test-e2e-journey-${Date.now()}`,
+        `test-e2e-journey-${Date.now()}`
       );
     } catch (error) {
       console.warn(`Failed to create image generation config: ${error}`);

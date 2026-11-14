@@ -820,7 +820,7 @@ function GeneralSettings() {
                         />
                         {isSelected && (
                           <div className="absolute top-1.5 end-1.5 w-4 h-4 rounded-full bg-theme-primary-05 flex items-center justify-center">
-                            <SvgCheck className="w-2.5 h-2.5 stroke-text-inverted-05" />
+                            <SvgCheck className="w-2.5 h-2.5 text-text-inverted-05" />
                           </div>
                         )}
                       </button>

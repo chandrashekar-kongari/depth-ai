@@ -51,7 +51,7 @@ function Removable({ onRemove, children }: RemovableProps) {
                 "hover:opacity-90"
               )}
             >
-              <SvgX className="h-3 w-3 stroke-text-inverted-03" />
+              <SvgX className="h-3 w-3 text-text-inverted-03" />
             </button>
           </Hoverable.Item>
         </div>

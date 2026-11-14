@@ -186,7 +186,7 @@ function PlanCard({
                 height="auto"
               >
                 <div className="plan-card-feature-icon">
-                  <feature.icon size={16} className="stroke-text-03" />
+                  <feature.icon size={16} className="text-text-03" />
                 </div>
                 <Text font="main-ui-body" color="text-03">
                   {feature.text}

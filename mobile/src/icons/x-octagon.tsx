@@ -1,23 +1,19 @@
+// Phosphor Icons 2.1.1: x-circle (regular).
 import Svg, { Path } from "react-native-svg";
-
 import type { IconProps } from "@/icons/types";
 
-const SvgXOctagon = ({ size = 16, ...props }: IconProps) => (
-  <Svg
-    width={size}
-    height={size}
-    viewBox="0 0 15 15"
-    fill="none"
-    stroke="currentColor"
-    {...props}
-  >
-    <Path
-      d="M9.41667 5.41667L5.41667 9.41667M5.41667 5.41667L9.41667 9.41667M4.65667 0.75H10.1767L14.0833 4.65667V10.1767L10.1767 14.0833H4.65667L0.75 10.1767V4.65667L4.65667 0.75Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+function SvgXOctagon({ size = 16, ...props }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      {...props}
+    >
+      <Path d="M165.66,101.66,139.31,128l26.35,26.34a8,8,0,0,1-11.32,11.32L128,139.31l-26.34,26.35a8,8,0,0,1-11.32-11.32L116.69,128,90.34,101.66a8,8,0,0,1,11.32-11.32L128,116.69l26.34-26.35a8,8,0,0,1,11.32,11.32ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z" />
+    </Svg>
+  );
+}
 
 export default SvgXOctagon;

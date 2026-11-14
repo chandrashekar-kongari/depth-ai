@@ -34,37 +34,37 @@ interface IconConfig {
 }
 
 export const agentAvatarIconMap: Record<string, IconConfig> = {
-  Info: { Icon: SvgInfoSmall, className: "stroke-theme-primary-05" },
+  Info: { Icon: SvgInfoSmall, className: "text-theme-primary-05" },
   QuestionMark: {
     Icon: SvgQuestionMarkSmall,
-    className: "stroke-theme-primary-05",
+    className: "text-theme-primary-05",
   },
 
   // blue
-  TextLines: { Icon: SvgTextLinesSmall, className: "stroke-theme-blue-05" },
-  Pen: { Icon: SvgPenSmall, className: "stroke-theme-blue-05" },
-  ClockHands: { Icon: SvgClockHandsSmall, className: "stroke-theme-blue-05" },
-  Hash: { Icon: SvgHashSmall, className: "stroke-theme-blue-05" },
+  TextLines: { Icon: SvgTextLinesSmall, className: "text-theme-blue-05" },
+  Pen: { Icon: SvgPenSmall, className: "text-theme-blue-05" },
+  ClockHands: { Icon: SvgClockHandsSmall, className: "text-theme-blue-05" },
+  Hash: { Icon: SvgHashSmall, className: "text-theme-blue-05" },
 
   // green
-  Search: { Icon: SvgSearchSmall, className: "stroke-theme-green-05" },
-  Check: { Icon: SvgCheckSmall, className: "stroke-theme-green-05" },
-  BarChart: { Icon: SvgBarChartSmall, className: "stroke-theme-green-05" },
-  Activity: { Icon: SvgActivitySmall, className: "stroke-theme-green-05" },
+  Search: { Icon: SvgSearchSmall, className: "text-theme-green-05" },
+  Check: { Icon: SvgCheckSmall, className: "text-theme-green-05" },
+  BarChart: { Icon: SvgBarChartSmall, className: "text-theme-green-05" },
+  Activity: { Icon: SvgActivitySmall, className: "text-theme-green-05" },
 
   // purple
-  File: { Icon: SvgFileSmall, className: "stroke-theme-purple-05" },
-  Image: { Icon: SvgImageSmall, className: "stroke-theme-purple-05" },
-  BooksStack: { Icon: SvgBooksStackSmall, className: "stroke-theme-purple-05" },
-  BooksLine: { Icon: SvgBooksLineSmall, className: "stroke-theme-purple-05" },
+  File: { Icon: SvgFileSmall, className: "text-theme-purple-05" },
+  Image: { Icon: SvgImageSmall, className: "text-theme-purple-05" },
+  BooksStack: { Icon: SvgBooksStackSmall, className: "text-theme-purple-05" },
+  BooksLine: { Icon: SvgBooksLineSmall, className: "text-theme-purple-05" },
 
   // orange
-  Terminal: { Icon: SvgTerminalSmall, className: "stroke-theme-orange-04" },
-  Sliders: { Icon: SvgSlidersSmall, className: "stroke-theme-orange-04" },
+  Terminal: { Icon: SvgTerminalSmall, className: "text-theme-orange-04" },
+  Sliders: { Icon: SvgSlidersSmall, className: "text-theme-orange-04" },
 
   // amber
-  AudioEq: { Icon: SvgAudioEqSmall, className: "stroke-theme-amber-04" },
-  Music: { Icon: SvgMusicSmall, className: "stroke-theme-amber-04" },
+  AudioEq: { Icon: SvgAudioEqSmall, className: "text-theme-amber-04" },
+  Music: { Icon: SvgMusicSmall, className: "text-theme-amber-04" },
 };
 
 interface SvgOctagonWrapperProps {
@@ -78,7 +78,7 @@ function SvgOctagonWrapper({ size, children }: SvgOctagonWrapperProps) {
       <div className="absolute inset-0 flex items-center justify-center">
         {children}
       </div>
-      <SvgDepthOctagon className="stroke-text-04" height={size} width={size} />
+      <SvgDepthOctagon className="text-text-04" height={size} width={size} />
     </div>
   );
 }
@@ -123,7 +123,7 @@ export default function CustomAgentAvatar({
     return (
       <SvgOctagonWrapper size={size}>
         <Icon
-          className={cn("stroke-text-04", className)}
+          className={cn("text-text-04", className)}
           style={{ width: size * multiplier, height: size * multiplier }}
         />
       </SvgOctagonWrapper>
@@ -154,7 +154,7 @@ export default function CustomAgentAvatar({
   return (
     <SvgOctagonWrapper size={size}>
       <SvgTwoLineSmall
-        className="stroke-text-04"
+        className="text-text-04"
         style={{ width: size * 0.8, height: size * 0.8 }}
       />
     </SvgOctagonWrapper>

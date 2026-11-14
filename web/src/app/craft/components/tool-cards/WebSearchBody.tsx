@@ -100,7 +100,7 @@ export default function WebSearchBody({ toolCall }: ToolCardBodyProps) {
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <SvgGlobe className="size-3.5 stroke-text-03 shrink-0" />
+              <SvgGlobe className="size-3.5 text-text-03 shrink-0" />
               <span className="truncate min-w-0">
                 <Text
                   font="main-ui-action"

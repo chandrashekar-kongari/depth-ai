@@ -160,7 +160,7 @@ export default function BrowserTab({
                 >
                   <SvgGlobe
                     size={20}
-                    className="shrink-0 stroke-text-03"
+                    className="shrink-0 text-text-03"
                     aria-hidden
                   />
                   <Section

@@ -1,28 +1,21 @@
+// Phosphor Icons 2.1.1: plugs (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgUnplug = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <g clipPath="url(#clip0_454_2471)">
-      <path
-        d="M1 1L5.0778 5.0778M15 15L12 12M15 10.5H14M12 12.5H8.5C6.01472 12.5 4 10.4853 4 8M12 12.5V14M12 12.5V12M12 3.5H8.5C8.04537 3.5 7.60649 3.56742 7.1928 3.6928M12 3.5V5.5M12 3.5V2M12 5.5H15M12 5.5V8.5M4 8H1M4 8C4 6.88463 4.40579 5.86403 5.0778 5.0778M5.0778 5.0778L12 12"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </g>
-    <defs>
-      <clipPath id="clip0_454_2471">
-        <rect width={16} height={16} fill="white" />
-      </clipPath>
-    </defs>
-  </svg>
-);
+function SvgUnplug({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M149.66,138.34a8,8,0,0,0-11.32,0L120,156.69,99.31,136l18.35-18.34a8,8,0,0,0-11.32-11.32L88,124.69,69.66,106.34a8,8,0,0,0-11.32,11.32L64.69,124,41.37,147.31a32,32,0,0,0,0,45.26l5.38,5.37-28.41,28.4a8,8,0,0,0,11.32,11.32l28.4-28.41,5.37,5.38a32,32,0,0,0,45.26,0L132,191.31l6.34,6.35a8,8,0,0,0,11.32-11.32L131.31,168l18.35-18.34A8,8,0,0,0,149.66,138.34Zm-52.29,65a16,16,0,0,1-22.62,0L52.69,181.25a16,16,0,0,1,0-22.62L76,135.31,120.69,180Zm140.29-185a8,8,0,0,0-11.32,0l-28.4,28.41-5.37-5.38a32.05,32.05,0,0,0-45.26,0L124,64.69l-6.34-6.35a8,8,0,0,0-11.32,11.32l80,80a8,8,0,0,0,11.32-11.32L191.31,132l23.32-23.31a32,32,0,0,0,0-45.26l-5.38-5.37,28.41-28.4A8,8,0,0,0,237.66,18.34Zm-34.35,79L180,120.69,135.31,76l23.32-23.31a16,16,0,0,1,22.62,0l22.06,22A16,16,0,0,1,203.31,97.37Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgUnplug;

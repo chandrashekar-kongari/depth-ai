@@ -1,21 +1,21 @@
+// Phosphor Icons 2.1.1: sparkle (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgSparkle = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M1.5 8C5.11111 6.91667 6.91667 5.11111 8 1.5C9.08333 5.11111 10.8889 6.91667 14.5 8C10.8889 9.08333 9.08333 10.8889 8 14.5C6.91667 10.8889 5.11111 9.08333 1.5 8Z"
-      strokeWidth={1.5}
-      strokeLinecap="square"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+function SvgSparkle({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgSparkle;

@@ -77,7 +77,7 @@ function LLMProviderCardInner({
                 <IconContainer
                   icon={({ className, ...props }) => (
                     <SvgCheckCircle
-                      className={cn(className, "stroke-status-success-05")}
+                      className={cn(className, "text-status-success-05")}
                       {...props}
                     />
                   )}

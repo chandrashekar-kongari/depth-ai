@@ -20,7 +20,7 @@ export default function Attachments({ fileName, open }: AttachmentsProps) {
       className="max-w-full min-w-0 border border-border-01 bg-background-tint-00 rounded-08"
     >
       <div className="shrink-0 p-2 bg-background-neutral-02 rounded-08">
-        <SvgFileText className="w-5 h-5 stroke-text-03" />
+        <SvgFileText className="w-5 h-5 text-text-03" />
       </div>
       <Section
         alignItems="stretch"

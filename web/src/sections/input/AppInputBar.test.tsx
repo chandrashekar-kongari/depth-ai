@@ -125,8 +125,6 @@ function Composer({
         stopGenerating={jest.fn()}
         onSubmit={jest.fn()}
         handleFileUpload={jest.fn()}
-        deepResearchEnabled={false}
-        toggleDeepResearch={jest.fn()}
         chatState="input"
         disabled={false}
       />

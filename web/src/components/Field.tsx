@@ -12,10 +12,10 @@ import {
 import * as Yup from "yup";
 import { FormBodyBuilder } from "./admin/connectors/types";
 import { InputSingleSelect, type TooltipSide } from "@opal/components";
-import { FiInfo, FiX } from "react-icons/fi";
+import { SvgInfo as FiInfo, SvgX as FiX } from "@opal/icons";
 import { useTranslations } from "next-intl";
 import ReactMarkdown from "react-markdown";
-import { FaMarkdown } from "react-icons/fa";
+import { SvgMarkdownFile as FaMarkdown } from "@opal/icons";
 import { useState, memo, JSX } from "react";
 import remarkGfm from "remark-gfm";
 import {
@@ -368,7 +368,7 @@ export function TextFormField({
                 ? t("passwordToggle.hideAriaLabel")
                 : t("passwordToggle.showAriaLabel")
             }
-            className="absolute end-3 top-1/2 -translate-y-1/2 stroke-text-02 hover:stroke-text-03 mt-0.5"
+            className="absolute end-3 top-1/2 -translate-y-1/2 text-text-02 hover:text-text-03 mt-0.5"
             onClick={() => setIsPasswordVisible((v) => !v)}
             tabIndex={0}
           >

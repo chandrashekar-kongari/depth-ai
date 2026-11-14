@@ -61,13 +61,13 @@ function ManageAvatar({ icon: Icon }: ManageAvatarProps) {
   if (Icon === null) {
     return (
       <div className="flex h-7 w-7 items-center justify-center">
-        <SvgUserManage size={16} className="stroke-text-03" aria-hidden />
+        <SvgUserManage size={16} className="text-text-03" aria-hidden />
       </div>
     );
   }
   return (
     <div className="flex h-7 w-7 items-center justify-center rounded-full bg-background-neutral-inverted-00">
-      <Icon size={16} className="stroke-text-inverted-05" aria-hidden />
+      <Icon size={16} className="text-text-inverted-05" aria-hidden />
     </div>
   );
 }
@@ -239,7 +239,7 @@ export default function SharingSettingsSection({
           width="fit"
           height="fit"
         >
-          <SvgEditBig size={16} className="stroke-text-03" aria-hidden />
+          <SvgEditBig size={16} className="text-text-03" aria-hidden />
           <Text font="main-ui-action" color="text-04">
             {tSettings(`manageAccess.role.${row.role}.label`)}
           </Text>
@@ -265,7 +265,7 @@ export default function SharingSettingsSection({
             <Text font="secondary-body" color="text-03">
               {tSettings("manageAccess.admins.alwaysShared")}
             </Text>
-            <SvgUserManage size={16} className="stroke-text-03" aria-hidden />
+            <SvgUserManage size={16} className="text-text-03" aria-hidden />
           </Section>
         ) : null,
     },
@@ -312,11 +312,7 @@ export default function SharingSettingsSection({
                   width="fit"
                   height="fit"
                 >
-                  <AccessIcon
-                    size={16}
-                    className="stroke-text-04"
-                    aria-hidden
-                  />
+                  <AccessIcon size={16} className="text-text-04" aria-hidden />
                   <Text font="main-ui-action" color="text-04">
                     {access.label}
                   </Text>

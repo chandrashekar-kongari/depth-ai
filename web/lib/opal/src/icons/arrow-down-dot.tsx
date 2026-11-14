@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: arrow-line-down (regular).
 import type { IconProps } from "@opal/types";
-const SvgArrowDownDot = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M8.00002 14L8.00002 7.5M4.5 10.5L8.00002 14L11.5 10.5M8.00002 5C7.17158 5 6.5 4.32843 6.5 3.5C6.5 2.67157 7.17158 2 8.00002 2C8.82845 2 9.5 2.67157 9.5 3.5C9.5 4.32843 8.82845 5 8.00002 5Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgArrowDownDot({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M50.34,117.66a8,8,0,0,1,11.32-11.32L120,164.69V32a8,8,0,0,1,16,0V164.69l58.34-58.35a8,8,0,0,1,11.32,11.32l-72,72a8,8,0,0,1-11.32,0ZM216,208H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgArrowDownDot;

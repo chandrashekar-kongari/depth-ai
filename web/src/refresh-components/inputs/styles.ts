@@ -27,11 +27,11 @@ export const innerClasses: ClassNamesMap = {
 } as const;
 
 export const iconClasses: ClassNamesMap = {
-  primary: "stroke-text-03",
-  internal: "stroke-text-03",
-  error: "stroke-text-03",
-  disabled: "stroke-text-01",
-  readOnly: "stroke-text-01",
+  primary: "text-text-03",
+  internal: "text-text-03",
+  error: "text-text-03",
+  disabled: "text-text-01",
+  readOnly: "text-text-01",
 } as const;
 
 export const textClasses: ClassNamesMap = {

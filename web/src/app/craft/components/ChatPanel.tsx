@@ -704,7 +704,7 @@ function ChatPanelContent({
                         <>
                           {wasInterrupted && !displayIsRunning && (
                             <div className="flex items-center gap-2 text-sm text-text-03">
-                              <SvgStopCircle className="size-4 shrink-0 stroke-text-03" />
+                              <SvgStopCircle className="size-4 shrink-0 text-text-03" />
                               <span>{t("responseStopped.label")}</span>
                             </div>
                           )}

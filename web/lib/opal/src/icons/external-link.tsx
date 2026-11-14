@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: arrow-square-out (regular).
 import type { IconProps } from "@opal/types";
-const SvgExternalLink = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M12 8.66667V12.6667C12 13.3929 11.3929 14 10.6667 14H3.33333C2.60711 14 2 13.3929 2 12.6667V5.33333C2 4.60711 2.60711 4 3.33333 4H7.33333M14 6V2H10M14 2L6.66667 9.33333"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgExternalLink({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M224,104a8,8,0,0,1-16,0V59.32l-66.33,66.34a8,8,0,0,1-11.32-11.32L196.68,48H152a8,8,0,0,1,0-16h64a8,8,0,0,1,8,8Zm-40,24a8,8,0,0,0-8,8v72H48V80h72a8,8,0,0,0,0-16H48A16,16,0,0,0,32,80V208a16,16,0,0,0,16,16H176a16,16,0,0,0,16-16V136A8,8,0,0,0,184,128Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgExternalLink;

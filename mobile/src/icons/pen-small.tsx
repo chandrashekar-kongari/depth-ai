@@ -1,23 +1,19 @@
+// Phosphor Icons 2.1.1: pen (regular).
 import Svg, { Path } from "react-native-svg";
-
 import type { IconProps } from "@/icons/types";
 
-const SvgPenSmall = ({ size = 16, ...props }: IconProps) => (
-  <Svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    {...props}
-  >
-    <Path
-      d="M6.5 11L11.5 6L10 4.5L5 9.5L5 11H6.5Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+function SvgPenSmall({ size = 16, ...props }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      {...props}
+    >
+      <Path d="M227.32,73.37,182.63,28.69a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31l83.67-83.66,3.48,13.9-36.8,36.79a8,8,0,0,0,11.31,11.32l40-40a8,8,0,0,0,2.11-7.6l-6.9-27.61L227.32,96A16,16,0,0,0,227.32,73.37ZM48,179.31,76.69,208H48Zm48,25.38L51.31,160,136,75.31,180.69,120Zm96-96L147.32,64l24-24L216,84.69Z" />
+    </Svg>
+  );
+}
 
 export default SvgPenSmall;

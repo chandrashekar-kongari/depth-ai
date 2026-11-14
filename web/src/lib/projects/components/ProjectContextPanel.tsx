@@ -253,7 +253,7 @@ export default function ProjectContextPanel({
                     title={t("projects.contextPanel.viewAll.label")}
                     description={fileCountLabel}
                     rightChildren={
-                      <SvgFiles className="h-5 w-5 stroke-text-02" />
+                      <SvgFiles className="h-5 w-5 text-text-02" />
                     }
                     onClick={() => projectFilesModal.toggle(true)}
                   />

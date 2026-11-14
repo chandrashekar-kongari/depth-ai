@@ -507,7 +507,7 @@ function UploadDropzone({ onClick, active }: UploadDropzoneProps) {
           : "border-border-03 bg-background-tint-02 hover:border-action-selection-04 hover:bg-action-selection-01"
       )}
     >
-      <SvgUploadCloud size={28} className="stroke-text-03" />
+      <SvgUploadCloud size={28} className="text-text-03" />
       <Text font="main-ui-action" color="text-04">
         {t("dropzone.title")}
       </Text>
@@ -598,12 +598,12 @@ function LibraryTreeView({
             {/* Type icon */}
             {entry.is_directory ? (
               isExpanded ? (
-                <SvgFolderOpen size={16} className="shrink-0 stroke-text-03" />
+                <SvgFolderOpen size={16} className="shrink-0 text-text-03" />
               ) : (
-                <SvgFolder size={16} className="shrink-0 stroke-text-03" />
+                <SvgFolder size={16} className="shrink-0 text-text-03" />
               )
             ) : (
-              <SvgFileText size={16} className="shrink-0 stroke-text-03" />
+              <SvgFileText size={16} className="shrink-0 text-text-03" />
             )}
 
             {/* Name */}

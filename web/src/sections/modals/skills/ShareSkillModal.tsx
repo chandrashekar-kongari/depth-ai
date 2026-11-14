@@ -484,7 +484,7 @@ export default function ShareSkillModal(props: ShareSkillModalProps) {
                       <option.icon
                         size={18}
                         aria-hidden
-                        className="shrink-0 stroke-text-03"
+                        className="shrink-0 text-text-03"
                       />
                       <Text font="main-ui-action">
                         {t(`share.installation.${option.label}`)}

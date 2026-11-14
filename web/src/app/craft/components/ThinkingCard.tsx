@@ -87,7 +87,7 @@ interface ThinkingCardProps {
 
 function ThinkingActivityIcon({ isStreaming }: { isStreaming: boolean }) {
   if (!isStreaming) {
-    return <SvgBubbleText className="size-4 shrink-0 stroke-text-03" />;
+    return <SvgBubbleText className="size-4 shrink-0 text-text-03" />;
   }
 
   return (
@@ -130,8 +130,8 @@ export default function ThinkingCard({
             </Text>
             <SvgChevronDown
               className={cn(
-                "size-4 stroke-text-03 transition-all duration-150 shrink-0 ml-auto motion-reduce:transition-none",
-                "group-hover:stroke-text-05",
+                "size-4 text-text-03 transition-all duration-150 shrink-0 ml-auto motion-reduce:transition-none",
+                "group-hover:text-text-05",
                 !isOpen && "-rotate-90"
               )}
             />

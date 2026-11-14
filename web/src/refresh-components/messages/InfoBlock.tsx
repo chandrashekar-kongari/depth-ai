@@ -25,7 +25,7 @@ const InfoBlockInner = React.forwardRef<HTMLDivElement, InfoBlockProps>(
       >
         {/* Icon Container */}
         <div className="flex items-center justify-center p-0.5 size-5 shrink-0">
-          <Icon className={cn("size-4 stroke-text-02", iconClassName)} />
+          <Icon className={cn("size-4 text-text-02", iconClassName)} />
         </div>
 
         {/* Text Content */}

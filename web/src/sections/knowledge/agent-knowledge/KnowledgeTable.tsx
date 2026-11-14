@@ -65,7 +65,7 @@ export function KnowledgeTable<T>({
               placeholder={searchPlaceholder ?? t("table.filter.placeholder")}
               variant="internal"
               rightChildren={
-                <SvgFilter className="w-4 h-4 stroke-text-02 shrink-0" />
+                <SvgFilter className="w-4 h-4 text-text-02 shrink-0" />
               }
             />
           </GeneralLayouts.Section>

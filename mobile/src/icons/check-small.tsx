@@ -1,23 +1,19 @@
+// Phosphor Icons 2.1.1: check (regular).
 import Svg, { Path } from "react-native-svg";
-
 import type { IconProps } from "@/icons/types";
 
-const SvgCheckSmall = ({ size = 16, ...props }: IconProps) => (
-  <Svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    {...props}
-  >
-    <Path
-      d="M11 6L7 10L5 8"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+function SvgCheckSmall({ size = 16, ...props }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      {...props}
+    >
+      <Path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z" />
+    </Svg>
+  );
+}
 
 export default SvgCheckSmall;

@@ -31,7 +31,7 @@ export const NonSelectableConnectors = ({
 
       <div className="p-3 border border-dashed border-border-02 rounded-12 bg-background-neutral-01">
         <div className="mb-2 flex items-center gap-1.5">
-          <SvgLock className="h-3.5 w-3.5 stroke-text-03" />
+          <SvgLock className="h-3.5 w-3.5 text-text-03" />
           <Text as="p" font="figure-small-label" color="text-04">
             {t("unavailable.label")}
           </Text>

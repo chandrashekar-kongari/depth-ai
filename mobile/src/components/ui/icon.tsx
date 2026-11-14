@@ -1,5 +1,5 @@
 // RN has no CSS engine: `cssInterop` resolves the text-color class to a real color and
-// maps it onto the icon's `color` prop, which the SVG's `stroke="currentColor"` reads.
+// maps it onto the icon's `color` prop, which the SVG reads through `currentColor`.
 import { cssInterop } from "nativewind";
 
 import { cn } from "@/lib/utils";

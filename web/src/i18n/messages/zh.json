@@ -14338,7 +14338,7 @@
     },
     "filePicker": {
       "allRecentFilesButton": {
-        "title": "所有最近的文件"
+        "title": "加载更多"
       },
       "recentFiles": {
         "title": "最近的文件"
@@ -17071,7 +17071,7 @@
         "tooltip": "新建项目"
       },
       "newSession": {
-        "label": "新建会话"
+        "label": "新建聊天"
       },
       "projects": {
         "title": "项目"

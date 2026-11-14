@@ -1,23 +1,19 @@
+// Phosphor Icons 2.1.1: book-open (regular).
 import Svg, { Path } from "react-native-svg";
-
 import type { IconProps } from "@/icons/types";
 
-const SvgBookOpen = ({ size = 16, ...props }: IconProps) => (
-  <Svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    {...props}
-  >
-    <Path
-      d="M7.99999 4.66667C7.99999 3.95942 7.71904 3.28115 7.21895 2.78105C6.71885 2.28095 6.04057 2 5.33333 2H1.33333V12H5.99999C6.53043 12 7.03914 12.2107 7.41421 12.5858C7.78928 12.9609 7.99999 13.4696 7.99999 14M7.99999 4.66667V14M7.99999 4.66667C7.99999 3.95942 8.28095 3.28115 8.78104 2.78105C9.28114 2.28095 9.95942 2 10.6667 2H14.6667V12H9.99999C9.46956 12 8.96085 12.2107 8.58578 12.5858C8.21071 12.9609 7.99999 13.4696 7.99999 14"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+function SvgBookOpen({ size = 16, ...props }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      {...props}
+    >
+      <Path d="M232,48H160a40,40,0,0,0-32,16A40,40,0,0,0,96,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,24,8,8,0,0,0,16,0,24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM96,192H32V64H96a24,24,0,0,1,24,24V200A39.81,39.81,0,0,0,96,192Zm128,0H160a39.81,39.81,0,0,0-24,8V88a24,24,0,0,1,24-24h64Z" />
+    </Svg>
+  );
+}
 
 export default SvgBookOpen;

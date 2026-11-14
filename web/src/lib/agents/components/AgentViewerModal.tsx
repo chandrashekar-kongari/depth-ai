@@ -154,8 +154,6 @@ function AgentChatInput({ agent, onSubmit }: AgentChatInputProps) {
       activeAgent={agent}
       stopGenerating={() => {}}
       handleFileUpload={() => {}}
-      deepResearchEnabled={false}
-      toggleDeepResearch={() => {}}
       disabled={false}
     />
   );

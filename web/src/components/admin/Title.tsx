@@ -23,7 +23,7 @@ export function AdminPageTitle({
       <div className="w-full flex flex-row justify-between">
         <div className="flex flex-row gap-2">
           {typeof Icon === "function" ? (
-            <Icon className="stroke-text-04 h-8 w-8" />
+            <Icon className="text-text-04 h-8 w-8" />
           ) : (
             Icon
           )}

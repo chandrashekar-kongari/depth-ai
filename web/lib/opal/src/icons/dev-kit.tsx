@@ -1,21 +1,21 @@
+// Phosphor Icons 2.1.1: toolbox (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgDevKit = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M2 5H14M2 5V14H14V5M2 5C2 4.67722 2.11475 4.36495 2.32376 4.11897L4.12423 2H11.8795L13.6766 4.11869C13.8854 4.36487 14 4.67719 14 5M9.66666 11.1733L11.3333 9.50667L9.66666 7.84M6.33333 7.84L4.66666 9.50667L6.33333 11.1733"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+function SvgDevKit({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M224,64H176V56a24,24,0,0,0-24-24H104A24,24,0,0,0,80,56v8H32A16,16,0,0,0,16,80V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V80A16,16,0,0,0,224,64ZM96,56a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM224,80v32H192v-8a8,8,0,0,0-16,0v8H80v-8a8,8,0,0,0-16,0v8H32V80Zm0,112H32V128H64v8a8,8,0,0,0,16,0v-8h96v8a8,8,0,0,0,16,0v-8h32v64Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgDevKit;

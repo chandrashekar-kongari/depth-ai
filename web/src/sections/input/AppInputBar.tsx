@@ -33,21 +33,15 @@ import { Disabled } from "@opal/core";
 import { useUser } from "@/providers/UserProvider";
 import { useSettings } from "@/lib/settings/hooks";
 import { useProjectsContext } from "@/lib/projects/providers";
-import { useActiveProject, useProjects } from "@/lib/projects/hooks";
 import { FileCard } from "@/sections/cards/FileCard";
 import { ProjectFile } from "@/lib/projects/types";
 import { isFilePending } from "@/lib/projects/utils";
 import FilePickerPopover from "@/refresh-components/popovers/FilePickerPopover";
-import { ToolsPopover } from "@/lib/tools/components";
 import MCPConnectionPrompt from "@/lib/mcp/components/MCPConnectionPrompt";
-import {
-  getIconForAction,
-  hasSearchToolsAvailable,
-} from "@/app/app/services/actionUtils";
+import { getIconForAction } from "@/app/app/services/actionUtils";
 import {
   SvgArrowUp,
   SvgGlobe,
-  SvgHourglass,
   SvgMicrophone,
   SvgPaperclip,
   SvgPlus,
@@ -99,10 +93,7 @@ export interface AppInputBarProps {
   memberPlugins?: readonly MemberPlugin[];
 
   handleFileUpload: (files: File[]) => void;
-  deepResearchEnabled: boolean;
   setPresentingDocument?: (document: MinimalDepthDocument) => void;
-  toggleDeepResearch: () => void;
-  isMultiModelActive?: boolean;
   disabled: boolean;
   /**
    * Owned by the surface rather than read here, because the send path reads
@@ -127,9 +118,6 @@ const AppInputBar = React.memo(
     memberPlugins,
     handleFileUpload,
     llmManager,
-    deepResearchEnabled,
-    toggleDeepResearch,
-    isMultiModelActive,
     setPresentingDocument,
     disabled,
     toolConfiguration,
@@ -382,8 +370,6 @@ const AppInputBar = React.memo(
       agent: activeAgent,
       plugins: memberPlugins ?? [],
     });
-    const { isLoading: isLoadingProjects } = useProjects();
-    const activeProject = useActiveProject();
 
     // A file isn't queryable until processing completes, so gate send on it.
     const hasPendingFiles = useMemo(
@@ -548,35 +534,6 @@ const AppInputBar = React.memo(
       return currentMessageFiles.length > 1;
     }, [currentMessageFiles]);
 
-    // Check if the agent has search tools available (internal search or web search)
-    // AND if deep research is globally enabled in admin settings
-    const showDeepResearch = useMemo(() => {
-      const deepResearchGloballyEnabled =
-        combinedSettingsData?.deep_research_enabled ?? true;
-
-      // Resolved from the chat, not the URL. `projectId` is dropped once a chat
-      // opens (`PARAMS_TO_SKIP` in `app/app/services/lib.tsx`), so a project
-      // chat carries no project context in its URL — reading the search param
-      // hid the toggle on the project page and left it showing in the one place
-      // it actually breaks.
-      // Loading counts as "unknown", and unknown withholds: an unloaded
-      // projects list makes a project chat look like a normal one.
-      const isProjectWorkflow = isLoadingProjects || activeProject !== null;
-
-      // TODO(@yuhong): Re-enable Deep Research in Projects workflow once it is fully supported.
-      // https://linear.app/onyx-app/issue/ENG-3818/re-enable-deep-research-in-projects
-      return (
-        !isProjectWorkflow &&
-        deepResearchGloballyEnabled &&
-        hasSearchToolsAvailable(activeAgent?.tools || [])
-      );
-    }, [
-      activeAgent?.tools,
-      combinedSettingsData?.deep_research_enabled,
-      activeProject,
-      isLoadingProjects,
-    ]);
-
     function handleKeyDownForPromptShortcuts(
       e: React.KeyboardEvent<HTMLDivElement>
     ) {
@@ -629,6 +586,7 @@ const AppInputBar = React.memo(
         <div className="flex shrink-0 flex-row items-center">
           {/* (+) button - always visible */}
           <FilePickerPopover
+            anchorRef={containerRef}
             onFileClick={handleFileClick}
             onPickRecent={(file: ProjectFile) => {
               // Check if file with same ID already exists
@@ -653,10 +611,11 @@ const AppInputBar = React.memo(
                 disabled={disabled}
                 size="sm"
                 icon={SvgPaperclip}
-                tooltip={t("appInputBar.attachFilesButton.tooltip")}
                 interaction={open ? "hover" : "rest"}
                 prominence="tertiary"
-              />
+              >
+                {t("appInputBar.attachFilesButton.tooltip")}
+              </Button>
             )}
             selectedFileIds={currentMessageFiles.map((f) => f.id)}
           />
@@ -669,17 +628,7 @@ const AppInputBar = React.memo(
               controlsLoading && "invisible"
             )}
           >
-            {activeAgent && (
-              // Keyed, so switching agents starts clean rather than carrying
-              // the previous agent's open panel and search term across.
-              <ToolsPopover
-                key={activeAgent.id}
-                agent={activeAgent}
-                toolConfiguration={toolConfiguration}
-                disabled={disabled}
-              />
-            )}
-            {onToggleTabReading ? (
+            {onToggleTabReading && (
               <SelectButton
                 disabled={disabled}
                 icon={SvgGlobe}
@@ -698,25 +647,6 @@ const AppInputBar = React.memo(
                     : t("appInputBar.tabReadingButton.readingLabel")
                   : t("appInputBar.tabReadingButton.readLabel")}
               </SelectButton>
-            ) : (
-              showDeepResearch && (
-                <SelectButton
-                  disabled={disabled || isMultiModelActive}
-                  variant="select-light"
-                  size="sm"
-                  icon={SvgHourglass}
-                  onClick={toggleDeepResearch}
-                  state={deepResearchEnabled ? "selected" : "empty"}
-                  foldable={!deepResearchEnabled}
-                  tooltip={
-                    isMultiModelActive
-                      ? t("appInputBar.deepResearchButton.disabledTooltip")
-                      : undefined
-                  }
-                >
-                  {t("appInputBar.deepResearchButton.label")}
-                </SelectButton>
-              )
             )}
 
             {!isSearchMode && !controlsLoading && activeAgent && (
@@ -883,7 +813,7 @@ const AppInputBar = React.memo(
             ref={containerRef}
             id="depth-chat-input"
             className={cn(
-              "depth-chat-composer relative w-full flex flex-col border border-border-01 bg-background-tint-00 rounded-16 shadow-box-00 transition-colors focus-within:border-border-05"
+              "depth-chat-composer relative w-full flex flex-col border border-border-01 bg-background-tint-00 rounded-08 shadow-box-00 transition-colors focus-within:border-border-05"
             )}
           >
             {/* Voice waveform overlay (positioned outside normal flow to avoid resizing input) */}

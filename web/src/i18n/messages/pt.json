@@ -14338,7 +14338,7 @@
     },
     "filePicker": {
       "allRecentFilesButton": {
-        "title": "Todos os arquivos recentes"
+        "title": "Carregar mais"
       },
       "recentFiles": {
         "title": "Arquivos recentes"
@@ -17071,7 +17071,7 @@
         "tooltip": "Novo projeto"
       },
       "newSession": {
-        "label": "Nova sessão"
+        "label": "Novo chat"
       },
       "projects": {
         "title": "Projetos"

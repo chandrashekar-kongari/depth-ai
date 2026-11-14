@@ -146,7 +146,7 @@ export default function ApprovalCard({
     return (
       <Collapsible.Root open={outcomeOpen} onOpenChange={setOutcomeOpen}>
         <Collapsible.Trigger className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-start transition-colors hover:bg-background-tint-02">
-          <StatusIcon className="size-4 shrink-0 stroke-text-03" />
+          <StatusIcon className="size-4 shrink-0 text-text-03" />
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <Text
               font="main-ui-muted"
@@ -169,7 +169,7 @@ export default function ApprovalCard({
           </span>
           <SvgChevronDown
             className={cn(
-              "ms-auto size-4 shrink-0 stroke-text-03 transition-transform",
+              "ms-auto size-4 shrink-0 text-text-03 transition-transform",
               !outcomeOpen && "-rotate-90"
             )}
           />
@@ -194,7 +194,7 @@ export default function ApprovalCard({
                 data-approval-trigger
                 className="flex items-center gap-2 min-w-0 flex-1 text-start px-3 py-2"
               >
-                <SvgLoader className="size-4 shrink-0 stroke-status-info-05 animate-spin" />
+                <SvgLoader className="size-4 shrink-0 text-status-info-05 animate-spin" />
                 <Text
                   font="main-ui-muted"
                   color="text-04"
@@ -217,7 +217,7 @@ export default function ApprovalCard({
               >
                 <SvgChevronDown
                   className={cn(
-                    "size-4 stroke-text-03 transition-transform duration-150",
+                    "size-4 text-text-03 transition-transform duration-150",
                     !isOpen && "-rotate-90"
                   )}
                 />

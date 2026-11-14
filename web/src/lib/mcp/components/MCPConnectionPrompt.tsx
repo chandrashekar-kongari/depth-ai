@@ -26,14 +26,12 @@ interface MCPConnectionPromptProps {
 
 function WarningKey({ className, ...props }: IconProps) {
   return (
-    <SvgKey {...props} className={cn(className, "stroke-status-warning-05")} />
+    <SvgKey {...props} className={cn(className, "text-status-warning-05")} />
   );
 }
 
 function ConnectionKey({ className, ...props }: IconProps) {
-  return (
-    <SvgKey {...props} className={cn(className, "stroke-status-info-05")} />
-  );
+  return <SvgKey {...props} className={cn(className, "text-status-info-05")} />;
 }
 
 export default function MCPConnectionPrompt({
@@ -76,16 +74,15 @@ export default function MCPConnectionPrompt({
         (tool) =>
           tool.mcp_server_id === server.id &&
           tool.enabled &&
-          !toolConfiguration.disabledToolIds.includes(tool.id),
+          !toolConfiguration.disabledToolIds.includes(tool.id)
       )
     );
   });
   const needsReauthentication = pendingServers.some(
-    (server) =>
-      server.connection_status === MCPConnectionStatus.REAUTH_REQUIRED,
+    (server) => server.connection_status === MCPConnectionStatus.REAUTH_REQUIRED
   );
   const visibleServers = servers.filter((server) =>
-    openedServerIds.includes(server.id),
+    openedServerIds.includes(server.id)
   );
 
   function openConnections() {
@@ -108,7 +105,7 @@ export default function MCPConnectionPrompt({
                 ? "opacity-50"
                 : needsReauthentication
                   ? "hover:bg-status-warning-01"
-                  : "hover:bg-status-info-01",
+                  : "hover:bg-status-info-01"
             )}
           >
             <Button
@@ -221,7 +218,7 @@ export default function MCPConnectionPrompt({
                                     : "connect.accessibleLabel",
                                   {
                                     server: server.name,
-                                  },
+                                  }
                                 )}
                                 onClick={() => {
                                   navigatingToCredentials.current =
@@ -235,7 +232,7 @@ export default function MCPConnectionPrompt({
                                     ? "connecting.label"
                                     : reconnect
                                       ? "reconnect.label"
-                                      : "connect.label",
+                                      : "connect.label"
                                 )}
                               </Button>
                             </div>

@@ -1,40 +1,21 @@
+// Phosphor Icons 2.1.1: number-circle-two (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgStep2 = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 15 15"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M7.4198 7.42L11.7501 9.92041C12.6118 8.42453 12.6745 6.52344 11.7494 4.92083L7.4198 7.42Z"
+function SvgStep2({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
       fill="currentColor"
-    />
-    <path
-      d="M7.4198 2.42L7.4198 7.42L11.7494 4.92083C10.8242 3.31822 9.14596 2.42161 7.4198 2.42Z"
-      fill="currentColor"
-    />
-    <path
-      d="M7.4198 7.42L11.7501 9.92041C12.6118 8.42453 12.6745 6.52344 11.7494 4.92083L7.4198 7.42Z"
-      fill="currentColor"
-    />
-    <path
-      fillRule="evenodd"
-      clipRule="evenodd"
-      d="M7.4198 7.42V2.42C9.14596 2.42161 10.8242 3.31822 11.7494 4.92083L7.4198 7.42Z"
-      fill="currentColor"
-    />
-    <path
-      d="M7.41667 14.0833C11.0986 14.0833 14.0833 11.0986 14.0833 7.41667C14.0833 3.73477 11.0986 0.75 7.41667 0.75C3.73477 0.75 0.75 3.73477 0.75 7.41667C0.75 11.0986 3.73477 14.0833 7.41667 14.0833Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm25.56-92.74L120,168h32a8,8,0,0,1,0,16H104a8,8,0,0,1-6.4-12.8l43.17-57.56a16,16,0,1,0-27.86-15,8,8,0,0,1-15.09-5.34,32,32,0,1,1,55.74,29.93Z" />
+      </g>
+    </svg>
+  );
+}
 
 export default SvgStep2;

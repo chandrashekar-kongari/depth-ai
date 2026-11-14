@@ -45,35 +45,35 @@ export function getStatusDisplay(status: ToolCallStatus): StatusDisplay {
     case "in_progress":
       return {
         icon: null,
-        iconClass: "stroke-status-info-05",
+        iconClass: "text-status-info-05",
         bgClass: "bg-status-info-01 border-status-info-02",
         showSpinner: true,
       };
     case "completed":
       return {
         icon: SvgCheckSquare,
-        iconClass: "stroke-status-success-05",
+        iconClass: "text-status-success-05",
         bgClass: "bg-background-neutral-01 border-border-01",
         showSpinner: false,
       };
     case "failed":
       return {
         icon: SvgAlertCircle,
-        iconClass: "stroke-status-error-05",
+        iconClass: "text-status-error-05",
         bgClass: "bg-status-error-01 border-status-error-02",
         showSpinner: false,
       };
     case "cancelled":
       return {
         icon: SvgAlertCircle,
-        iconClass: "stroke-text-02",
+        iconClass: "text-text-02",
         bgClass: "bg-background-neutral-01 border-border-01",
         showSpinner: false,
       };
     default:
       return {
         icon: null,
-        iconClass: "stroke-text-03",
+        iconClass: "text-text-03",
         bgClass: "bg-background-neutral-01 border-border-01",
         showSpinner: false,
       };

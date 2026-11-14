@@ -50,9 +50,7 @@ import {
   SvgDownload,
   SvgEyeOff,
   SvgFileText,
-  SvgFitWidth,
   SvgFolderIn,
-  SvgFullWidth,
   SvgHash,
   SvgMoreHorizontal,
   SvgSearchMenu,
@@ -68,7 +66,6 @@ import { useAppPosition } from "@/lib/position/hooks";
 import { useQueryController } from "@/providers/QueryControllerProvider";
 import { useTierAtLeast } from "@/lib/tiers/hooks";
 import { Tier } from "@/lib/tiers/types";
-import { useFullWidthChat } from "@/providers/FullWidthChatProvider";
 import { useIncognito } from "@/providers/IncognitoProvider";
 
 // ---------------------------------------------------------------------------
@@ -85,7 +82,6 @@ function Header() {
   const settings = useSettings();
   const { isMobile } = useScreenSize();
   const { setFolded } = useSidebarState();
-  const { fullWidthChat, toggleFullWidthChat } = useFullWidthChat();
   const {
     incognitoAvailable,
     incognitoEnabled,
@@ -378,11 +374,15 @@ function Header() {
         </ConfirmationModalLayout>
       )}
 
-      {(appPosition.isChat() ||
-        appPosition.isNewSession() ||
-        appPosition.isAgent() ||
-        appPosition.isProject() ||
-        isMobile) &&
+      {(isMobile ||
+        (pageWithHeaderContent && customHeaderContent) ||
+        (appPosition.isChat() && currentChatSession) ||
+        ((appPosition.isChat() || appPosition.isNewSession()) &&
+          (incognitoAvailable || incognitoEnabled)) ||
+        (businessTier &&
+          isSearchModeAvailable &&
+          appPosition.isNewSession() &&
+          state.phase === "idle")) &&
         !appPosition.isSharedChat() && (
           <RootLayout.Header>
             <div className="w-full h-full flex flex-row flex-wrap justify-center items-start p-2 sm:px-4">
@@ -506,22 +506,6 @@ function Header() {
                             ? t("incognitoStart.lockedTooltip")
                             : t("incognitoStart.tooltip")
                         }
-                      />
-                    )}
-                    {/* On mobile widths the reading-width cap never applies
-                        (chat is always full width), so the toggle is hidden. */}
-                    {!isMobile && (
-                      <Button
-                        icon={fullWidthChat ? SvgFitWidth : SvgFullWidth}
-                        prominence="tertiary"
-                        onClick={toggleFullWidthChat}
-                        tooltip={
-                          fullWidthChat
-                            ? t("fullWidth.fitTooltip")
-                            : t("fullWidth.fullTooltip")
-                        }
-                        aria-label={t("fullWidth.ariaLabel")}
-                        aria-pressed={fullWidthChat}
                       />
                     )}
                     {incognitoEnabled && (

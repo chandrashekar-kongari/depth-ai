@@ -14338,7 +14338,7 @@
     },
     "filePicker": {
       "allRecentFilesButton": {
-        "title": "모든 최근 파일"
+        "title": "더 보기"
       },
       "recentFiles": {
         "title": "최근 파일"
@@ -17071,7 +17071,7 @@
         "tooltip": "새 프로젝트"
       },
       "newSession": {
-        "label": "새 세션"
+        "label": "새 채팅"
       },
       "projects": {
         "title": "프로젝트"

@@ -59,7 +59,7 @@ export default function TaskBody({ toolCall }: ToolCardBodyProps) {
     >
       {/* The accent cpu icon is the one spot of color — it marks this row as a
           delegated subagent you can open, without washing the whole surface. */}
-      <SvgCpu className="w-4 h-4 stroke-action-selection-05 shrink-0" />
+      <SvgCpu className="w-4 h-4 text-action-selection-05 shrink-0" />
       <span className="min-w-0 flex-1 truncate">
         <Text
           font="main-ui-action"
@@ -79,17 +79,17 @@ export default function TaskBody({ toolCall }: ToolCardBodyProps) {
           )}
         >
           {status === "running" && (
-            <SvgLoader className="h-4 w-4 stroke-action-selection-05 animate-spin" />
+            <SvgLoader className="h-4 w-4 text-action-selection-05 animate-spin" />
           )}
           {status === "done" && (
-            <SvgCheckCircle className="h-4 w-4 stroke-status-success-05" />
+            <SvgCheckCircle className="h-4 w-4 text-status-success-05" />
           )}
           {status === "failed" && (
-            <SvgAlertTriangle className="h-4 w-4 stroke-status-error-05" />
+            <SvgAlertTriangle className="h-4 w-4 text-status-error-05" />
           )}
         </span>
         {subagent && (
-          <SvgArrowRight className="absolute inset-0 h-4 w-4 stroke-text-03 opacity-0 transition-opacity group-hover/task:opacity-100" />
+          <SvgArrowRight className="absolute inset-0 h-4 w-4 text-text-03 opacity-0 transition-opacity group-hover/task:opacity-100" />
         )}
       </span>
     </button>

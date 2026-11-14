@@ -14338,7 +14338,7 @@
     },
     "filePicker": {
       "allRecentFilesButton": {
-        "title": "جميع الملفات الأخيرة"
+        "title": "تحميل المزيد"
       },
       "recentFiles": {
         "title": "الملفات الأخيرة"
@@ -17071,7 +17071,7 @@
         "tooltip": "مشروع جديد"
       },
       "newSession": {
-        "label": "جلسة جديدة"
+        "label": "دردشة جديدة"
       },
       "projects": {
         "title": "المشاريع"

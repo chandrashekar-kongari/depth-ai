@@ -30,14 +30,14 @@ const VARIANT_STYLES: Record<
   NotificationSeverity,
   { headerBg: string; iconClass: string }
 > = {
-  info: { headerBg: "bg-status-info-00", iconClass: "stroke-status-info-05" },
+  info: { headerBg: "bg-status-info-00", iconClass: "text-status-info-05" },
   warning: {
     headerBg: "bg-status-warning-00",
-    iconClass: "stroke-status-warning-05",
+    iconClass: "text-status-warning-05",
   },
   error: {
     headerBg: "bg-status-error-00",
-    iconClass: "stroke-status-error-05",
+    iconClass: "text-status-error-05",
   },
 };
 

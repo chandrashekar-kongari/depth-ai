@@ -1,6 +1,10 @@
 import { Dropdown, type InputDateRangePickerValue } from "@opal/components";
 import { useTranslations } from "next-intl";
-import { FiCalendar, FiChevronDown, FiXCircle } from "react-icons/fi";
+import {
+  SvgCalendar as FiCalendar,
+  SvgChevronDown as FiChevronDown,
+  SvgXCircle as FiXCircle,
+} from "@opal/icons";
 import { timeRangeValues } from "@/app/config/timeRange";
 
 export function SearchDateRangeSelector({

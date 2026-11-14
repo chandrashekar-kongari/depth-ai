@@ -28,7 +28,7 @@
 }
 
 .opal-checkbox-icon {
-  @apply h-3 w-3 stroke-text-light-05;
+  @apply h-3 w-3 text-text-light-05;
 }
 
 /* ---------------------------------------------------------------------------

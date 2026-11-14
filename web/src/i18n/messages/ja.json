@@ -14338,7 +14338,7 @@
     },
     "filePicker": {
       "allRecentFilesButton": {
-        "title": "最近のファイルをすべて表示"
+        "title": "さらに表示"
       },
       "recentFiles": {
         "title": "最近のファイル"
@@ -17071,7 +17071,7 @@
         "tooltip": "新しいプロジェクト"
       },
       "newSession": {
-        "label": "新しいセッション"
+        "label": "新しいチャット"
       },
       "projects": {
         "title": "プロジェクト"

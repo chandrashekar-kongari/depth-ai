@@ -18,3 +18,8 @@ please open an issue at <https://github.com/onyx-dot-app/onyx/issues>.
 
 The Opal source code (everything except the marks themselves) is
 licensed under the MIT License — see `package.json`.
+
+## Phosphor Icons
+
+Interface glyphs use the regular weight of [Phosphor Icons](https://phosphoricons.com/),
+version 2.1.1. See [PHOSPHOR-LICENSE.txt](PHOSPHOR-LICENSE.txt).

@@ -45,7 +45,7 @@ export default function ProviderModal({
       {...props}
       className={`${
         props.className ?? ""
-      } h-3 w-3 stroke-text-inverted-04 animate-spin`}
+      } h-3 w-3 text-text-inverted-04 animate-spin`}
     />
   );
 

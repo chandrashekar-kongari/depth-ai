@@ -238,3 +238,7 @@ export { SvgChevronRight } from "@opal/icons/directional";
 export { default as SvgWrench } from "@opal/icons/wrench";
 export { default as SvgCursor } from "@opal/icons/cursor";
 export { default as SvgHand } from "@opal/icons/hand";
+export { default as SvgLockOpen } from "@opal/icons/lock-open";
+export { default as SvgWifiHigh } from "@opal/icons/wifi-high";
+export { default as SvgMapTrifold } from "@opal/icons/map-trifold";
+export { default as SvgCircleFill } from "@opal/icons/circle-fill";

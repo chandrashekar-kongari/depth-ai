@@ -283,7 +283,7 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
     toolConfiguration,
   ]);
 
-  const { deepResearchEnabled, toggleDeepResearch } = useDeepResearchToggle({
+  const { deepResearchEnabled } = useDeepResearchToggle({
     chatSessionId: currentChatSessionId,
     agentId: activeAgent?.id,
   });
@@ -1299,11 +1299,6 @@ export default function AppPage({ firstMessage }: ChatPageProps) {
                             toolConfiguration={toolConfiguration}
                             memberPlugins={memberPlugins.plugins}
                             ref={chatInputBarRef}
-                            deepResearchEnabled={
-                              deepResearchEnabledForCurrentWorkflow
-                            }
-                            toggleDeepResearch={toggleDeepResearch}
-                            isMultiModelActive={multiModel.isMultiModelActive}
                             llmManager={llmManager}
                             initialMessage={
                               searchParams?.get(

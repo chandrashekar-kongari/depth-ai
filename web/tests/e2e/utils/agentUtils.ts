@@ -20,7 +20,7 @@ export async function createAgent(page: Page, params: AgentParams) {
   }
 
   // Open Assistants modal/list
-  await page.getByTestId("AppSidebar/more-agents").click();
+  await page.goto("/app/agents");
   await page.getByLabel("AgentsPage/new-agent-button").click();
 
   // Fill required fields

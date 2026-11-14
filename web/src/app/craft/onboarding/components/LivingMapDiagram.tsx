@@ -484,7 +484,7 @@ export default function LivingMapDiagram({
             >
               <div className="flex items-center gap-1.5 rounded-08 border border-border-01 bg-background-tint-00 px-3 py-1.5">
                 <SourceIcon
-                  className={cn("h-3.5 w-3.5", source.tint && "stroke-text-04")}
+                  className={cn("h-3.5 w-3.5", source.tint && "text-text-04")}
                 />
                 <Text
                   font="secondary-action"
@@ -509,7 +509,7 @@ export default function LivingMapDiagram({
         >
           <div className="flex w-[200px] flex-col gap-1.5 rounded-12 border border-border-01 bg-background-tint-00 p-3 shadow-sm">
             <div className="flex items-center gap-1.5">
-              <SvgBubbleText className="h-3.5 w-3.5 stroke-text-04" />
+              <SvgBubbleText className="h-3.5 w-3.5 text-text-04" />
               <Text
                 font="secondary-action"
                 color="text-04"
@@ -575,7 +575,7 @@ export default function LivingMapDiagram({
             >
               <div className="flex items-center justify-between px-3 py-2">
                 <div className="flex items-center gap-1.5">
-                  <SvgCpu className="h-3.5 w-3.5 stroke-text-04" />
+                  <SvgCpu className="h-3.5 w-3.5 text-text-04" />
                   <Text
                     font="secondary-action"
                     color="text-04"
@@ -585,7 +585,7 @@ export default function LivingMapDiagram({
                   </Text>
                 </div>
                 <div className="flex items-center gap-1">
-                  <SvgShield className="h-3 w-3 stroke-text-03" />
+                  <SvgShield className="h-3 w-3 text-text-03" />
                   <Text
                     font="figure-small-label"
                     color="text-03"
@@ -629,7 +629,7 @@ export default function LivingMapDiagram({
                   transition={{ duration: 0.25 }}
                   className="flex items-center gap-1.5 rounded-08 border-[0.5px] border-border-01 bg-background-neutral-01 px-2 py-1"
                 >
-                  <SvgAlertCircle className="h-3 w-3 shrink-0 stroke-text-04" />
+                  <SvgAlertCircle className="h-3 w-3 shrink-0 text-text-04" />
                   <Text
                     font="figure-small-label"
                     color="text-04"
@@ -667,7 +667,7 @@ export default function LivingMapDiagram({
                   <OutputIcon
                     className={cn(
                       "h-3.5 w-3.5 shrink-0",
-                      output.tint && "stroke-text-05"
+                      output.tint && "text-text-05"
                     )}
                   />
                   <Text
@@ -701,7 +701,7 @@ export default function LivingMapDiagram({
         >
           <div className="flex flex-col gap-0.5 rounded-12 border border-border-01 bg-background-tint-00 px-3 py-2">
             <div className="flex items-center gap-1.5">
-              <SvgClock className="h-3.5 w-3.5 stroke-text-04" />
+              <SvgClock className="h-3.5 w-3.5 text-text-04" />
               <Text
                 font="secondary-action"
                 color="text-04"
@@ -731,7 +731,7 @@ export default function LivingMapDiagram({
         >
           <div className="flex flex-col gap-0.5 rounded-12 border border-border-01 bg-background-tint-00 px-3 py-2">
             <div className="flex items-center gap-1.5">
-              <SvgUsers className="h-3.5 w-3.5 stroke-text-04" />
+              <SvgUsers className="h-3.5 w-3.5 text-text-04" />
               <Text
                 font="secondary-action"
                 color="text-04"

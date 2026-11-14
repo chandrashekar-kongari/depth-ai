@@ -1,22 +1,21 @@
+// Phosphor Icons 2.1.1: plus (regular).
 import type { IconProps } from "@opal/types";
 
-const SvgPlus = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M8 2V14M2 8H14"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+function SvgPlus({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z" />
+      </g>
+    </svg>
+  );
+}
 
 export default SvgPlus;

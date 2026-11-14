@@ -34,7 +34,7 @@ import { deleteDocumentSet } from "./lib";
 import { IllustrationContent, SettingsLayouts, toast } from "@opal/layouts";
 import SvgNoResult from "@opal/illustrations/no-result";
 import { ADMIN_ROUTES } from "@/lib/admin-routes";
-import { FiUnlock } from "react-icons/fi";
+import { SvgLockOpen as FiUnlock } from "@opal/icons";
 import { DeleteButton } from "@/components/DeleteButton";
 import { useRouter } from "next/navigation";
 import { TableHeader } from "@/components/ui/table";

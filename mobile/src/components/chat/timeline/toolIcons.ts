@@ -1,9 +1,5 @@
 // Port of web `toolDisplayHelpers.getToolIcon`, returning the component rather than web's JSX so
 // callers control size and colour through `Icon`.
-//
-// Web falls back to react-icons for two slots, against its own icon rule; mobile substitutes the
-// Onyx glyph `chat/tools.ts` already assigns — `FiTool` → `cpu` (its custom-tool fallback),
-// `FiList` → `text-lines-small`.
 import {
   PacketType,
   type Packet,

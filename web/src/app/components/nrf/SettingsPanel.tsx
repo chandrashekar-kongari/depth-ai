@@ -86,7 +86,7 @@ const BackgroundThumbnail = ({
       />
       {isSelected && (
         <div className="absolute top-2 end-2 w-5 h-5 rounded-full bg-theme-primary-05 flex items-center justify-center">
-          <SvgCheck className="w-3 h-3 stroke-text-inverted-05" />
+          <SvgCheck className="w-3 h-3 text-text-inverted-05" />
         </div>
       )}
     </button>
@@ -179,7 +179,7 @@ export const SettingsPanel = ({
           <div className="flex items-center justify-between px-6 pt-6 pb-2">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-background-tint-02">
-                <SvgSettings className="w-5 h-5 stroke-text-03" />
+                <SvgSettings className="w-5 h-5 text-text-03" />
               </div>
               <Text font="heading-h3" color="text-04">
                 {t("nrf.settingsPanel.header.title")}

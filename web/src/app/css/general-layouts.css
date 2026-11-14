@@ -19,12 +19,12 @@
 
 /* LineItemLayout Icon */
 .line-item-layout-icon {
-  @apply self-center stroke-text-04;
+  @apply self-center text-text-04;
 }
 
 .line-item-layout[data-variant="tertiary-muted"] .line-item-layout-icon,
 .line-item-layout[data-variant="mini"] .line-item-layout-icon {
-  @apply stroke-text-03;
+  @apply text-text-03;
 }
 
 .line-item-layout-title {

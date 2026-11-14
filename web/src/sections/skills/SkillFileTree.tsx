@@ -57,7 +57,7 @@ function SkillFileTreeNodes({
       <SvgChevronRight
         size={14}
         className={cn(
-          "stroke-text-03 transition-transform",
+          "text-text-03 transition-transform",
           isExpanded && "rotate-90"
         )}
       />

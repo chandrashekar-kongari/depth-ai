@@ -117,32 +117,32 @@ const VARIANT_CONFIG: Record<
 > = {
   default: {
     icon: SvgAlertCircle,
-    iconClass: "stroke-text-03",
+    iconClass: "text-text-03",
     color: "background-tint-01",
   },
   info: {
     icon: SvgAlertCircle,
-    iconClass: "stroke-status-info-05",
+    iconClass: "text-status-info-05",
     color: "status-info-00",
   },
   success: {
     icon: SvgCheckCircle,
-    iconClass: "stroke-status-success-05",
+    iconClass: "text-status-success-05",
     color: "status-success-00",
   },
   warning: {
     icon: SvgAlertTriangle,
-    iconClass: "stroke-status-warning-05",
+    iconClass: "text-status-warning-05",
     color: "status-warning-00",
   },
   pending: {
     icon: SvgClock,
-    iconClass: "stroke-theme-amber-05",
+    iconClass: "text-theme-amber-05",
     color: "theme-amber-01",
   },
   error: {
     icon: SvgXOctagon,
-    iconClass: "stroke-status-error-05",
+    iconClass: "text-status-error-05",
     color: "status-error-00",
   },
 };

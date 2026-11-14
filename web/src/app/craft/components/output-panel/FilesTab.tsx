@@ -145,7 +145,7 @@ function WorkspaceBrowser({
         justifyContent="center"
         padding={8}
       >
-        <SvgHardDrive size={48} className="stroke-text-02" />
+        <SvgHardDrive size={48} className="text-text-02" />
         <Text font="heading-h3" color="text-03">
           {isProvisioning ? t("preparing.title") : t("empty.title")}
         </Text>

@@ -36,7 +36,7 @@
 
 .opal-attachment-item-button-icon {
   @apply h-4 w-4;
-  stroke: var(--interactive-foreground-icon, var(--text-02));
+  color: var(--interactive-foreground-icon, var(--text-02));
 }
 
 .opal-attachment-item-button-image {

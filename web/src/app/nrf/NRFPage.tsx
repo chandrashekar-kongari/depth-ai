@@ -138,7 +138,7 @@ export default function NRFPage({ isSidePanel = false }: NRFPageProps) {
   const toolConfiguration = useToolConfiguration();
 
   // Deep research toggle
-  const { deepResearchEnabled, toggleDeepResearch } = useDeepResearchToggle({
+  const { deepResearchEnabled } = useDeepResearchToggle({
     chatSessionId: existingChatSessionId,
     agentId: activeAgent?.id,
   });
@@ -574,9 +574,6 @@ export default function NRFPage({ isSidePanel = false }: NRFPageProps) {
               <AppInputBar
                 toolConfiguration={toolConfiguration}
                 ref={chatInputBarRef}
-                deepResearchEnabled={deepResearchEnabled}
-                toggleDeepResearch={toggleDeepResearch}
-                isMultiModelActive={multiModel.isMultiModelActive}
                 llmManager={llmManager}
                 initialMessage={message}
                 stopGenerating={stopGenerating}

@@ -1,6 +1,9 @@
 import { JSX } from "react";
 import { useTranslations } from "next-intl";
-import { FiChevronDown, FiXCircle } from "react-icons/fi";
+import {
+  SvgChevronDown as FiChevronDown,
+  SvgXCircle as FiXCircle,
+} from "@opal/icons";
 import { SvgCheck } from "@opal/icons";
 import { Dropdown, type DropdownMenuItem } from "@opal/components";
 import { cn } from "@opal/utils";

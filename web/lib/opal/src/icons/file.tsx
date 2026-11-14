@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: file (regular).
 import type { IconProps } from "@opal/types";
-const SvgFile = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M13.3333 6.00004L8.66667 1.33337H4.00001C3.27378 1.33337 2.66667 1.94048 2.66667 2.66671V13.3334C2.66667 14.0596 3.27378 14.6667 4.00001 14.6667H12C12.7262 14.6667 13.3333 14.0596 13.3333 13.3334V6.00004ZM8.66667 1.33337V6.00004H13.3333"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgFile({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgFile;

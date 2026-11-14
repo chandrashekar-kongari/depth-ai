@@ -1,20 +1,21 @@
+// Phosphor Icons 2.1.1: file-pdf (regular).
 import type { IconProps } from "@opal/types";
-const SvgPdfFile = ({ size, ...props }: IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    stroke="currentColor"
-    {...props}
-  >
-    <path
-      d="M1 8.5V5.5H2.7C3.52843 5.5 4.2 6.17157 4.2 7C4.2 7.82843 3.52843 8.5 2.7 8.5H1ZM1 8.5V10.5M15 5.5H11.8V8.5M11.8 8.5V10.5M11.8 8.5H14.5M14 11.5V12.67C14 13.4045 13.4045 14 12.67 14H3.33001C2.59547 14 2.00001 13.4045 2.00001 12.67M1.99999 3.33C1.99999 2.59546 2.59546 2 3.32999 2H12.67C13.4045 2 14 2.59546 14 3.33M6.4 5.5V10.5H8.1C8.92843 10.5 9.6 9.82843 9.6 9V7C9.6 6.17157 8.92843 5.5 8.1 5.5H6.4Z"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+
+function SvgPdfFile({ size, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <g stroke="none">
+        <path d="M224,152a8,8,0,0,1-8,8H192v16h16a8,8,0,0,1,0,16H192v16a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8h32A8,8,0,0,1,224,152ZM92,172a28,28,0,0,1-28,28H56v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8H64A28,28,0,0,1,92,172Zm-16,0a12,12,0,0,0-12-12H56v24h8A12,12,0,0,0,76,172Zm88,8a36,36,0,0,1-36,36H112a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8h16A36,36,0,0,1,164,180Zm-16,0a20,20,0,0,0-20-20h-8v40h8A20,20,0,0,0,148,180ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,0,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.69L160,51.31Z" />
+      </g>
+    </svg>
+  );
+}
+
 export default SvgPdfFile;

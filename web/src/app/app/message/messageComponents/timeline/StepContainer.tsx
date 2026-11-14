@@ -65,8 +65,8 @@ export function StepContainer({
   const iconNode = StepIconComponent ? (
     <StepIconComponent
       className={cn(
-        "h-(--timeline-icon-size) w-(--timeline-icon-size) stroke-text-02",
-        isHover && "stroke-text-04"
+        "h-(--timeline-icon-size) w-(--timeline-icon-size) text-text-02",
+        isHover && "text-text-04"
       )}
     />
   ) : null;

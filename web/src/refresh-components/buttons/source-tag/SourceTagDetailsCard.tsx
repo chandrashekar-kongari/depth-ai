@@ -53,7 +53,7 @@ const MetadataChip = memo(function MetadataChip({
     <div className="flex items-center gap-0 bg-background-tint-02 rounded-08 p-1">
       {Icon && (
         <div className="flex items-center justify-center p-0.5 w-4 h-4">
-          <Icon className="w-3 h-3 stroke-text-03" />
+          <Icon className="w-3 h-3 text-text-03" />
         </div>
       )}
 

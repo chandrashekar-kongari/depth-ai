@@ -27,7 +27,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { richNodes } from "@opal/utils";
-import { AlertTriangle, Check, Loader2, Info } from "lucide-react";
+import {
+  SvgAlertTriangle as AlertTriangle,
+  SvgCheck as Check,
+  SvgLoader as Loader2,
+  SvgInfo as Info,
+} from "@opal/icons";
 import BackButton from "@/refresh-components/buttons/BackButton";
 import Title from "@/components/ui/title";
 import { toast } from "@opal/layouts";

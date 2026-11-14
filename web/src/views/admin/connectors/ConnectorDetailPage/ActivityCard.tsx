@@ -72,22 +72,22 @@ const GROUP_STYLE: Record<
   failures: {
     color: "status-error-00",
     icon: SvgXOctagon,
-    stroke: "stroke-status-error-05",
-    closedStroke: "stroke-status-error-02",
+    stroke: "text-status-error-05",
+    closedStroke: "text-status-error-02",
     outline: "outline-status-error-02",
   },
   errors: {
     color: "status-warning-00",
     icon: SvgAlertTriangle,
-    stroke: "stroke-status-warning-05",
-    closedStroke: "stroke-status-warning-02",
+    stroke: "text-status-warning-05",
+    closedStroke: "text-status-warning-02",
     outline: "outline-status-warning-02",
   },
   other: {
     color: "background-tint-00",
     icon: SvgCheckCircle,
-    stroke: "stroke-status-success-05",
-    closedStroke: "stroke-status-success-02",
+    stroke: "text-status-success-05",
+    closedStroke: "text-status-success-02",
     outline: "outline-border-01",
   },
 };
@@ -147,9 +147,9 @@ function statusIcon(
   closed: boolean
 ): StatusIcon {
   if (state === "queued") {
-    return { icon: SvgClock, stroke: "stroke-theme-purple-05" };
+    return { icon: SvgClock, stroke: "text-theme-purple-05" };
   }
-  if (active) return { icon: IconLoader, stroke: "stroke-status-info-05" };
+  if (active) return { icon: IconLoader, stroke: "text-status-info-05" };
   const style = GROUP_STYLE[group];
   return {
     icon: style.icon,
@@ -386,7 +386,7 @@ export default function ActivityCard({
                   <OverflowText font="secondary-body" color={mutedColor}>
                     {identity}
                   </OverflowText>
-                  <IdentityIcon size={12} className="shrink-0 stroke-text-02" />
+                  <IdentityIcon size={12} className="shrink-0 text-text-02" />
                 </Section>
               </Section>
               <Section alignItems="stretch" gap={0} padding={0.5} height="fit">

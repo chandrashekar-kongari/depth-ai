@@ -163,7 +163,7 @@ function renderStatusIcon(toolCall: ToolCallState) {
   if (statusDisplay.showSpinner) {
     return (
       <SvgLoader
-        className={cn(baseClass, "stroke-status-info-05 animate-spin")}
+        className={cn(baseClass, "text-status-info-05 animate-spin")}
       />
     );
   }
@@ -171,7 +171,7 @@ function renderStatusIcon(toolCall: ToolCallState) {
   if (isSkillInvocation(toolCall) && toolCall.status === "completed") {
     return (
       <SvgSparkle
-        className={cn(baseClass, "stroke-status-info-05 fill-status-info-05")}
+        className={cn(baseClass, "text-status-info-05 fill-status-info-05")}
       />
     );
   }
@@ -180,7 +180,7 @@ function renderStatusIcon(toolCall: ToolCallState) {
     return <StatusIcon className={cn(baseClass, statusDisplay.iconClass)} />;
   }
   const ToolIcon = getToolIcon(toolCall.kind);
-  return <ToolIcon className={cn(baseClass, "stroke-text-03")} />;
+  return <ToolIcon className={cn(baseClass, "text-text-03")} />;
 }
 
 /**
@@ -219,7 +219,7 @@ export default function CraftToolCard({
         <SvgChevronDown
           aria-hidden={!expandable}
           className={cn(
-            "size-4 stroke-text-03 transition-transform duration-150 shrink-0",
+            "size-4 text-text-03 transition-transform duration-150 shrink-0",
             !isOpen && "-rotate-90",
             !expandable && "invisible"
           )}

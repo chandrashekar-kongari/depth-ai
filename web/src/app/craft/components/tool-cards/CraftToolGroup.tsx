@@ -32,11 +32,11 @@ function renderStatusIcon(toolCalls: ToolCallState[]) {
   if (aggregate === "in_progress") {
     return (
       <SvgLoader
-        className={cn(baseClass, "stroke-status-info-05 animate-spin")}
+        className={cn(baseClass, "text-status-info-05 animate-spin")}
       />
     );
   }
-  return <SvgCheckAll className={cn(baseClass, "stroke-text-03")} />;
+  return <SvgCheckAll className={cn(baseClass, "text-text-03")} />;
 }
 
 export default function CraftToolGroup({
@@ -95,7 +95,7 @@ export default function CraftToolGroup({
                 </span>
                 <SvgChevronDown
                   className={cn(
-                    "size-4 stroke-text-03 transition-transform duration-150 shrink-0",
+                    "size-4 text-text-03 transition-transform duration-150 shrink-0",
                     !isOpen && "-rotate-90"
                   )}
                 />

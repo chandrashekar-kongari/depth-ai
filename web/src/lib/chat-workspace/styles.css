@@ -77,7 +77,6 @@ body:has([data-depth-chat-workspace]) .opal-root-layout__footer {
   border-color: var(--action-selection-05);
 }
 [data-document-open="true"] .depth-chat-composer {
-  border-radius: var(--radius-12);
   padding: 0.375rem;
 }
 .depth-composer-controls {
@@ -112,4 +111,18 @@ body:has(
 .depth-composer-models .opal-select-content > span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.opal-sidebar-root__column:has([data-testid="AppSidebar/new-session"])
+  .opal-sidebar-tab__fold
+  > .font-main-ui-body {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.opal-sidebar-root__column:has([data-testid="AppSidebar/new-session"])
+  .opal-sidebar-section__title
+  .font-secondary-body {
+  font-size: 0.6875rem;
+  line-height: 1rem;
 }
