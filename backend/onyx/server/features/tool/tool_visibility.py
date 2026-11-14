@@ -8,10 +8,31 @@ from pydantic import BaseModel
 
 from onyx.configs.constants import DEFAULT_PERSONA_ID
 from onyx.db.models import Tool
-from onyx.tools.constants import MEMORY_TOOL_ID, OPEN_URL_TOOL_ID
+from onyx.tools.constants import (
+    CODING_AGENT_TOOL_ID,
+    IMAGE_GENERATION_TOOL_ID,
+    MEMORY_TOOL_ID,
+    OPEN_URL_TOOL_ID,
+    PYTHON_TOOL_ID,
+    WEB_SEARCH_TOOL_ID,
+)
 
 if TYPE_CHECKING:
     from onyx.tools.models import ToolConfiguration
+
+
+# Retain registrations and saved results while limiting tools to drawing review needs.
+DISABLED_BUILT_IN_TOOL_IDS = frozenset(
+    {
+        WEB_SEARCH_TOOL_ID,
+        OPEN_URL_TOOL_ID,
+        PYTHON_TOOL_ID,
+        CODING_AGENT_TOOL_ID,
+        IMAGE_GENERATION_TOOL_ID,
+        "KnowledgeGraphTool",
+        MEMORY_TOOL_ID,
+    }
+)
 
 
 def is_openapi_tool(tool: Tool | ToolConfiguration) -> bool:
@@ -31,6 +52,8 @@ def is_tool_available_for_persona(
     tool: Tool | ToolConfiguration, persona_id: int
 ) -> bool:
     """Legacy OpenAPI disablement applies to default Chat, not custom agents."""
+    if tool.in_code_tool_id in DISABLED_BUILT_IN_TOOL_IDS:
+        return False
     return tool.enabled or (persona_id != DEFAULT_PERSONA_ID and is_openapi_tool(tool))
 
 
@@ -76,6 +99,8 @@ TOOL_VISIBILITY_CONFIG: dict[str, ToolVisibilitySettings] = {
 
 def should_expose_tool_to_fe(tool: Tool) -> bool:
     """Return True when the given tool should be sent to the frontend."""
+    if tool.in_code_tool_id in DISABLED_BUILT_IN_TOOL_IDS:
+        return False
     if tool.in_code_tool_id is None:
         # Custom tools are always exposed to frontend
         return True
@@ -90,6 +115,8 @@ def is_chat_selectable(tool: Tool) -> bool:
     Tools can be excluded from the chat dropdown while remaining available
     in agent creation and configuration pages.
     """
+    if tool.in_code_tool_id in DISABLED_BUILT_IN_TOOL_IDS:
+        return False
     if tool.in_code_tool_id is None:
         # Custom tools are always chat selectable
         return True
@@ -104,6 +131,8 @@ def is_agent_creation_selectable(tool: Tool) -> bool:
 
     Most tools should be visible in these admin contexts.
     """
+    if tool.in_code_tool_id in DISABLED_BUILT_IN_TOOL_IDS:
+        return False
     if tool.in_code_tool_id is None:
         # Custom tools are always agent creation selectable
         return True

@@ -92,7 +92,8 @@ class CommentReviewTool(Tool):
     @override
     @classmethod
     def is_available(cls, db_session: Session) -> bool:  # noqa: ARG003
-        return True
+        # Keep the registered ID for historical results; new reviews use Vision Review.
+        return False
 
     def tool_definition(self) -> ToolDefinition:
         return ToolDefinition(

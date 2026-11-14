@@ -12,6 +12,10 @@
 
 ## User experience
 
+Desktop chat and new-session pages hide the AppChrome header. Mobile keeps the header for sidebar navigation.
+Sharing and chat options remain available through the sidebar chat menu.
+The account menu omits Notifications and its unread badge. It does not fetch the notification summary.
+
 - **A new user meets first-run onboarding** on the chat page. A user with no
   name gives one. An admin also connects an LLM provider, then sees optional
   setup cards and a final step. The chat input stays locked until the optional

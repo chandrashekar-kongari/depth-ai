@@ -383,7 +383,9 @@ function Header() {
           isSearchModeAvailable &&
           appPosition.isNewSession() &&
           state.phase === "idle")) &&
-        !appPosition.isSharedChat() && (
+        !appPosition.isSharedChat() &&
+        (isMobile ||
+          (!appPosition.isChat() && !appPosition.isNewSession())) && (
           <RootLayout.Header>
             <div className="w-full h-full flex flex-row flex-wrap justify-center items-start p-2 sm:px-4">
               {/*

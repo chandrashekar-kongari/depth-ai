@@ -27,8 +27,12 @@ The interface is `tools/interface.py:Tool`, which returns
   resuming ([[agent-runtime#restored-tools-must-match]]). The concrete tools are
   [[internal-search]], [[web-search]], [[image-generation]],
   [[code-execution]], [[mcp-and-custom-tools]], [[chat-preferences]]
-  (`MemoryTool`), [[file-store-and-user-files]] (`read_file`), `review_drawing`,
-  `verify_drawing_comments`, and `review_with_vision`.
+  (`MemoryTool`), [[file-store-and-user-files]] (`read_file`), and `review_with_vision`.
+  `review_drawing` and `verify_drawing_comments` retain registered IDs for saved results,
+  but their availability checks return false. They are excluded from tool listings and construction.
+  `server/features/tool/tool_visibility.py:DISABLED_BUILT_IN_TOOL_IDS` temporarily excludes Web Search, Open URL,
+  Python, Coding Agent, Image Generation, Knowledge Graph and Memory from listings and construction.
+  The constructor's automatic Memory injection honors this set. Vision Review, File Reader and Internal Search remain enabled.
 - **[[core-chat-loop]]** calls `construct_tools` once per model response and
   gives the tools to `chat/agent.py:ChatAgent` or
   `deep_research/agent.py:DeepResearchAgent`. `ChatAgent` binds them with its

@@ -30,7 +30,10 @@ from onyx.server.features.mcp.credentials import (
     MCPCredentialsError,
     resolve_mcp_credentials,
 )
-from onyx.server.features.tool.tool_visibility import is_tool_available_for_persona
+from onyx.server.features.tool.tool_visibility import (
+    DISABLED_BUILT_IN_TOOL_IDS,
+    is_tool_available_for_persona,
+)
 from onyx.tools.built_in_tools import get_built_in_tool_by_id
 from onyx.tools.interface import Tool
 from onyx.tools.models import (
@@ -590,9 +593,11 @@ def _construct_tools_impl(
             _build_search_tool(search_tool_db_model.id, search_tool_config)
         ]
 
-    # Always inject MemoryTool when the user has the memory tool enabled,
-    # bypassing persona tool associations and allowed_tool_ids filtering
-    if user.enable_memory_tool:
+    # Inject enabled MemoryTool independently of persona associations and allowed_tool_ids.
+    if (
+        user.enable_memory_tool
+        and MemoryTool.__name__ not in DISABLED_BUILT_IN_TOOL_IDS
+    ):
         try:
             memory_tool_db_model = get_builtin_tool(db_session, MemoryTool)
             memory_tool = MemoryTool(
