@@ -182,10 +182,25 @@ it("opens a visual Vision Review change directly from its card", async () => {
     </DrawingReviewLayoutProvider>
   );
   expect(screen.getByText("Datum A added")).toBeVisible();
+  expect(screen.getByRole("button", { name: "All (1)" })).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "All changes" })
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("Review details")).not.toBeInTheDocument();
+  await user.type(
+    screen.getByRole("textbox", { name: "Search findings" }),
+    "missing"
+  );
+  expect(screen.queryByText("Datum A added")).not.toBeInTheDocument();
+  await user.clear(screen.getByRole("textbox", { name: "Search findings" }));
   await user.click(screen.getByRole("button", { name: "Show in revised" }));
   expect(
     JSON.parse(screen.getByLabelText("Navigation target").textContent ?? "null")
-  ).toMatchObject({ issueId: "vision-change-1", documentId: "revised", page: 2 });
+  ).toMatchObject({
+    issueId: "vision-change-1",
+    documentId: "revised",
+    page: 2,
+  });
 });
 
 it("searches evidence while retaining the original finding number", async () => {

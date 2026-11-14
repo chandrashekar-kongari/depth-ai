@@ -9,6 +9,10 @@
 
 ## User experience
 
+The chat viewer combines comment findings and standalone confirmed drawing changes in one searchable queue.
+Verified changes linked to comments remain in those comments' details. It does not render a separate geometry audit section.
+The queue retains warnings and skipped-page notices without a separate Review details disclosure. It does not show the vision model label.
+
 The opt-in `/app/reviews` page accepts an original commented PDF and a revised PDF.
 The user confirms equal sheet order. Both PDFs must have 1–8 pages and at most 20 MiB.
 Users see their own queued reviews, PDF evidence, model proposals, and append-only engineer decisions.

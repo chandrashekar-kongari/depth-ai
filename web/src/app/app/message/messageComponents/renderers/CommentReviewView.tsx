@@ -20,7 +20,6 @@ import type {
 } from "@/app/app/services/streamingModels";
 import { useDrawingReviewLayout } from "@/app/app/message/messageComponents/renderers/drawingReviewLayout";
 import {
-  DrawingChangesView,
   drawingChangeIssues,
   isVisibleDrawingChange,
 } from "@/app/app/message/messageComponents/renderers/DrawingChangesView";
@@ -30,6 +29,11 @@ interface CommentReviewViewProps {
   review: CommentReviewDelta;
   part?: "all" | "queue" | "sheets";
   fill?: boolean;
+}
+
+interface ReviewExtraIssue extends DrawingExtraIssue {
+  revised_page?: number;
+  location_verified?: boolean;
 }
 
 function verdictLabel(
@@ -229,7 +233,29 @@ function CommentQueue({
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const comments = review.comments ?? [];
-  const extra = review.extra_issues ?? [];
+  const extra: ReviewExtraIssue[] = [
+    ...(review.extra_issues ?? []),
+    ...drawingChangeIssues(review).map((issue): ReviewExtraIssue => {
+      const original = review.commented_sheet_file_id
+        ? issue.anchors[review.commented_sheet_file_id]
+        : undefined;
+      const revised = review.revised_sheet_file_id
+        ? issue.anchors[review.revised_sheet_file_id]
+        : undefined;
+      return {
+        id: issue.id,
+        title: issue.title,
+        detail: issue.evidence,
+        kind: "change",
+        page: original?.page ?? 1,
+        revised_page: revised?.page ?? original?.page ?? 1,
+        box: original?.box ?? null,
+        page_level: !original?.box,
+        span_id: null,
+        location_verified: Boolean(original?.box || revised?.box),
+      };
+    }),
+  ];
   const search = query.trim().toLocaleLowerCase();
   const matches = (text: string) => text.toLocaleLowerCase().includes(search);
   const attention =
@@ -567,21 +593,25 @@ function CommentQueue({
           onShow={onShow}
         />
       ))}
-      {review.vision_model ? (
-        <details className="depth-review-details">
-          <summary>
-            <Text as="span" font="secondary-body" color="text-03">
-              {ui("reviewDetails")}
-            </Text>
-          </summary>
-          <Text font="secondary-body" color="text-03">
-            {pdfT("visionModel", { model: review.vision_model })}
+      {review.drawing_changes?.warnings.map((warning) => (
+        <Text key={warning} font="secondary-body" color="text-04">
+          {warning}
+        </Text>
+      ))}
+      {Object.entries(review.drawing_changes?.skipped_original_pages ?? {}).map(
+        ([page, reason]) => (
+          <Text key={`skipped-${page}`} font="secondary-body" color="text-04">
+            {changeT("skippedBefore", { page, reason })}
           </Text>
-        </details>
-      ) : null}
-      {review.drawing_changes ? (
-        <DrawingChangesView review={review} onShow={onShow} />
-      ) : null}
+        )
+      )}
+      {Object.entries(
+        review.drawing_changes?.unmatched_revised_pages ?? {}
+      ).map(([page, reason]) => (
+        <Text key={`unmatched-${page}`} font="secondary-body" color="text-04">
+          {changeT("unmatchedAfter", { page, reason })}
+        </Text>
+      ))}
     </Section>
   );
 }
@@ -593,7 +623,7 @@ function ExtraIssueRow({
   revisedId,
   onShow,
 }: {
-  issue: DrawingExtraIssue;
+  issue: ReviewExtraIssue;
   number: number;
   originalId: string | null;
   revisedId: string | null;
@@ -632,9 +662,11 @@ function ExtraIssueRow({
             })}
           </Text>
         ) : null}
-        <Text font="secondary-body" color="text-03">
-          {pdfT("locationUnconfirmed")}
-        </Text>
+        {!issue.location_verified ? (
+          <Text font="secondary-body" color="text-03">
+            {pdfT("locationUnconfirmed")}
+          </Text>
+        ) : null}
         <Section flexDirection="row" height="fit" gap={2} wrap>
           <Button
             size="sm"
@@ -651,7 +683,8 @@ function ExtraIssueRow({
             prominence="secondary"
             disabled={!revisedId}
             onClick={() => {
-              if (revisedId) onShow(issue, revisedId, issue.page);
+              if (revisedId)
+                onShow(issue, revisedId, issue.revised_page ?? issue.page);
             }}
           >
             {pdfT("showRevised")}
