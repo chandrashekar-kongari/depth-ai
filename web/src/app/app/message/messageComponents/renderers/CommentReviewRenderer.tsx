@@ -1,3 +1,5 @@
+import { reviewActivity } from "@/app/app/message/messageComponents/renderers/reviewActivity";
+import { Section } from "@opal/layouts";
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { SvgFileText } from "@opal/icons";
@@ -47,6 +49,8 @@ export const CommentReviewRenderer: MessageRenderer<
 > = ({ packets, onComplete, renderType, children }) => {
   const t = useTranslations("chat.messages.commentReview");
   const layout = useDrawingReviewLayout();
+  const tProgress = useTranslations("chat.messages.reviewProgress");
+  const activity = reviewActivity(packets);
   const { isRunning, isComplete, failed, delta } = reviewState(packets);
   const wideComments = layout.active && layout.mode === "comments";
 
@@ -60,7 +64,9 @@ export const CommentReviewRenderer: MessageRenderer<
     ? t("failedStatus.text")
     : isComplete
       ? t("checkedStatus.text")
-      : t("checkingStatus.text");
+      : activity.activeStage
+        ? tProgress(activity.activeStage)
+        : t("checkingStatus.text");
 
   if (
     renderType !== RenderType.FULL ||
@@ -71,11 +77,21 @@ export const CommentReviewRenderer: MessageRenderer<
       {
         icon: SvgFileText,
         status,
-        supportsCollapsible: false,
+        supportsCollapsible: activity.stages.length > 0,
         content: (
-          <Text font="secondary-body" color="text-03">
-            {status}
-          </Text>
+          <Section alignItems="start" gap={2}>
+            {activity.stages.length > 0 ? (
+              activity.stages.map((stage) => (
+                <Text key={stage} font="secondary-body" color="text-03">
+                  {tProgress(stage)}
+                </Text>
+              ))
+            ) : (
+              <Text font="secondary-body" color="text-03">
+                {status}
+              </Text>
+            )}
+          </Section>
         ),
       },
     ]);

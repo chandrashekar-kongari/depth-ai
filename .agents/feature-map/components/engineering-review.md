@@ -153,6 +153,12 @@ Original locations resolve native comment text independently of the revised evid
 The chat tool rejects likely reversed PDF roles when only the revised input contains native comments.
 An empty comment review raises an actionable tool error, rather than returning a successful zero-finding result.
 Each run evaluates the inputs afresh and publishes per-comment progress.
+Vision Review reports stage IDs in VisionReviewProgress through ToolProgress.details, separately from finding snapshots.
+The presenter emits review_progress packets on the existing ordered, resumable chat stream.
+Timeline grouping and pacing share TOOL_START_PACKET_TYPES, including COMMENT_REVIEW_START for single and paired vision reviews.
+CommentReviewStart carries review_kind so Vision Review tabs do not inherit the historical Comment Review label.
+Collapsed review and File Reader tabs render activity or failure text. Tab labels and icons locate the start packet after debug packets.
+The header translates the active stage. Expanded activity keeps a bounded list of reached stages. Terminal packets reject later updates.
 
 Read-only PDF/page navigation is independent of workspace saving and inference. The SDK handles scroll coordinates,
 rotation and crop transforms. A transient page-relative ring blinks twice and clears after 800 ms.

@@ -78,6 +78,7 @@ export enum PacketType {
 
   COMMENT_REVIEW_START = "comment_review_start",
   COMMENT_REVIEW_DELTA = "comment_review_delta",
+  REVIEW_PROGRESS = "review_progress",
 }
 
 export const CODE_INTERPRETER_TOOL_TYPES = {
@@ -434,6 +435,7 @@ export interface DrawingExtraIssue {
 }
 
 export interface CommentReviewStart extends BaseObj {
+  review_kind?: "vision" | "comments";
   type: "comment_review_start";
 }
 
@@ -462,6 +464,22 @@ export interface DrawingChangeReview {
   validated_pages?: number[];
   validation_status?: "complete" | "incomplete";
   warnings: string[];
+}
+
+export type ReviewStage =
+  | "opening"
+  | "preparing"
+  | "reading_original"
+  | "reading_revision"
+  | "matching"
+  | "checking_requests"
+  | "checking_changes"
+  | "reviewing_page"
+  | "preparing_results";
+
+export interface ReviewProgress extends BaseObj {
+  type: "review_progress";
+  stage: ReviewStage;
 }
 
 export interface CommentReviewDelta extends BaseObj {
@@ -545,6 +563,7 @@ export type DrawingReviewToolObj =
   | SectionEnd
   | PacketError;
 export type CommentReviewToolObj =
+  | ReviewProgress
   | CommentReviewStart
   | CommentReviewDelta
   | SectionEnd

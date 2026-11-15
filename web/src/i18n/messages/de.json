@@ -12824,6 +12824,17 @@
           "text": "Norm: {citation}"
         }
       },
+      "reviewProgress": {
+        "opening": "Dateien werden geöffnet",
+        "preparing": "Zeichnungen werden vorbereitet",
+        "reading_original": "Originalzeichnung wird gelesen",
+        "reading_revision": "Überarbeitete Zeichnung wird gelesen",
+        "matching": "Zeichnungen werden zugeordnet",
+        "checking_requests": "Angeforderte Änderungen werden geprüft",
+        "checking_changes": "Weitere Unterschiede werden geprüft",
+        "reviewing_page": "Zeichnung wird geprüft",
+        "preparing_results": "Ergebnisse werden vorbereitet"
+      },
       "commentReview": {
         "partiallySolved": "Teilweise gelöst",
         "requirementCheck": "{label} · {status} · {evidence}",
@@ -13056,6 +13067,10 @@
           }
         },
         "fileReader": {
+          "failed": {
+            "status": "Datei nicht verfügbar",
+            "text": "Diese Datei konnte nicht gelesen werden."
+          },
           "charRange": {
             "label": "Zeichen {start, number}–{end, number} von {total, number}"
           },
@@ -13234,6 +13249,8 @@
           "customTool": "Benutzerdefiniertes Werkzeug",
           "drawingReview": "Zeichnungsprüfung",
           "commentReview": "Comment review",
+          "fileReader": "Dateileser",
+          "visionReview": "Visuelle Prüfung",
           "generateImage": "Bild generieren",
           "generatePlan": "Plan erstellen",
           "internalSearch": "Interne Suche",

@@ -7,7 +7,7 @@ from pypdfium2 import PdfiumError
 from sqlalchemy.orm import Session
 from typing_extensions import override
 
-from onyx.agents.tools import ToolInvocation
+from onyx.agents.tools import ToolInvocation, ToolProgress
 from onyx.chat.incognito import incognito_llm_request_policy
 from onyx.configs.app_configs import PDF_TEXT_EXTRACTION_TIMEOUT_SECONDS
 from onyx.configs.chat_configs import IMAGE_SUMMARIZATION_TIMEOUT
@@ -35,7 +35,7 @@ from onyx.llm.models import (
 )
 from onyx.tools.constants import VISION_REVIEW_TOOL_NAME
 from onyx.tools.interface import Tool, parse_tool_arguments
-from onyx.tools.models import ToolCallException, ToolContext
+from onyx.tools.models import ToolCallException, ToolContext, VisionReviewProgress
 from onyx.tools.tool_implementations.drawing_review.files import ReviewFileLoader
 from onyx.tools.tool_implementations.drawing_review.sheet import (
     MAX_SHEET_PAGES,
@@ -140,6 +140,7 @@ class VisionReviewTool(Tool):
                 content="Choose two different files to compare.", is_error=True
             )
 
+        invocation.update(ToolProgress(details=VisionReviewProgress(stage="opening")))
         mode = IncognitoRecordMode.from_context_value(
             get_current_incognito_record_mode()
         )
@@ -160,6 +161,7 @@ class VisionReviewTool(Tool):
             invocation.cancellation.check()
             sources.append(self._files.load(str(file_id)))
 
+        invocation.update(ToolProgress(details=VisionReviewProgress(stage="preparing")))
         deadline = monotonic() + IMAGE_SUMMARIZATION_TIMEOUT
         if args.comparison_file_id is not None:
             original, revised = (
@@ -172,6 +174,9 @@ class VisionReviewTool(Tool):
                 context.user_request,
                 invocation,
                 deadline,
+            )
+            invocation.update(
+                ToolProgress(details=VisionReviewProgress(stage="preparing_results"))
             )
             viewer_review = review.viewer_review(
                 original,
@@ -191,6 +196,9 @@ class VisionReviewTool(Tool):
         reports: list[str] = []
         pages_reviewed = 0
         for index, page in enumerate(pages, 1):
+            invocation.update(
+                ToolProgress(details=VisionReviewProgress(stage="reviewing_page"))
+            )
             invocation.cancellation.check()
             remaining = deadline - monotonic()
             if remaining <= 0:

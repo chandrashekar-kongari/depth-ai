@@ -12824,6 +12824,17 @@
           "text": "표준: {citation}"
         }
       },
+      "reviewProgress": {
+        "opening": "파일 여는 중",
+        "preparing": "도면 준비 중",
+        "reading_original": "원본 도면 읽는 중",
+        "reading_revision": "수정된 도면 읽는 중",
+        "matching": "도면 대응 관계 확인 중",
+        "checking_requests": "요청된 변경 사항 확인 중",
+        "checking_changes": "기타 차이점 확인 중",
+        "reviewing_page": "도면 검토 중",
+        "preparing_results": "결과 준비 중"
+      },
       "commentReview": {
         "partiallySolved": "부분 해결",
         "requirementCheck": "{label} · {status} · {evidence}",
@@ -13056,6 +13067,10 @@
           }
         },
         "fileReader": {
+          "failed": {
+            "status": "파일 사용 불가",
+            "text": "이 파일을 읽을 수 없습니다."
+          },
           "charRange": {
             "label": "총 {total, number}자 중 {start, number}–{end, number}자"
           },
@@ -13234,6 +13249,8 @@
           "customTool": "사용자 지정 도구",
           "drawingReview": "도면 검토",
           "commentReview": "Comment review",
+          "fileReader": "파일 리더",
+          "visionReview": "시각적 검토",
           "generateImage": "이미지 생성",
           "generatePlan": "계획 생성",
           "internalSearch": "내부 검색",

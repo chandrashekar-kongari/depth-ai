@@ -258,3 +258,23 @@ class TestIsAvailable:
     @patch(f"{TOOL_MODULE}.DISABLE_VECTOR_DB", False)
     def test_unavailable_when_vector_db_enabled(self) -> None:
         assert FileReaderTool.is_available(MagicMock()) is False
+
+
+@pytest.mark.parametrize("allowed", [True, False])
+def test_user_file_alias_requires_an_allowed_chat_blob(allowed: bool) -> None:
+    alias, blob = uuid4(), uuid4()
+    tool = _make_tool(chat_file_ids=[blob])
+    with (
+        patch(f"{TOOL_MODULE}.get_session_with_current_tenant"),
+        patch(
+            f"{TOOL_MODULE}.get_file_id_by_user_file_id",
+            return_value=str(blob if allowed else uuid4()),
+        ),
+    ):
+        if allowed:
+            assert tool._validate_file_id(str(alias)) == alias
+            assert alias in tool._user_file_ids
+        else:
+            with pytest.raises(ToolCallException, match="not in available files"):
+                tool._validate_file_id(str(alias))
+            assert alias not in tool._user_file_ids

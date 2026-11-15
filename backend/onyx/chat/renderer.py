@@ -49,6 +49,7 @@ from onyx.tools.models import (
     PythonExecutionDelta,
     ToolExecutionError,
     ToolExecutionException,
+    VisionReviewProgress,
 )
 from onyx.tools.tool_implementations.custom.openapi_parsing import REQUEST_BODY
 from onyx.tools.tool_implementations.drawing_review.comment_review_tool import (
@@ -506,10 +507,14 @@ class ToolRenderer:
                 objects = [packets.FileReaderStart()]
             elif name == DrawingReviewTool.NAME:
                 objects = [packets.DrawingReviewStart()]
-            elif name == CommentReviewTool.NAME or (
-                name == VISION_REVIEW_TOOL_NAME and args.get("comparison_file_id")
-            ):
-                objects = [packets.CommentReviewStart()]
+            elif name in {CommentReviewTool.NAME, VISION_REVIEW_TOOL_NAME}:
+                objects = [
+                    packets.CommentReviewStart(
+                        review_kind="vision"
+                        if name == VISION_REVIEW_TOOL_NAME
+                        else "comments"
+                    )
+                ]
             elif name == MemoryTool.NAME:
                 objects = [packets.MemoryToolStart()]
             elif name == ImageGenerationTool.NAME:
@@ -600,6 +605,8 @@ class ToolRenderer:
                     objects.append(packets.SearchToolDocumentsDelta(documents=new_docs))
         elif details is not None and details == self._last_details:
             return []
+        elif isinstance(details, VisionReviewProgress):
+            objects.append(packets.ReviewProgress(stage=details.stage))
         elif isinstance(details, DrawingReviewResult):
             objects.append(
                 packets.DrawingReviewDelta(
@@ -777,6 +784,19 @@ class ToolRenderer:
                     placement=self.placement,
                     obj=packets.PacketException(
                         exception=ToolExecutionException(result.details.message)
+                    ),
+                )
+            )
+        elif self.call.name in {VISION_REVIEW_TOOL_NAME, FileReaderTool.NAME} and (
+            result is None or result.is_error
+        ):
+            output.append(
+                packets.Packet(
+                    placement=self.placement,
+                    obj=packets.PacketException(
+                        exception=ToolExecutionException(
+                            "The operation did not finish."
+                        )
                     ),
                 )
             )

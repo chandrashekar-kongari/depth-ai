@@ -1,3 +1,4 @@
+import { reviewActivity } from "@/app/app/message/messageComponents/renderers/reviewActivity";
 import { useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { TurnGroup } from "@/app/app/message/messageComponents/timeline/transformers";
@@ -30,6 +31,7 @@ export function useTimelineHeader(
 ): TimelineHeaderResult {
   const t = useTranslations("chat.messages.timeline");
   const locale = useLocale();
+  const tProgress = useTranslations("chat.messages.reviewProgress");
 
   return useMemo(() => {
     const hasPackets = turnGroups.length > 0;
@@ -53,6 +55,13 @@ export function useTimelineHeader(
     const currentTurn = turnGroups[turnGroups.length - 1];
     if (!currentTurn) {
       return { headerText: thinkingHeader, hasPackets, userStopped };
+    }
+
+    const activeStage = currentTurn.steps
+      .map((step) => reviewActivity(step.packets).activeStage)
+      .findLast((stage) => stage !== undefined);
+    if (activeStage && !userStopped) {
+      return { headerText: tProgress(activeStage), hasPackets, userStopped };
     }
 
     const currentStep = currentTurn.steps[0];
@@ -173,5 +182,5 @@ export function useTimelineHeader(
     }
 
     return { headerText: thinkingHeader, hasPackets, userStopped };
-  }, [turnGroups, stopReason, isGeneratingImage, t, locale]);
+  }, [turnGroups, stopReason, isGeneratingImage, t, locale, tProgress]);
 }

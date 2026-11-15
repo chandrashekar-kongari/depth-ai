@@ -1,3 +1,4 @@
+import { isToolStartPacket } from "@/app/app/services/packetUtils";
 import type { useTranslations } from "next-intl";
 import type { IconFunctionComponent } from "@opal/types";
 import {
@@ -36,7 +37,7 @@ export function hasToolError(packets: Packet[]): boolean {
  * not the SECTION_END packets from nested tools (which have sub_turn_index as a number).
  */
 export function isToolComplete(packets: Packet[]): boolean {
-  const firstPacket = packets[0];
+  const firstPacket = packets.find(isToolStartPacket) ?? packets[0];
   if (!firstPacket) return false;
 
   // For research agents, only parent-level SECTION_END indicates completion
@@ -96,7 +97,7 @@ export type TimelineTranslate = ReturnType<
 >;
 
 export function getToolName(packets: Packet[], t: TimelineTranslate): string {
-  const firstPacket = packets[0];
+  const firstPacket = packets.find(isToolStartPacket);
   if (!firstPacket) return t("toolNames.tool");
 
   switch (firstPacket.obj.type) {
@@ -133,14 +134,20 @@ export function getToolName(packets: Packet[], t: TimelineTranslate): string {
     case PacketType.DRAWING_REVIEW_START:
       return t("toolNames.drawingReview");
     case PacketType.COMMENT_REVIEW_START:
-      return t("toolNames.commentReview");
+      return t(
+        firstPacket.obj.review_kind === "vision"
+          ? "toolNames.visionReview"
+          : "toolNames.commentReview"
+      );
+    case PacketType.FILE_READER_START:
+      return t("toolNames.fileReader");
     default:
       return t("toolNames.tool");
   }
 }
 
 export function getToolIcon(packets: Packet[]): IconFunctionComponent {
-  const firstPacket = packets[0];
+  const firstPacket = packets.find(isToolStartPacket);
   if (!firstPacket) return SvgCircle;
 
   switch (firstPacket.obj.type) {
@@ -171,6 +178,7 @@ export function getToolIcon(packets: Packet[]): IconFunctionComponent {
       return SvgBookOpen;
     case PacketType.DRAWING_REVIEW_START:
     case PacketType.COMMENT_REVIEW_START:
+    case PacketType.FILE_READER_START:
       return SvgFileText;
     default:
       return SvgCircle;

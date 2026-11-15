@@ -41,17 +41,21 @@ import { TimelineHeaderRow } from "@/app/app/message/messageComponents/timeline/
 interface TimelineContainerProps {
   agent: FullChatState["agent"];
   headerContent?: React.ReactNode;
+  isWorking?: boolean;
   children?: React.ReactNode;
 }
 
 function TimelineContainer({
   agent,
+  isWorking = false,
   headerContent,
   children,
 }: TimelineContainerProps) {
   return (
     <TimelineRoot>
-      <TimelineHeaderRow left={<AgentAvatar agent={agent} size={24} />}>
+      <TimelineHeaderRow
+        left={<AgentAvatar agent={agent} size={24} isWorking={isWorking} />}
+      >
         {headerContent}
       </TimelineHeaderRow>
       {children}
@@ -139,6 +143,8 @@ export const AgentTimeline = React.memo(function AgentTimeline({
     stopReason,
     isGeneratingImage
   );
+
+  const isWorking = !stopPacketSeen && !userStopped && stopReason === undefined;
 
   // Memoized metrics derived from turn groups
   const {
@@ -349,6 +355,7 @@ export const AgentTimeline = React.memo(function AgentTimeline({
     return (
       <TimelineContainer
         agent={chatState.agent}
+        isWorking={isWorking}
         headerContent={
           <div className="flex w-full h-full items-center ps-(--timeline-header-padding-left) pe-(--timeline-header-padding-right)">
             <TextLoader>{headerText}</TextLoader>
@@ -360,12 +367,13 @@ export const AgentTimeline = React.memo(function AgentTimeline({
 
   // Display content only (no timeline steps) - but show header for image generation
   if (uiState === TimelineUIState.DISPLAY_CONTENT_ONLY) {
-    return <TimelineContainer agent={chatState.agent} />;
+    return <TimelineContainer agent={chatState.agent} isWorking={isWorking} />;
   }
 
   return (
     <TimelineContainer
       agent={chatState.agent}
+      isWorking={isWorking}
       headerContent={
         <div
           className={cn(

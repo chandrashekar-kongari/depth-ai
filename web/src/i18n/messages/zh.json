@@ -12824,6 +12824,17 @@
           "text": "标准：{citation}"
         }
       },
+      "reviewProgress": {
+        "opening": "正在打开文件",
+        "preparing": "正在准备图纸",
+        "reading_original": "正在读取原始图纸",
+        "reading_revision": "正在读取修订图纸",
+        "matching": "正在匹配图纸",
+        "checking_requests": "正在检查请求的更改",
+        "checking_changes": "正在检查其他差异",
+        "reviewing_page": "正在审查图纸",
+        "preparing_results": "正在准备审查结果"
+      },
       "commentReview": {
         "partiallySolved": "部分解决",
         "requirementCheck": "{label} · {status} · {evidence}",
@@ -13056,6 +13067,10 @@
           }
         },
         "fileReader": {
+          "failed": {
+            "status": "文件不可用",
+            "text": "无法读取此文件。"
+          },
           "charRange": {
             "label": "第 {start, number}–{end, number} 个字符，共 {total, number} 个"
           },
@@ -13234,6 +13249,8 @@
           "customTool": "自定义工具",
           "drawingReview": "图纸审查",
           "commentReview": "Comment review",
+          "fileReader": "文件读取器",
+          "visionReview": "视觉审查",
           "generateImage": "生成图片",
           "generatePlan": "生成计划",
           "internalSearch": "内部搜索",

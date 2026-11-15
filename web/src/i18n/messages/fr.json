@@ -12824,6 +12824,17 @@
           "text": "Norme : {citation}"
         }
       },
+      "reviewProgress": {
+        "opening": "Ouverture de vos fichiers",
+        "preparing": "Préparation des dessins",
+        "reading_original": "Lecture du dessin original",
+        "reading_revision": "Lecture du dessin révisé",
+        "matching": "Correspondance des dessins",
+        "checking_requests": "Vérification des modifications demandées",
+        "checking_changes": "Vérification des autres différences",
+        "reviewing_page": "Examen du dessin",
+        "preparing_results": "Préparation des résultats"
+      },
       "commentReview": {
         "partiallySolved": "Partiellement résolu",
         "requirementCheck": "{label} · {status} · {evidence}",
@@ -13056,6 +13067,10 @@
           }
         },
         "fileReader": {
+          "failed": {
+            "status": "Fichier indisponible",
+            "text": "Ce fichier n’a pas pu être lu."
+          },
           "charRange": {
             "label": "caractères {start, number}–{end, number} sur {total, number}"
           },
@@ -13234,6 +13249,8 @@
           "customTool": "Outil personnalisé",
           "drawingReview": "Revue du dessin",
           "commentReview": "Comment review",
+          "fileReader": "Lecteur de fichiers",
+          "visionReview": "Examen visuel",
           "generateImage": "Générer une image",
           "generatePlan": "Générer un plan",
           "internalSearch": "Recherche interne",

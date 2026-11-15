@@ -12824,6 +12824,17 @@
           "text": "Norma: {citation}"
         }
       },
+      "reviewProgress": {
+        "opening": "Abrindo seus arquivos",
+        "preparing": "Preparando os desenhos",
+        "reading_original": "Lendo o desenho original",
+        "reading_revision": "Lendo o desenho revisado",
+        "matching": "Relacionando os desenhos",
+        "checking_requests": "Verificando as alterações solicitadas",
+        "checking_changes": "Verificando outras diferenças",
+        "reviewing_page": "Revisando o desenho",
+        "preparing_results": "Preparando os resultados"
+      },
       "commentReview": {
         "partiallySolved": "Parcialmente resolvido",
         "requirementCheck": "{label} · {status} · {evidence}",
@@ -13056,6 +13067,10 @@
           }
         },
         "fileReader": {
+          "failed": {
+            "status": "Arquivo indisponível",
+            "text": "Não foi possível ler este arquivo."
+          },
           "charRange": {
             "label": "caracteres {start, number}–{end, number} de {total, number}"
           },
@@ -13234,6 +13249,8 @@
           "customTool": "Ferramenta personalizada",
           "drawingReview": "Revisão do desenho",
           "commentReview": "Comment review",
+          "fileReader": "Leitor de arquivos",
+          "visionReview": "Revisão visual",
           "generateImage": "Gerar imagem",
           "generatePlan": "Gerar plano",
           "internalSearch": "Pesquisa interna",

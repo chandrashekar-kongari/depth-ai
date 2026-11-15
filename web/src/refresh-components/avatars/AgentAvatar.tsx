@@ -2,7 +2,7 @@
 
 import { MinimalAgent } from "@/lib/agents/types";
 import { buildAgentAvatarUrl } from "@/lib/agents/utils";
-import { SvgDepthLogo } from "@opal/logos";
+import { DepthActivityIcon } from "@/refresh-components/avatars/DepthActivityIcon";
 import { useSettings } from "@/lib/settings/hooks";
 import { DEFAULT_AVATAR_SIZE_PX, DEFAULT_AGENT_ID } from "@/lib/constants";
 import CustomAgentAvatar from "@/refresh-components/avatars/CustomAgentAvatar";
@@ -12,10 +12,12 @@ import { useTranslations } from "next-intl";
 export interface AgentAvatarProps {
   agent: MinimalAgent;
   size?: number;
+  isWorking?: boolean;
 }
 
 export default function AgentAvatar({
   agent,
+  isWorking = false,
   size = DEFAULT_AVATAR_SIZE_PX,
   ...props
 }: AgentAvatarProps) {
@@ -37,7 +39,7 @@ export default function AgentAvatar({
         />
       </div>
     ) : (
-      <SvgDepthLogo size={size} className="shrink-0" />
+      <DepthActivityIcon active={isWorking} size={size} />
     );
   }
 

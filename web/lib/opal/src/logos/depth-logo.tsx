@@ -1,5 +1,9 @@
 import type { IconProps } from "@opal/types";
 
+export const DEPTH_OUTER_PATH =
+  "M16 8h12c14.359 0 24 9.163 24 24S42.359 56 28 56H16V8Zm12 12c9.389 0 16 6.059 16 12s-6.611 12-16 12V20Z";
+export const DEPTH_INNER_PATH = "M28 26c5.523 0 9 2.686 9 6s-3.477 6-9 6v-12Z";
+
 const SvgDepthLogo = ({ size, ...props }: IconProps) => (
   <svg
     height={size}
@@ -11,12 +15,9 @@ const SvgDepthLogo = ({ size, ...props }: IconProps) => (
     <path
       fill="var(--theme-primary-05)"
       fillRule="evenodd"
-      d="M16 8h12c14.359 0 24 9.163 24 24S42.359 56 28 56H16V8Zm12 12c9.389 0 16 6.059 16 12s-6.611 12-16 12V20Z"
+      d={DEPTH_OUTER_PATH}
     />
-    <path
-      fill="var(--theme-primary-05)"
-      d="M28 26c5.523 0 9 2.686 9 6s-3.477 6-9 6v-12Z"
-    />
+    <path fill="var(--theme-primary-05)" d={DEPTH_INNER_PATH} />
   </svg>
 );
 export default SvgDepthLogo;

@@ -14,6 +14,8 @@ export const COLLAPSED_STREAMING_PACKET_TYPES = new Set<PacketType>([
   PacketType.FETCH_TOOL_START,
   PacketType.PYTHON_TOOL_START,
   PacketType.CUSTOM_TOOL_START,
+  PacketType.COMMENT_REVIEW_START,
+  PacketType.FILE_READER_START,
   PacketType.RESEARCH_AGENT_START,
   PacketType.CODING_AGENT_START,
   PacketType.REASONING_START,
@@ -72,6 +74,13 @@ export const stepHasCollapsedStreamingContent = (
   const packetTypes = new Set(
     packets.map((packet) => packet.obj.type as PacketType)
   );
+
+  if (
+    packetTypes.has(PacketType.COMMENT_REVIEW_START) ||
+    packetTypes.has(PacketType.FILE_READER_START)
+  ) {
+    return true;
+  }
 
   // Errors should render even if no deltas arrived
   if (packetTypes.has(PacketType.ERROR)) {

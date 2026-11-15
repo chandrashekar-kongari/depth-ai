@@ -131,6 +131,12 @@ preview.
 
 ## Contracts and traps
 
+File Reader accepts a UserFile ID exposed by a chat attachment only when its storage blob is already in the chat allowlist.
+It then uses the user-file metadata loader. Unknown or unrelated aliases remain rejected.
+Rejected reads emit a terminal error packet; historical reads with no result show an unavailable message.
+
+
+
 1. `read-check-404` **Every read checks the acting user, and denial is a
    404.** `backend/onyx/access/access.py:user_can_access_chat_file` admits, in order: the file owner;
    readers of an agent the file is attached to; readers of a session whose

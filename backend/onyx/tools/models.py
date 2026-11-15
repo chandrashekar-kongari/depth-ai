@@ -104,6 +104,25 @@ class DrawingReviewArguments(BaseModel):
     focus: DrawingFocus | None = None
 
 
+ReviewStage = Literal[
+    "opening",
+    "preparing",
+    "reading_original",
+    "reading_revision",
+    "matching",
+    "checking_requests",
+    "checking_changes",
+    "reviewing_page",
+    "preparing_results",
+]
+
+
+class VisionReviewProgress(BaseModel):
+    """Public activity metadata, independent of review findings."""
+
+    stage: ReviewStage
+
+
 class DrawingReviewResult(BaseModel):
     type: Literal["drawing_review_result"] = "drawing_review_result"
     status: str

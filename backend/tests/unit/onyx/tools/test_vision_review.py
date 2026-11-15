@@ -9,7 +9,7 @@ import pytest
 from PIL import Image, ImageDraw
 from reportlab.pdfgen.canvas import Canvas
 
-from onyx.agents.tools import ToolInvocation
+from onyx.agents.tools import ToolInvocation, ToolProgress
 from onyx.db.models import StoredToolResult
 from onyx.llm.cancellation import CancellationSignal
 from onyx.llm.models import (
@@ -20,7 +20,7 @@ from onyx.llm.models import (
     ToolResult,
     UserMessage,
 )
-from onyx.tools.models import CommentReviewResult, ToolContext
+from onyx.tools.models import CommentReviewResult, ToolContext, VisionReviewProgress
 from onyx.tools.tool_implementations.drawing_review import vision_review_tool
 from onyx.tools.tool_implementations.drawing_review.spans import (
     SheetSpan,
@@ -466,11 +466,12 @@ def _marked_pdf(revised: bool) -> bytes:
 def test_vision_review_rechecks_marks_and_preserves_clickable_evidence() -> None:
     original_id, revised_id = uuid4(), uuid4()
     tool = VisionReviewTool(1, [], [original_id, revised_id])
+    updates: list[ToolProgress] = []
     invocation = ToolInvocation(
         call_id="vision",
         arguments={"file_id": str(original_id), "comparison_file_id": str(revised_id)},
         cancellation=CancellationSignal(),
-        update=lambda _: None,
+        update=updates.append,
     )
     llm = Mock()
     llm.config.model_name = "vision"
@@ -571,6 +572,21 @@ def test_vision_review_rechecks_marks_and_preserves_clickable_evidence() -> None
 
     assert isinstance(result, ToolResult)
     assert isinstance(result.details, CommentReviewResult)
+    stages = [
+        update.details.stage
+        for update in updates
+        if isinstance(update.details, VisionReviewProgress)
+    ]
+    assert stages[:5] == [
+        "opening",
+        "preparing",
+        "reading_original",
+        "reading_revision",
+        "matching",
+    ]
+    assert "checking_requests" in stages
+    assert "checking_changes" in stages
+    assert stages[-1] == "preparing_results"
     assert "Duplicate height change" not in result.content
     assert "50 ±0.1” → PDF page 1, “52 ±0.05" in result.content
     [comment] = result.details.comments

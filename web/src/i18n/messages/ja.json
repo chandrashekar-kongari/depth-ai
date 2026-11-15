@@ -12824,6 +12824,17 @@
           "text": "規格: {citation}"
         }
       },
+      "reviewProgress": {
+        "opening": "ファイルを開いています",
+        "preparing": "図面を準備しています",
+        "reading_original": "元の図面を読み取っています",
+        "reading_revision": "修正後の図面を読み取っています",
+        "matching": "図面を対応付けています",
+        "checking_requests": "依頼された変更を確認しています",
+        "checking_changes": "その他の相違点を確認しています",
+        "reviewing_page": "図面を確認しています",
+        "preparing_results": "結果を準備しています"
+      },
       "commentReview": {
         "partiallySolved": "一部解決済み",
         "requirementCheck": "{label} · {status} · {evidence}",
@@ -13056,6 +13067,10 @@
           }
         },
         "fileReader": {
+          "failed": {
+            "status": "ファイルを利用できません",
+            "text": "このファイルを読み取れませんでした。"
+          },
           "charRange": {
             "label": "{total, number} 文字中 {start, number}–{end, number} 文字目"
           },
@@ -13234,6 +13249,8 @@
           "customTool": "カスタムツール",
           "drawingReview": "図面レビュー",
           "commentReview": "Comment review",
+          "fileReader": "ファイルリーダー",
+          "visionReview": "画像レビュー",
           "generateImage": "画像生成",
           "generatePlan": "プラン生成",
           "internalSearch": "社内検索",

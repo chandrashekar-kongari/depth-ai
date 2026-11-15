@@ -15,6 +15,9 @@
 Desktop chat and new-session pages hide the AppChrome header. Mobile keeps the header for sidebar navigation.
 Sharing and chat options remain available through the sidebar chat menu.
 The account menu omits Notifications and its unread badge. It does not fetch the notification summary.
+The default Depth avatar animates its inner SVG shape while a timeline response is active.
+AgentTimeline passes the stream lifecycle to AgentAvatar; terminal packets and stop reasons disable the animation.
+Reduced-motion preferences use the static mark. Custom agent avatars and enterprise logos remain unchanged.
 
 - **A new user meets first-run onboarding** on the chat page. A user with no
   name gives one. An admin also connects an LLM provider, then sees optional

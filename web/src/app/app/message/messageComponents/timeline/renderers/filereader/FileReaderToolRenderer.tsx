@@ -12,7 +12,7 @@ import {
   RenderType,
 } from "@/app/app/message/messageComponents/types";
 import { BlinkingBar } from "@/app/app/message/BlinkingBar";
-import { Section } from "@/layouts/general-layouts";
+import { Section } from "@opal/layouts";
 
 interface FileReaderState {
   fileName: string | null;
@@ -24,6 +24,7 @@ interface FileReaderState {
   previewEnd: string;
   isReading: boolean;
   isComplete: boolean;
+  failed: boolean;
 }
 
 function constructFileReaderState(
@@ -51,6 +52,9 @@ function constructFileReaderState(
     previewEnd: result?.preview_end ?? "",
     isReading: hasStart && !hasEnd,
     isComplete: hasStart && hasEnd,
+    failed:
+      packets.some((packet) => packet.obj.type === PacketType.ERROR) ||
+      (hasEnd && !result),
   };
 }
 
@@ -73,9 +77,11 @@ export const FileReaderToolRenderer: MessageRenderer<
     total: state.totalChars,
   };
 
-  const statusText = state.fileName
-    ? t("fileReader.read.status", { fileName: state.fileName, ...charRange })
-    : t("fileReader.reading.status");
+  const statusText = state.failed
+    ? t("fileReader.failed.status")
+    : state.fileName
+      ? t("fileReader.read.status", { fileName: state.fileName, ...charRange })
+      : t("fileReader.reading.status");
 
   const isCompact = renderType === RenderType.COMPACT;
 
@@ -86,7 +92,11 @@ export const FileReaderToolRenderer: MessageRenderer<
         status: statusText,
         supportsCollapsible: true,
         timelineLayout: "timeline",
-        content: <></>,
+        content: (
+          <Text font="secondary-body" color="text-03">
+            {state.failed ? t("fileReader.failed.text") : statusText}
+          </Text>
+        ),
       },
     ]);
   }
@@ -137,8 +147,12 @@ export const FileReaderToolRenderer: MessageRenderer<
                 </Card>
               )}
             </>
+          ) : state.failed || stopPacketSeen ? (
+            <Text font="secondary-body" color="text-03">
+              {t("fileReader.failed.text")}
+            </Text>
           ) : (
-            !stopPacketSeen && <BlinkingBar />
+            <BlinkingBar />
           )}
         </Section>
       ),

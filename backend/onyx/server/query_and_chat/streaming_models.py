@@ -13,6 +13,7 @@ from onyx.tools.models import (
     DrawingExtraIssue,
     DrawingFinding,
     GeneratedImage,
+    VisionReviewProgress,
 )
 
 
@@ -90,6 +91,7 @@ class StreamingType(Enum):
     DRAWING_REVIEW_DELTA = "drawing_review_delta"
     COMMENT_REVIEW_START = "comment_review_start"
     COMMENT_REVIEW_DELTA = "comment_review_delta"
+    REVIEW_PROGRESS = "review_progress"
 
 
 class BaseObj(BaseModel):
@@ -448,7 +450,12 @@ class DrawingReviewDelta(BaseObj):
 
 
 class CommentReviewStart(BaseObj):
+    review_kind: Literal["vision", "comments"] = "comments"
     type: Literal["comment_review_start"] = StreamingType.COMMENT_REVIEW_START.value
+
+
+class ReviewProgress(BaseObj, VisionReviewProgress):
+    type: Literal["review_progress"] = StreamingType.REVIEW_PROGRESS.value
 
 
 class CommentReviewDelta(BaseObj):
@@ -530,6 +537,7 @@ PacketObj = Union[
     DrawingReviewDelta,
     CommentReviewStart,
     CommentReviewDelta,
+    ReviewProgress,
 ]
 
 

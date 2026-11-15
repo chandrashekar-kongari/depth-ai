@@ -7,7 +7,7 @@ from typing_extensions import override
 from onyx.agents.tools import ToolInvocation
 from onyx.configs.app_configs import DISABLE_VECTOR_DB
 from onyx.db.engine.sql_engine import get_session_with_current_tenant
-from onyx.db.user_file import get_user_file_metadata
+from onyx.db.user_file import get_file_id_by_user_file_id, get_user_file_metadata
 from onyx.file_processing.extract_file_text import extract_file_text
 from onyx.file_store.models import ChatFileType, InMemoryChatFile, UserFileMetadata
 from onyx.file_store.utils import load_chat_file_by_id, load_user_file_content
@@ -110,6 +110,12 @@ class FileReaderTool(Tool):
             )
 
         if file_id not in self._user_file_ids and file_id not in self._chat_file_ids:
+            if self._chat_file_ids:
+                with get_session_with_current_tenant() as db_session:
+                    blob_id = get_file_id_by_user_file_id(str(file_id), db_session)
+                if blob_id in {str(blob) for blob in self._chat_file_ids}:
+                    self._user_file_ids.add(file_id)
+                    return file_id
             raise ToolCallException(
                 message=f"File {file_id} not in available files",
                 llm_facing_message=(

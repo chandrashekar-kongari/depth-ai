@@ -6,6 +6,33 @@ import {
 } from "./streamingModels";
 import { Packet } from "@/app/app/services/streamingModels";
 
+/** Tool starts shared by timeline grouping and activity pacing. */
+export const TOOL_START_PACKET_TYPES: ReadonlySet<PacketType> =
+  new Set<PacketType>([
+    PacketType.SEARCH_TOOL_START,
+    PacketType.FETCH_TOOL_START,
+    PacketType.PYTHON_TOOL_START,
+    PacketType.CUSTOM_TOOL_START,
+    PacketType.FILE_READER_START,
+    PacketType.DRAWING_REVIEW_START,
+    PacketType.COMMENT_REVIEW_START,
+    PacketType.REASONING_START,
+    PacketType.IMAGE_GENERATION_TOOL_START,
+    PacketType.DEEP_RESEARCH_PLAN_START,
+    PacketType.RESEARCH_AGENT_START,
+    PacketType.MEMORY_TOOL_START,
+    PacketType.MEMORY_TOOL_NO_ACCESS,
+    PacketType.CODING_AGENT_START,
+    PacketType.BASH_TOOL_START,
+  ]);
+
+export function isToolStartPacket(packet: Packet): boolean {
+  for (const type of TOOL_START_PACKET_TYPES) {
+    if (packet.obj.type === type) return true;
+  }
+  return false;
+}
+
 export function isToolPacket(
   packet: Packet,
   includeSectionEnd: boolean = true
@@ -27,6 +54,7 @@ export function isToolPacket(
     PacketType.DRAWING_REVIEW_DELTA,
     PacketType.COMMENT_REVIEW_START,
     PacketType.COMMENT_REVIEW_DELTA,
+    PacketType.REVIEW_PROGRESS,
     PacketType.REASONING_START,
     PacketType.REASONING_DELTA,
     PacketType.FETCH_TOOL_START,

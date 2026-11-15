@@ -18,7 +18,7 @@ from PIL import Image
 from pydantic import BaseModel, Field, JsonValue, TypeAdapter, model_validator
 from scipy.optimize import linear_sum_assignment
 
-from onyx.agents.tools import ToolInvocation
+from onyx.agents.tools import ToolInvocation, ToolProgress
 from onyx.chat.incognito import current_turn_persists_content
 from onyx.engineering.drawing_changes import estimate_drawing_transform
 from onyx.file_processing.image_summarization import prepare_image_bytes
@@ -47,6 +47,7 @@ from onyx.tools.models import (
     DrawingChangeReview,
     DrawingComment,
     DrawingMarkBox,
+    VisionReviewProgress,
 )
 from onyx.tools.tool_implementations.drawing_review.comment_queue import (
     ExtractedComment,
@@ -1202,6 +1203,13 @@ def _index(
     *,
     inventory_marks: bool = False,
 ) -> DrawingIndex:
+    invocation.update(
+        ToolProgress(
+            details=VisionReviewProgress(
+                stage="reading_original" if inventory_marks else "reading_revision"
+            )
+        )
+    )
     views: list[DrawingView] = []
     incomplete: list[int] = []
     unassigned_requests: list[tuple[int, ReviewMark]] = []
@@ -2086,6 +2094,7 @@ def compare_document_views(
         )
         for document, inventory_marks in ((original, True), (revised, False))
     )
+    invocation.update(ToolProgress(details=VisionReviewProgress(stage="matching")))
     matches = match_views(old.views, new.views)
     pairs = list(matches.pairs)
     failed_original: set[int] = set()
@@ -2138,6 +2147,9 @@ def compare_document_views(
             )
         )
     for i, j in pairs:
+        invocation.update(
+            ToolProgress(details=VisionReviewProgress(stage="checking_requests"))
+        )
         before, after = old.views[i], new.views[j]
         reports.append(f"### {before.name} → {after.name}")
         if before.crop_uncertain or after.crop_uncertain:
@@ -2161,6 +2173,9 @@ def compare_document_views(
             reports.append("Needs review. The model did not return a valid comparison.")
             continue
         compared += 1
+        invocation.update(
+            ToolProgress(details=VisionReviewProgress(stage="checking_changes"))
+        )
         comparison = _audit_view_coverage(
             comparison, before, after, request, llm, invocation, deadline
         )

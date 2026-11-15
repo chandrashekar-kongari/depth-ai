@@ -12824,6 +12824,17 @@
           "text": "المعيار: {citation}"
         }
       },
+      "reviewProgress": {
+        "opening": "جارٍ فتح ملفاتك",
+        "preparing": "جارٍ تجهيز الرسومات",
+        "reading_original": "جارٍ قراءة الرسم الأصلي",
+        "reading_revision": "جارٍ قراءة الرسم المعدل",
+        "matching": "جارٍ مطابقة الرسومات",
+        "checking_requests": "جارٍ التحقق من التغييرات المطلوبة",
+        "checking_changes": "جارٍ التحقق من الاختلافات الأخرى",
+        "reviewing_page": "جارٍ مراجعة الرسم",
+        "preparing_results": "جارٍ إعداد النتائج"
+      },
       "commentReview": {
         "partiallySolved": "تم الحل جزئيًا",
         "requirementCheck": "{label} · {status} · {evidence}",
@@ -13056,6 +13067,10 @@
           }
         },
         "fileReader": {
+          "failed": {
+            "status": "الملف غير متاح",
+            "text": "تعذرت قراءة هذا الملف."
+          },
           "charRange": {
             "label": "الأحرف {start, number}–{end, number} من {total, number}"
           },
@@ -13234,6 +13249,8 @@
           "customTool": "أداة مخصصة",
           "drawingReview": "مراجعة الرسم",
           "commentReview": "Comment review",
+          "fileReader": "قارئ الملفات",
+          "visionReview": "مراجعة مرئية",
           "generateImage": "توليد صورة",
           "generatePlan": "توليد خطة",
           "internalSearch": "بحث داخلي",

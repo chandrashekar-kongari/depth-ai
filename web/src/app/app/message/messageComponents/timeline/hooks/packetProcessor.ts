@@ -15,6 +15,7 @@ import {
 import { CitationMap } from "@/app/app/types";
 import { DepthDocument } from "@/lib/search/types";
 import {
+  TOOL_START_PACKET_TYPES,
   isActualToolCallPacket,
   isToolPacket,
   isDisplayPacket,
@@ -130,21 +131,9 @@ function injectSectionEnd(state: ProcessorState, groupKey: string): void {
  * Content packet types that indicate a group has meaningful content to display
  */
 const CONTENT_PACKET_TYPES_SET = new Set<PacketType>([
+  ...TOOL_START_PACKET_TYPES,
   PacketType.MESSAGE_START,
-  PacketType.SEARCH_TOOL_START,
-  PacketType.IMAGE_GENERATION_TOOL_START,
-  PacketType.PYTHON_TOOL_START,
   PacketType.TOOL_CALL_ARGUMENT_DELTA,
-  PacketType.CUSTOM_TOOL_START,
-  PacketType.FILE_READER_START,
-  PacketType.DRAWING_REVIEW_START,
-  PacketType.FETCH_TOOL_START,
-  PacketType.MEMORY_TOOL_START,
-  PacketType.MEMORY_TOOL_NO_ACCESS,
-  PacketType.REASONING_START,
-  PacketType.DEEP_RESEARCH_PLAN_START,
-  PacketType.RESEARCH_AGENT_START,
-  PacketType.CODING_AGENT_START,
 ]);
 
 function hasContentPackets(packets: Packet[]): boolean {

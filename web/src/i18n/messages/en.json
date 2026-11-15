@@ -12824,6 +12824,17 @@
           "text": "Standard: {citation}"
         }
       },
+      "reviewProgress": {
+        "opening": "Opening your files",
+        "preparing": "Preparing the drawings",
+        "reading_original": "Reading the original drawing",
+        "reading_revision": "Reading the revised drawing",
+        "matching": "Matching the drawings",
+        "checking_requests": "Checking requested changes",
+        "checking_changes": "Checking other differences",
+        "reviewing_page": "Reviewing the drawing",
+        "preparing_results": "Preparing your findings"
+      },
       "commentReview": {
         "partiallySolved": "Partially solved",
         "requirementCheck": "{label} · {status} · {evidence}",
@@ -13056,6 +13067,10 @@
           }
         },
         "fileReader": {
+          "failed": {
+            "status": "File unavailable",
+            "text": "This file could not be read."
+          },
           "charRange": {
             "label": "chars {start, number}–{end, number} of {total, number}"
           },
@@ -13234,6 +13249,8 @@
           "customTool": "Custom Tool",
           "drawingReview": "Drawing review",
           "commentReview": "Comment review",
+          "fileReader": "File Reader",
+          "visionReview": "Vision review",
           "generateImage": "Generate Image",
           "generatePlan": "Generate plan",
           "internalSearch": "Internal Search",

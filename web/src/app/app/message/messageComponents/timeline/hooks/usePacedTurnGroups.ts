@@ -1,3 +1,4 @@
+import { TOOL_START_PACKET_TYPES } from "@/app/app/services/packetUtils";
 import { getToolKey } from "@/app/app/message/messageComponents/toolDisplayHelpers";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { PacketType } from "@/app/app/services/streamingModels";
@@ -15,20 +16,6 @@ const NO_RESTORED_GROUPS: ReadonlyMap<string, number> = new Map();
  * Tool START packet types used for categorizing steps
  * These determine the "type" of a step for pacing purposes
  */
-const TOOL_START_PACKET_TYPES = new Set<PacketType>([
-  PacketType.SEARCH_TOOL_START,
-  PacketType.FETCH_TOOL_START,
-  PacketType.PYTHON_TOOL_START,
-  PacketType.CUSTOM_TOOL_START,
-  PacketType.FILE_READER_START,
-  PacketType.DRAWING_REVIEW_START,
-  PacketType.REASONING_START,
-  PacketType.IMAGE_GENERATION_TOOL_START,
-  PacketType.DEEP_RESEARCH_PLAN_START,
-  PacketType.RESEARCH_AGENT_START,
-  PacketType.MEMORY_TOOL_START,
-  PacketType.MEMORY_TOOL_NO_ACCESS,
-]);
 
 /**
  * Get the primary packet type from a step's packets (first START packet)
