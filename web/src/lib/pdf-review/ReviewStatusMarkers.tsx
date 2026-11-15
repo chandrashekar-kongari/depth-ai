@@ -79,6 +79,8 @@ export function ReviewStatusMarkers({
     ) {
       return [];
     }
+    if (issue.anchors[documentId]?.diagramLevel && issue.id !== selectedIssueId)
+      return [];
     const anchor = resolvedAnchor(snapshot, documentId, issue);
     if (!anchor || anchor.page !== pageIndex + 1) return [];
     const rect = project(anchorRect(anchor, size));

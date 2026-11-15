@@ -401,6 +401,8 @@ export type CommentVerdict =
   | "unclear";
 
 export interface DrawingComment {
+  original_diagram_box?: DrawingMarkBox | null;
+  revised_diagram_box?: DrawingMarkBox | null;
   checks?: { label: string; verdict: CommentVerdict; evidence: string }[];
   verified_change_ids?: string[];
   revised_location_verified?: boolean;
@@ -440,6 +442,8 @@ export interface CommentReviewStart extends BaseObj {
 }
 
 export interface DrawingChange {
+  original_diagram_box?: DrawingMarkBox | null;
+  revised_diagram_box?: DrawingMarkBox | null;
   revised_page?: number | null;
   id: string;
   page: number;
@@ -452,6 +456,7 @@ export interface DrawingChange {
   verified_comment_ids?: string[];
   vision_validation?: "confirmed" | "unconfirmed" | null;
   vision_explanation?: string;
+  review_proposal?: boolean;
 }
 
 export interface DrawingChangeReview {

@@ -94,6 +94,7 @@ export interface LinkedIssue {
       page: number;
       box: DrawingMarkBox | null;
       pageLevel: boolean;
+      diagramLevel?: boolean;
       quality?:
         | "confirmed"
         | "proposed"

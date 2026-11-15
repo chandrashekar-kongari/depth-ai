@@ -279,3 +279,32 @@ it("shows incomplete coverage instead of a zero count when no sheets were compar
     )
   ).toBeInTheDocument();
 });
+
+it("uses the matching diagram only when precise evidence is absent", () => {
+  const audit = review.drawing_changes!;
+  const first = audit.changes[0]!;
+  const [issue] = drawingChangeIssues({
+    ...review,
+    drawing_changes: {
+      ...audit,
+      changes: [
+        {
+          ...first,
+          original_box: null,
+          original_diagram_box: { x: 0.1, y: 0.1, width: 0.6, height: 0.6 },
+          revised_diagram_box: { x: 0.15, y: 0.2, width: 0.6, height: 0.6 },
+        },
+      ],
+    },
+  });
+  expect(issue?.anchors.before?.diagramLevel).toBe(true);
+  expect(issue?.anchors.after?.diagramLevel).toBe(false);
+  expect(issue?.anchors.after?.box).toEqual(first.revised_box);
+  expect(resolvedAnchor(undefined, "before", issue!)).toEqual({
+    page: 1,
+    x: 0.1,
+    y: 0.1,
+    width: 0.6,
+    height: 0.6,
+  });
+});

@@ -13365,6 +13365,8 @@
         "uploadFailed": "فشل رفع PDF. حاول مرة أخرى.",
         "chooseDrawing": "اختر ملف PDF موجودًا أو ارفع الأصل والنسخة المعدلة.",
         "findingNumber": "المشكلة {number}",
+        "showOriginalDiagram": "عرض الرسم في الأصل",
+        "showRevisedDiagram": "عرض الرسم في النسخة المنقحة",
         "showOriginal": "عرض في الأصل",
         "showRevised": "عرض في النسخة المعدلة",
         "issuePin": "المشكلة {number}: {title}",

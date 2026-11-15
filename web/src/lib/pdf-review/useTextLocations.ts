@@ -31,6 +31,7 @@ export function useTextLocations(
   const queries = issues.flatMap((issue) => {
     const source = issue.anchors[documentId];
     if (
+      source?.diagramLevel ||
       source?.quality === "located_difference" ||
       source?.quality === "located_text" ||
       source?.quality === "located_comment"

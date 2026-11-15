@@ -155,6 +155,7 @@ function useFilePickerItems({
       (projectFile): DropdownMenuRow => ({
         kind: "custom",
         id: `file-${projectFile.id}`,
+        keepOpen: true,
         keywords: [projectFile.name],
         onActivate: () => onPickRecent(projectFile),
         // ArrowRight reaches the row's view control.

@@ -13365,6 +13365,8 @@
         "uploadFailed": "PDFのアップロードに失敗しました。再試行してください。",
         "chooseDrawing": "既存のPDFを選ぶか、元の図面と改訂版をアップロードしてください。",
         "findingNumber": "指摘 {number}",
+        "showOriginalDiagram": "元の図面のビューを表示",
+        "showRevisedDiagram": "改訂図面のビューを表示",
         "showOriginal": "元の図面で表示",
         "showRevised": "改訂図面で表示",
         "issuePin": "指摘 {number}: {title}",

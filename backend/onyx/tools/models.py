@@ -164,6 +164,8 @@ class DrawingComment(BaseModel):
     revised_span_id: str | None = None
     revised_box: DrawingMarkBox | None = None
     revised_page_level: bool = False
+    original_diagram_box: DrawingMarkBox | None = None
+    revised_diagram_box: DrawingMarkBox | None = None
     revised_location_verified: bool = False
     review_attempts: int = 0
     checks: list[DrawingRequirementCheck] = Field(default_factory=list)
@@ -213,10 +215,13 @@ class DrawingChange(BaseModel):
     after_text: str = ""
     original_box: DrawingMarkBox | None = None
     revised_box: DrawingMarkBox | None = None
+    original_diagram_box: DrawingMarkBox | None = None
+    revised_diagram_box: DrawingMarkBox | None = None
     possible_comment_ids: list[str] = Field(default_factory=list)
     verified_comment_ids: list[str] = Field(default_factory=list)
     vision_validation: Literal["confirmed", "unconfirmed"] | None = None
     vision_explanation: str = ""
+    review_proposal: bool = False
 
 
 class DrawingChangeReview(BaseModel):

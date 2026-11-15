@@ -263,3 +263,110 @@ it("shows the mismatch explanation without expanding the issue", () => {
 
   expect(screen.getByText(explanation)).toBeVisible();
 });
+
+it("keeps an uncertain whole-view conflict visible in the Unclear filter", async () => {
+  const user = setupUser();
+  render(
+    <CommentReviewView
+      part="queue"
+      review={{
+        ...review,
+        comments: [],
+        extra_issues: [],
+        drawing_changes: {
+          status: "partial",
+          compared_pages: [1],
+          warnings: [],
+          changes: [
+            {
+              id: "vision-change-1",
+              page: 1,
+              revised_page: 2,
+              kind: "visual",
+              before_text: "",
+              after_text: "",
+              original_box: { x: 0.2, y: 0.3, width: 0.2, height: 0.2 },
+              revised_box: { x: 0.4, y: 0.5, width: 0.2, height: 0.2 },
+              possible_comment_ids: [],
+              vision_validation: "unconfirmed",
+              review_proposal: true,
+              vision_explanation:
+                "View correspondence needs review: Section A-A",
+            },
+          ],
+        },
+      }}
+    />
+  );
+  expect(
+    screen.getByText("View correspondence needs review: Section A-A")
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Unclear (1)" }));
+  expect(
+    screen.getByText("View correspondence needs review: Section A-A")
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Show in original" })
+  ).toBeVisible();
+  expect(screen.getByRole("button", { name: "Show in revised" })).toBeVisible();
+});
+
+it("labels diagram navigation separately from an exact callout", async () => {
+  const user = setupUser();
+  render(
+    <DrawingReviewLayoutProvider
+      active
+      mode="comments"
+      reviewKey="diagram-fallback"
+    >
+      <CommentReviewView
+        part="queue"
+        review={{
+          ...review,
+          comments: [],
+          extra_issues: [],
+          drawing_changes: {
+            status: "partial",
+            compared_pages: [1],
+            warnings: [],
+            changes: [
+              {
+                id: "vision-change-1",
+                page: 1,
+                revised_page: 2,
+                kind: "text_added",
+                before_text: "",
+                after_text: "55",
+                original_box: null,
+                revised_box: { x: 0.5, y: 0.3, width: 0.03, height: 0.03 },
+                original_diagram_box: {
+                  x: 0.2,
+                  y: 0.2,
+                  width: 0.4,
+                  height: 0.4,
+                },
+                possible_comment_ids: [],
+                vision_validation: "unconfirmed",
+                review_proposal: true,
+                vision_explanation: "Added height callout needs review",
+              },
+            ],
+          },
+        }}
+      />
+      <FocusState />
+    </DrawingReviewLayoutProvider>
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Show diagram in original" })
+  );
+  expect(
+    JSON.parse(screen.getByLabelText("Navigation target").textContent ?? "")
+  ).toMatchObject({
+    issueId: "vision-change-1",
+    documentId: "original",
+    page: 1,
+  });
+  expect(screen.getByRole("button", { name: "Show in revised" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Unclear (1)" })).toBeVisible();
+});

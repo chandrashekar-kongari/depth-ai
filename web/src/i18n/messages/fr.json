@@ -13365,6 +13365,8 @@
         "uploadFailed": "Échec de l’importation. Réessayez.",
         "chooseDrawing": "Choisissez un PDF existant ou importez une paire originale et révisée.",
         "findingNumber": "Problème {number}",
+        "showOriginalDiagram": "Afficher la vue dans l’original",
+        "showRevisedDiagram": "Afficher la vue dans la révision",
         "showOriginal": "Voir dans l’original",
         "showRevised": "Voir dans la révision",
         "issuePin": "Problème {number} : {title}",

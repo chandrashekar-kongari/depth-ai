@@ -257,7 +257,13 @@ def _labels(page: Page) -> list[_Label]:
 
 
 def dimension_reference(
-    page: Page, x0: float, y0: float, x1: float, y1: float
+    page: Page,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+    *,
+    allow_long_extensions: bool = False,
 ) -> _DimensionReference | None:
     """Trace axis-aligned dimension lines to their extension-line origins.
 
@@ -315,7 +321,17 @@ def dimension_reference(
                         origin = max(
                             (left, right), key=lambda value: abs(value - normal)
                         )
-                        if not max(6, size * 0.35) <= abs(origin - normal) <= size * 6:
+                        span_limit = page.width if vertical else page.height
+                        max_extension = (
+                            max(size * 6, span_limit * 0.12)
+                            if allow_long_extensions
+                            else size * 6
+                        )
+                        if (
+                            not max(6, size * 0.35)
+                            <= abs(origin - normal)
+                            <= max_extension
+                        ):
                             continue
                         hits.append((origin, at))
                     unique = {(round(a, 1), round(b, 1)) for a, b in hits}

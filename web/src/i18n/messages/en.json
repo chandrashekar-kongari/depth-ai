@@ -13365,6 +13365,8 @@
         "uploadFailed": "The PDF upload failed. Try again.",
         "chooseDrawing": "Choose an existing PDF or upload an original and revised pair.",
         "findingNumber": "Issue {number}",
+        "showOriginalDiagram": "Show diagram in original",
+        "showRevisedDiagram": "Show diagram in revised",
         "showOriginal": "Show in original",
         "showRevised": "Show in revised",
         "issuePin": "Issue {number}: {title}",

@@ -13365,6 +13365,8 @@
         "uploadFailed": "PDF 업로드에 실패했습니다. 다시 시도하세요.",
         "chooseDrawing": "기존 PDF를 선택하거나 원본과 수정본을 업로드하세요.",
         "findingNumber": "문제 {number}",
+        "showOriginalDiagram": "원본의 도면 뷰 표시",
+        "showRevisedDiagram": "개정본의 도면 뷰 표시",
         "showOriginal": "원본에서 보기",
         "showRevised": "수정본에서 보기",
         "issuePin": "문제 {number}: {title}",

@@ -1,6 +1,7 @@
 import json
 from io import BytesIO
 from pathlib import Path
+from typing import Literal
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
@@ -652,7 +653,7 @@ def test_vision_review_compares_rendered_pages(
 
     assert isinstance(result, ToolResult)
     assert result.is_error is False
-    assert "configured-vision-model" in result.content
+    assert "configured-vision-model" not in result.content
     assert "Compared 1 of 1 matched views" in result.content
     assert "FRONT (page 2) → FRONT (page 1)" in result.content
     assert llm.invoke.call_count == 6
@@ -673,7 +674,7 @@ def test_vision_review_compares_rendered_pages(
         assert change.revised_box is not None
     else:
         assert "120 to 100" not in result.content
-        assert "found no clear changes" in result.content
+        assert "No clear changes were found in this view." in result.content
         assert restored.details.drawing_changes.changes == []
     message = llm.invoke.call_args.args[0].messages[1]
     assert isinstance(message, UserMessage)
@@ -716,7 +717,7 @@ def test_vision_review_requires_a_model_and_allowed_file(missing_model: bool) ->
     assert isinstance(result, ToolResult)
     assert result.is_error
     assert (
-        "requires a Captioning LLM" if missing_model else "is not available"
+        "setup is incomplete" if missing_model else "is not available"
     ) in result.content
     llm.invoke.assert_not_called()
 
@@ -828,7 +829,14 @@ def test_low_similarity_requires_vision_confirmation(
         cancellation=CancellationSignal(),
         update=lambda _: None,
     )
-    with patch.object(vision_diagrams, "aligned_similarity", return_value=0.52):
+    with (
+        patch.object(vision_diagrams, "aligned_similarity", return_value=0.52),
+        patch.object(
+            vision_diagrams,
+            "_resolve_unmatched_views",
+            return_value=([], [], set(), set()),
+        ),
+    ):
         review = compare_document_views(
             original, revised, llm, "", invocation, monotonic() + 30
         )
@@ -888,3 +896,450 @@ def test_pdf_outlines_match_with_loose_crop_and_conflicting_view_types() -> None
     assert match_views([original], [unrelated, revised]).pairs == [(0, 1)]
     rejected = match_views([original], [unrelated])
     assert rejected.pairs == [] and rejected.candidates == ()
+
+
+def test_uncovered_strokes_recover_missing_views_and_preserve_initial_detection() -> (
+    None
+):
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as vision
+
+    page = Image.new("RGB", (800, 600), "white")
+    draw = ImageDraw.Draw(page)
+    draw.rectangle((80, 95, 310, 245), outline="black", width=3)
+    draw.rectangle((495, 325, 713, 460), outline="black", width=3)
+    known = DetectedView(
+        kind="front",
+        core_bbox=(0.1, 0.15, 0.4, 0.42),
+        complete_bbox=(0.09, 0.14, 0.41, 0.44),
+    )
+    missed = DetectedView(
+        kind="side",
+        core_bbox=(0.61, 0.54, 0.9, 0.78),
+        complete_bbox=(0.6, 0.52, 0.92, 0.8),
+    )
+    regions = [
+        vision._normalized_box(bounds) for bounds in vision.sheet_ink_regions(page)
+    ]
+    assert len(vision._coverage_candidates(regions, [known])) == 1
+    with patch.object(
+        vision, "_ask", return_value=vision.Detection(views=[known, missed])
+    ):
+        recovered, complete = vision._recover_uncovered_views(
+            page, page, regions, [known], Mock(), Mock(), 1
+        )
+    assert complete
+    assert recovered == [known, missed]
+
+
+def test_crop_restores_connected_evidence_until_a_neighbor_conflicts() -> None:
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as vision
+
+    front = DetectedView(
+        kind="front",
+        core_bbox=(0.25, 0.15, 0.6, 0.35),
+        complete_bbox=(0.2, 0.12, 0.65, 0.36),
+    )
+    leader = ViewBox(left=0.52, top=0.34, right=0.55, bottom=0.40)
+    recovered, uncertain = vision._recover_crop_edges([front], [[]], [leader])
+    assert recovered[0].complete_bbox == (0.2, 0.12, 0.65, 0.40)
+    assert not uncertain
+    neighbor = DetectedView(
+        kind="detail",
+        core_bbox=(0.48, 0.39, 0.62, 0.53),
+        complete_bbox=(0.47, 0.38, 0.63, 0.55),
+    )
+    recovered, uncertain = vision._recover_crop_edges(
+        [front, neighbor], [[], []], [leader]
+    )
+    assert recovered == [front, neighbor]
+    assert uncertain == {0, 1}
+
+
+def test_tall_view_reaches_coverage_but_sheet_frame_does_not() -> None:
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as vision
+
+    page = Image.new("RGB", (800, 600), "white")
+    draw = ImageDraw.Draw(page)
+    draw.rectangle((18, 18, 782, 582), outline="black", width=2)
+    draw.rectangle((110, 60, 127, 532), outline="black", width=2)
+    draw.line((300, 88, 300, 490), fill="black", width=2)
+    regions = [
+        vision._normalized_box(bounds)
+        for bounds in vision.sheet_ink_regions(page, view_candidates=True)
+    ]
+    [candidate] = vision._coverage_candidates(regions, [])
+    assert candidate.left == pytest.approx(0.1375, abs=0.004)
+    assert candidate.bottom - candidate.top > 0.7
+
+
+def test_detached_request_preserves_target_anchor_and_instruction_crop() -> None:
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as vision
+
+    baseline = SheetSpan("baseline", 1, "80", 0.55, 0.32, 0.03, 0.02)
+    instruction = SheetSpan(
+        "intent", 1, "Change width to 90", 0.80, 0.22, 0.16, 0.02, True
+    )
+    request = vision.OriginalRequest(
+        target="Width",
+        requested_value="90",
+        baseline_span_ids=[baseline.span_id],
+        instruction_span_ids=[instruction.span_id],
+    )
+    mark = vision._request_mark(
+        1, request, {}, {s.span_id: s for s in (baseline, instruction)}
+    )
+    assert mark.requested == "90"
+    assert mark.box.right < 0.6
+    [instruction_box] = mark.instruction_boxes
+    assert instruction_box.left > 0.75
+    assert instruction_box.right > 0.95
+
+
+def test_masked_crop_preserves_owned_native_dimension_and_original_color() -> None:
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as vision
+    from onyx.tools.tool_implementations.drawing_review.view_geometry import (
+        PageGeometry,
+    )
+
+    page = Image.new("RGB", (400, 400), "white")
+    draw = ImageDraw.Draw(page)
+    draw.rectangle((90, 160, 230, 290), outline="black", width=3)
+    draw.line((105, 110, 210, 110), fill="black", width=3)
+    draw.line((105, 110, 105, 200), fill="black", width=3)
+    draw.line((210, 110, 210, 200), fill="black", width=3)
+    draw.rectangle((152, 99, 160, 104), fill="black")
+    draw.rectangle((260, 115, 280, 133), fill="blue")
+    draw.rectangle((115, 205, 125, 215), fill="red")
+
+    view = DetectedView(
+        kind="top",
+        core_bbox=(0.22, 0.39, 0.58, 0.73),
+        complete_bbox=(0.18, 0.23, 0.75, 0.76),
+    )
+    owned = SheetSpan("owned", 1, "80", 0.38, 0.24, 0.03, 0.023)
+    geometry = PageGeometry(400, 400, (), {"owned": ((0.2625, 0.5), (0.525, 0.5))})
+    drawing = vision._make_view(1, page, view, [owned], [], geometry)
+    masked = vision._masked_crop(page, drawing, geometry)
+    left, top, _, _ = drawing.complete.pixel_bounds(page)
+    assert masked.size == drawing.crop.size
+    assert masked.getpixel((154 - left, 101 - top)) == (0, 0, 0)
+    assert masked.getpixel((105 - left, 145 - top)) == (0, 0, 0)
+    assert masked.getpixel((120 - left, 210 - top)) == (255, 0, 0)
+    assert masked.getpixel((270 - left, 122 - top)) == (255, 255, 255)
+    assert drawing.crop.getpixel((270 - left, 122 - top)) == (0, 0, 255)
+
+
+def test_crop_recovers_target_outline_without_following_neighbor_fragment() -> None:
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as vision
+
+    page = Image.new("RGB", (800, 600), "white")
+    draw = ImageDraw.Draw(page)
+    draw.rectangle((100, 90, 280, 300), outline="black", width=3)
+    draw.rectangle((420, 100, 600, 290), outline="black", width=3)
+    clipped = DetectedView(
+        kind="side",
+        core_bbox=(0.125, 0.27, 0.35, 0.5),
+        complete_bbox=(0.1, 0.25, 0.58, 0.55),
+    )
+    neighbor = DetectedView(
+        kind="front",
+        core_bbox=(0.525, 0.166, 0.75, 0.484),
+        complete_bbox=(0.51, 0.15, 0.78, 0.51),
+    )
+    # The source crop includes a fragment of the neighbor. Its core is withheld
+    # here to exercise actual connected-ink ownership rather than box overlap.
+    narrow_crop = clipped.model_copy(update={"complete_bbox": (0.1, 0.25, 0.51, 0.55)})
+    regions = [vision._normalized_box(box) for box in vision.sheet_ink_regions(page)]
+    recovered, uncertain = vision._recover_crop_edges(
+        [narrow_crop, neighbor], [[], []], regions, page
+    )
+    assert recovered[0].complete_bbox[1] < 0.16
+    assert recovered[0].complete_bbox[2] == narrow_crop.complete_bbox[2]
+    assert 0 not in uncertain
+    assert recovered[1] == neighbor
+
+    # A component that actually joins two cores must remain ambiguous.
+    draw.line((280, 180, 420, 180), fill="black", width=3)
+    regions = [vision._normalized_box(box) for box in vision.sheet_ink_regions(page)]
+    recovered, uncertain = vision._recover_crop_edges(
+        [narrow_crop, neighbor], [[], []], regions, page
+    )
+    assert recovered[0] == narrow_crop
+    assert 0 in uncertain
+
+
+@pytest.mark.parametrize("addition", [False, True])
+@pytest.mark.parametrize("complete", [False, True])
+def test_unmatched_view_card_keeps_uncertainty_with_incomplete_coverage(
+    addition: bool, complete: bool
+) -> None:
+    from time import monotonic
+
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as v
+
+    box = ViewBox(left=0.2, top=0.2, right=0.4, bottom=0.4)
+    view = DrawingView(
+        1,
+        "section",
+        "A-A",
+        box,
+        box,
+        (),
+        (),
+        Image.new("RGB", (80, 80), "white"),
+        np.zeros((80, 80), dtype=np.uint8),
+    )
+    source = v.DrawingIndex("source.pdf", [view], 1, 1, [])
+    opposite = v.DrawingIndex("other.pdf", [], 1, 1, [] if complete else [1])
+    document = v.DiagramDocument("other.pdf", [b""], 1, [], {})
+    before, after = (opposite, source) if addition else (source, opposite)
+    with patch.object(
+        v,
+        "_recover_view_match",
+        return_value=v.ViewRecovery(
+            verdict="absent",
+            evidence="Section A-A is absent from the supplied opposite sheet.",
+        ),
+    ):
+        findings, _, _, _ = v._resolve_unmatched_views(
+            before,
+            after,
+            document,
+            document,
+            [],
+            v.ViewMatches([], set(), set()),
+            set(),
+            set(),
+            Mock(),
+            Mock(),
+            monotonic() + 10,
+        )
+    [finding] = findings
+    assert finding.finding.status == ("changed" if complete else "needs_review")
+    report = v.DiagramReport(content="", compared=0, findings=findings)
+    change = report.viewer_review(
+        document, document, "old", "new", "test"
+    ).drawing_changes
+    assert change is not None
+    [card] = change.changes
+    assert card.review_proposal is (not complete)
+    assert (card.original_box is not None) is (not addition)
+    assert (card.revised_box is not None) is addition
+
+
+@pytest.mark.parametrize(
+    "decision", ["candidate", "incumbent", "duplicate", "merged", "uncertain"]
+)
+def test_used_view_conflicts_do_not_produce_false_removal(
+    decision: Literal["candidate", "incumbent", "duplicate", "merged", "uncertain"],
+) -> None:
+    from time import monotonic
+
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as v
+
+    def view(left: float, label: str) -> DrawingView:
+        box = ViewBox(left=left, top=0.2, right=left + 0.2, bottom=0.4)
+        return DrawingView(
+            1,
+            "detail",
+            label,
+            box,
+            box,
+            (),
+            (),
+            Image.new("RGB", (80, 80), "white"),
+            np.zeros((80, 80), dtype=np.uint8),
+        )
+
+    before = v.DrawingIndex(
+        "before.pdf", [view(0.1, "incumbent"), view(0.6, "candidate")], 1, 1, []
+    )
+    after = v.DrawingIndex("after.pdf", [view(0.2, "counterpart")], 1, 1, [])
+    document = v.DiagramDocument("drawing.pdf", [b""], 1, [], {})
+    pairs = [(0, 0)]
+    with (
+        patch.object(
+            v,
+            "_recover_view_match",
+            return_value=v.ViewRecovery(
+                verdict="counterpart",
+                counterpart_view=1,
+                evidence="Candidate shares persistent features.",
+            ),
+        ),
+        patch.object(
+            v,
+            "_arbitrate_view_conflict",
+            return_value=v.ViewConflict(
+                verdict=decision, evidence="Checked the competing projections."
+            ),
+        ),
+        patch.object(
+            v,
+            "_verify_candidate",
+            return_value=v.MatchVerification(
+                verdict="same_view", evidence="Same physical projection."
+            ),
+        ),
+    ):
+        findings, _, _, _ = v._resolve_unmatched_views(
+            before,
+            after,
+            document,
+            document,
+            pairs,
+            v.ViewMatches(pairs, set(), set()),
+            set(),
+            set(),
+            Mock(),
+            Mock(),
+            monotonic() + 10,
+        )
+    assert all(item.finding.status == "needs_review" for item in findings)
+    if decision == "candidate":
+        assert pairs == [(1, 0)]
+    elif decision == "incumbent":
+        assert pairs == [(0, 0)]
+    else:
+        # Non-overlapping physical views cannot be merged as duplicate detections.
+        assert not pairs
+    assert len(findings) == 1
+
+
+def test_unmatched_relocation_is_compared_without_missing_view_card() -> None:
+    from time import monotonic
+
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as v
+
+    box = ViewBox(left=0.2, top=0.2, right=0.4, bottom=0.4)
+    drawing = DrawingView(
+        1,
+        "detail",
+        "renamed",
+        box,
+        box,
+        (),
+        (),
+        Image.new("RGB", (80, 80), "white"),
+        np.zeros((80, 80), dtype=np.uint8),
+    )
+    old = v.DrawingIndex("old.pdf", [drawing], 1, 1, [])
+    new = v.DrawingIndex("new.pdf", [drawing], 1, 1, [])
+    doc = v.DiagramDocument("drawing.pdf", [b""], 1, [], {})
+    pairs: list[tuple[int, int]] = []
+    with (
+        patch.object(
+            v,
+            "_recover_view_match",
+            return_value=v.ViewRecovery(
+                verdict="counterpart",
+                counterpart_view=1,
+                evidence="Moved and renamed detail.",
+            ),
+        ),
+        patch.object(
+            v,
+            "_verify_candidate",
+            return_value=v.MatchVerification(
+                verdict="same_view", evidence="Persistent features."
+            ),
+        ),
+    ):
+        findings, _, _, _ = v._resolve_unmatched_views(
+            old,
+            new,
+            doc,
+            doc,
+            pairs,
+            v.ViewMatches([], set(), set()),
+            set(),
+            set(),
+            Mock(),
+            Mock(),
+            monotonic() + 10,
+        )
+    assert pairs == [(0, 0)]
+    assert not findings
+
+
+def test_duplicate_view_retains_both_detections_evidence() -> None:
+    from dataclasses import replace
+
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as v
+
+    box = ViewBox(left=0.2, top=0.2, right=0.4, bottom=0.4)
+    image = Image.new("RGB", (200, 200), "white")
+    encoded = BytesIO()
+    image.save(encoded, "PNG")
+    incumbent = DrawingView(
+        1,
+        "detail",
+        "A",
+        box,
+        box,
+        (SheetSpan("baseline", 1, "30", 0.25, 0.25, 0.01, 0.01),),
+        ("First comment",),
+        image,
+        np.zeros((200, 200), dtype=np.uint8),
+    )
+    duplicate = replace(
+        incumbent,
+        spans=(SheetSpan("other", 1, "40", 0.3, 0.3, 0.01, 0.01),),
+        comments=("Second comment",),
+    )
+    document = v.DiagramDocument("source.pdf", [encoded.getvalue()], 1, [], {})
+    merged = v._merge_duplicate_view(incumbent, duplicate, document)
+    assert {span.span_id for span in merged.spans} == {"baseline", "other"}
+    assert merged.comments == ("First comment", "Second comment")
+    assert merged.complete == box
+
+
+@pytest.mark.parametrize("added", [False, True])
+def test_one_sided_finding_offers_diagram_navigation_without_verifying_location(
+    added: bool,
+) -> None:
+    from onyx.tools.tool_implementations.drawing_review import vision_diagrams as v
+
+    core = ViewBox(left=0.2, top=0.2, right=0.6, bottom=0.6)
+    complete = ViewBox(left=0.1, top=0.1, right=0.7, bottom=0.7)
+    span = SheetSpan("value", 1, "55", 0.62, 0.3, 0.02, 0.02)
+
+    def drawing(present: bool) -> DrawingView:
+        return DrawingView(
+            1,
+            "side",
+            "",
+            core,
+            complete,
+            (span,) if present else (),
+            (),
+            Image.new("RGB", (120, 120), "white"),
+            np.zeros((120, 120), dtype=np.uint8),
+        )
+
+    before, after = drawing(not added), drawing(added)
+    finding = v.Finding(
+        category="change",
+        status="needs_review",
+        title="Height callout needs review",
+        detail="The corresponding feature needs checking.",
+        original_span_id=None if added else span.span_id,
+        revised_span_id=span.span_id if added else None,
+    )
+    [located] = v._locate_findings(v.Comparison(findings=[finding]), before, after)
+    assert located.finding.status == "needs_review"
+    assert located.original.localized is (not added)
+    assert located.revised.localized is added
+    document = v.DiagramDocument("drawing.pdf", [], 1, [], {})
+    report = v.DiagramReport(content="", compared=1, findings=[located])
+    changes = report.viewer_review(
+        document, document, "old", "new", "test"
+    ).drawing_changes
+    assert changes is not None
+    [card] = changes.changes
+    assert card.review_proposal
+    assert card.vision_validation == "unconfirmed"
+    assert card.original_diagram_box is not None
+    assert card.revised_diagram_box is not None
+    assert (card.original_box is not None) is (not added)
+    assert (card.revised_box is not None) is added

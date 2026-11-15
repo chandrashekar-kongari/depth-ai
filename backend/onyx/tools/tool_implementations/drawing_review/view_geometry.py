@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 import pdfplumber
+from PIL import Image
 
 from onyx.engineering.drawing_changes import dimension_reference
 from onyx.tools.tool_implementations.drawing_review.spans import SheetSpan
@@ -32,6 +33,61 @@ class PageGeometry:
     dimension_origins: dict[str, tuple[Point, Point]] = field(default_factory=dict)
 
 
+def _follows_sheet_frame(mask: Ink) -> bool:
+    height, width = mask.shape
+    rows = max(2, round(height * 0.015))
+    columns = max(2, round(width * 0.015))
+    return all(
+        coverage > 0.7
+        for coverage in (
+            mask[:rows].any(axis=0).mean(),
+            mask[-rows:].any(axis=0).mean(),
+            mask[:, :columns].any(axis=1).mean(),
+            mask[:, -columns:].any(axis=1).mean(),
+        )
+    )
+
+
+def sheet_ink_regions(
+    image: Image.Image, *, view_candidates: bool = False
+) -> list[Bounds]:
+    """Find connected drawing strokes at sheet scale for coverage and crop checks."""
+    overview = image.convert("L")
+    overview.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
+    ink = np.asarray(overview) < 180
+    height, width = ink.shape
+    connected = cv2.dilate(ink.astype(np.uint8), np.ones((3, 3), dtype=np.uint8))
+    _, labels, stats, _ = cv2.connectedComponentsWithStats(connected)
+    regions: list[Bounds] = []
+    for component, (x, y, w, h, area) in enumerate(stats[1:].tolist(), 1):
+        if area < 20:
+            continue
+        large_at_margins = (
+            x < 0.12 * width
+            and x + w > 0.88 * width
+            and y < 0.12 * height
+            and y + h > 0.88 * height
+        )
+        if view_candidates and (w < 0.012 * width or h < 0.025 * height):
+            continue
+        if large_at_margins or view_candidates:
+            component_mask = (labels[y : y + h, x : x + w] == component).astype(
+                np.uint8
+            )
+            if large_at_margins and _follows_sheet_frame(component_mask):
+                continue
+            contours, _ = cv2.findContours(
+                component_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            # A long leader or dimension can have a large bounding box and very
+            # little enclosed shape. Keep it available to the crop edge check.
+            outline_area = sum(cv2.contourArea(contour) for contour in contours)
+            if view_candidates and outline_area < 0.12 * w * h:
+                continue
+        regions.append((x / width, y / height, (x + w) / width, (y + h) / height))
+    return regions
+
+
 def extract_page_geometry(
     data: bytes, max_pages: int, spans: tuple[SheetSpan, ...] = ()
 ) -> dict[int, PageGeometry]:
@@ -45,13 +101,17 @@ def extract_page_geometry(
                     r"[Øø⌀R]?\s*\d+(?:\.\d+)?(?:\s*±\s*\d+(?:\.\d+)?)?", span.text
                 ):
                     continue
-                reference = dimension_reference(
-                    crop,
+                bounds = (
                     crop.bbox[0] + span.x * crop.width,
                     crop.bbox[1] + span.y * crop.height,
                     crop.bbox[0] + (span.x + span.width) * crop.width,
                     crop.bbox[1] + (span.y + span.height) * crop.height,
                 )
+                reference = dimension_reference(crop, *bounds)
+                if reference is None:
+                    reference = dimension_reference(
+                        crop, *bounds, allow_long_extensions=True
+                    )
                 if reference is not None:
                     origins[span.span_id] = reference.endpoints
             strokes: list[Stroke] = []

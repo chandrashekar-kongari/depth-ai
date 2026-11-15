@@ -13365,6 +13365,8 @@
         "uploadFailed": "PDF 上传失败。请重试。",
         "chooseDrawing": "选择已有 PDF 或上传原始图纸和修订图纸。",
         "findingNumber": "问题 {number}",
+        "showOriginalDiagram": "显示原图中的视图",
+        "showRevisedDiagram": "显示修订图中的视图",
         "showOriginal": "在原图中查看",
         "showRevised": "在修订图中查看",
         "issuePin": "问题 {number}：{title}",

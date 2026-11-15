@@ -18,7 +18,7 @@ export function drawingChangeIssues(review: CommentReviewDelta): LinkedIssue[] {
   return (review.drawing_changes?.changes ?? [])
     .filter(
       (change) =>
-        isVisibleDrawingChange(change) &&
+        (isVisibleDrawingChange(change) || change.review_proposal) &&
         !change.verified_comment_ids?.some((id) =>
           review.comments.some((comment) => comment.id === id)
         )
@@ -28,20 +28,25 @@ export function drawingChangeIssues(review: CommentReviewDelta): LinkedIssue[] {
       if (review.commented_sheet_file_id)
         anchors[review.commented_sheet_file_id] = {
           page: change.page,
-          box: change.original_box,
-          pageLevel: !change.original_box,
+          box: change.original_box ?? change.original_diagram_box ?? null,
+          pageLevel: !(change.original_box ?? change.original_diagram_box),
+          diagramLevel: !change.original_box && !!change.original_diagram_box,
           quality: "located_difference",
         };
       if (review.revised_sheet_file_id)
         anchors[review.revised_sheet_file_id] = {
           page: change.revised_page ?? change.page,
-          box: change.revised_box,
-          pageLevel: !change.revised_box,
+          box: change.revised_box ?? change.revised_diagram_box ?? null,
+          pageLevel: !(change.revised_box ?? change.revised_diagram_box),
+          diagramLevel: !change.revised_box && !!change.revised_diagram_box,
           quality: "located_difference",
         };
       return {
         id: change.id,
-        showMarkerBeforeSelection: change.id.startsWith("vision-change-"),
+        showMarkerBeforeSelection:
+          isVisibleDrawingChange(change) &&
+          change.id.startsWith("vision-change-"),
+        verdict: change.review_proposal ? "unclear" : undefined,
         title:
           change.vision_explanation ||
           [change.before_text, change.after_text].filter(Boolean).join(" → "),

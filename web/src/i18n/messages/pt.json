@@ -13365,6 +13365,8 @@
         "uploadFailed": "Falha no envio do PDF. Tente novamente.",
         "chooseDrawing": "Escolha um PDF existente ou envie o original e a revisão.",
         "findingNumber": "Problema {number}",
+        "showOriginalDiagram": "Mostrar desenho no original",
+        "showRevisedDiagram": "Mostrar desenho na revisão",
         "showOriginal": "Ver no original",
         "showRevised": "Ver na revisão",
         "issuePin": "Problema {number}: {title}",

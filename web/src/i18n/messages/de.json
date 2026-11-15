@@ -13365,6 +13365,8 @@
         "uploadFailed": "PDF-Upload fehlgeschlagen. Erneut versuchen.",
         "chooseDrawing": "Vorhandenes PDF auswählen oder Original und Revision hochladen.",
         "findingNumber": "Problem {number}",
+        "showOriginalDiagram": "Ansicht im Original zeigen",
+        "showRevisedDiagram": "Ansicht in der Revision zeigen",
         "showOriginal": "Im Original anzeigen",
         "showRevised": "In Überarbeitung anzeigen",
         "issuePin": "Problem {number}: {title}",

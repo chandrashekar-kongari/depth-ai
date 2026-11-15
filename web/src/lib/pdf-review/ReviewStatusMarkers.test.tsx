@@ -164,3 +164,40 @@ it("keeps canvas marker controls at screen size while projecting the PDF anchor"
     transformOrigin: "top left",
   });
 });
+
+it("shows a diagram fallback tag only after its finding is selected", () => {
+  const select = jest.fn();
+  const issue: LinkedIssue = {
+    ...solved,
+    id: "vision-change-1",
+    verdict: undefined,
+    showMarkerBeforeSelection: true,
+    anchors: {
+      revised: {
+        ...solved.anchors.revised!,
+        diagramLevel: true,
+      },
+    },
+  };
+  const { rerender } = render(
+    <ReviewStatusMarkers
+      documentId="revised"
+      pageIndex={0}
+      issues={[issue]}
+      original={false}
+      onSelect={select}
+    />
+  );
+  expect(screen.queryByTestId("pdf-status-marker")).not.toBeInTheDocument();
+  rerender(
+    <ReviewStatusMarkers
+      documentId="revised"
+      pageIndex={0}
+      issues={[issue]}
+      original={false}
+      onSelect={select}
+      selectedIssueId={issue.id}
+    />
+  );
+  expect(screen.getByTestId("pdf-status-marker")).toBeVisible();
+});

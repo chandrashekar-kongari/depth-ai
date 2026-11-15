@@ -13365,6 +13365,8 @@
         "uploadFailed": "Error al subir el PDF. Inténtalo de nuevo.",
         "chooseDrawing": "Elige un PDF existente o sube el original y la revisión.",
         "findingNumber": "Problema {number}",
+        "showOriginalDiagram": "Mostrar dibujo en el original",
+        "showRevisedDiagram": "Mostrar dibujo en la revisión",
         "showOriginal": "Ver en el original",
         "showRevised": "Ver en la revisión",
         "issuePin": "Problema {number}: {title}",

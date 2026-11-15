@@ -12,6 +12,8 @@
 The chat viewer combines comment findings and standalone confirmed drawing changes in one searchable queue.
 Verified changes linked to comments remain in those comments' details. It does not render a separate geometry audit section.
 The queue retains warnings and skipped-page notices without a separate Review details disclosure. It does not show the vision model label.
+Final review responses address mechanical designers with findings, drawing locations, and supported checks.
+They preserve uncertainty and coverage limits. Model names and processing details stay internal unless requested.
 
 The opt-in `/app/reviews` page accepts an original commented PDF and a revised PDF.
 The user confirms equal sheet order. Both PDFs must have 1–8 pages and at most 20 MiB.
@@ -22,7 +24,15 @@ The pilot does not approve drawing release.
 Chat also offers `review_with_vision` for explicit vision review requests. For a
 PDF pair, the tool indexes views on the first eight pages of each revision.
 It uses the Captioning LLM to detect core and complete view boundaries and
-compare matched crops. Before matching, Onyx separates neighboring crops at visible gaps, assigns native dimensions
+compare matched crops. A sheet-level coverage check reuses connected ink regions to ask about missed views.
+It identifies enclosing frames at sheet margins and excludes probable dimensions from missed-view candidates.
+Crops can expand across their own connected evidence without crossing a neighboring core.
+Actual connected ink inside each core establishes outline ownership. An exclusive component can
+restore a clipped outline beyond the annotation expansion limit. Shared components require sheet context.
+Unresolved crop edges receive full-sheet context, and page-level review notes are supplied separately.
+A linked detached instruction can supply its own close-up while retaining the feature anchor.
+When a traced native dimension sits near another crop, review can receive a masked color image
+with the same bounds as the original crop. The original remains the source for evidence outside the mask. Before matching, Onyx separates neighboring crops at visible gaps, assigns native dimensions
 using extension-line references when available, and ranks colored review marks within each view.
 The model rechecks crops that still cross a neighboring core. Unresolved overlap blocks detailed comparison.
 View matching uses normalized PDF outlines where available
@@ -41,6 +51,15 @@ Each view receives a second pass for omitted independent edits. Request assignme
 Unresolved marks and requests that remain unassigned are reported.
 Unverified marks get an original-page anchor and a review card. The comparison prompt assigns edits to the requests they address.
 Onyx suppresses independent findings that repeat a resolved correction with the same original and revised text spans.
+Unmatched views receive an opposite-sheet search with existing matches marked.
+Located counterparts are verified before comparison. Competing used regions receive a three-crop arbitration.
+Overlapping duplicate detections can merge their evidence. A verified competing match can displace an earlier pair.
+Merged or ambiguous correspondence stays as an Unclear card. Absence requires complete indexed coverage.
+Recovery reserves time for existing comparisons, and unfinished checks remain coverage gaps.
+Matched-view findings retain separate diagram bounds for each revision.
+When a precise callout is unavailable, the card opens the corresponding diagram with a diagram-level label.
+Diagram bounds preserve uncertainty and draw a marker only when the finding is selected.
+Independent uncertain changes remain visible under Unclear.
 Native text spans and crop-relative evidence boxes map to PDF page coordinates for the review viewer.
 Explicit requests with one or two attachments run directly and return coverage
 and findings.
@@ -59,7 +78,7 @@ SDK update events carry the previous object plus a patch. Persist the updated SD
 Replay suppression wraps synchronous SDK mutations, not asynchronous page reads or commits, so user gestures still save.
 The canvas owns its camera transform. Native annotation controls receive its effective page scale once.
 The floating dock is a sibling of the viewport, outside its wheel and pointer handlers.
-Page fitting and card navigation reserve space above the dock. Document/page and zoom controls use separate popovers.
+Page fitting and card navigation reserve space above the dock. Document/page controls and zoom fitting use separate popovers. Zoom-in and zoom-out buttons sit directly on the dock.
 Legacy comment/text boxes remain proposed locations.
 The owner-scoped locations endpoint uses local pdfplumber native text geometry. Unique isolated dimension
 labels matched to evidence can produce located_text anchors; these identify text, not verified geometric features.

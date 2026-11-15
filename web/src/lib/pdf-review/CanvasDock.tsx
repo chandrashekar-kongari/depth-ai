@@ -278,6 +278,14 @@ export function CanvasDock({
           </Popover.Content>
         </Popover>
         <Divider orientation="vertical" />
+        <Button
+          size="sm"
+          prominence="tertiary"
+          icon={SvgZoomOut}
+          aria-label={t("zoomOut")}
+          tooltip={t("zoomOut")}
+          onClick={() => onZoom(1 / 1.2)}
+        />
         <Popover
           open={menu === "zoom"}
           onOpenChange={(open) => setMenu(open ? "zoom" : null)}
@@ -305,33 +313,6 @@ export function CanvasDock({
             width={60}
           >
             <Section height="fit" alignItems="stretch" padding={1} gap={1}>
-              <Section
-                flexDirection="row"
-                height="fit"
-                justifyContent="between"
-                gap={2}
-              >
-                <Button
-                  size="sm"
-                  prominence="tertiary"
-                  icon={SvgZoomOut}
-                  aria-label={t("zoomOut")}
-                  tooltip={t("zoomOut")}
-                  onClick={() => onZoom(1 / 1.2)}
-                />
-                <Text font="secondary-body" color="text-03">
-                  {t("zoom", { percent: Math.round(scale * 100) })}
-                </Text>
-                <Button
-                  size="sm"
-                  prominence="tertiary"
-                  icon={SvgZoomIn}
-                  aria-label={t("zoomIn")}
-                  tooltip={t("zoomIn")}
-                  onClick={() => onZoom(1.2)}
-                />
-              </Section>
-              <Divider />
               <Button
                 size="sm"
                 prominence="tertiary"
@@ -359,6 +340,14 @@ export function CanvasDock({
             </Section>
           </Popover.Content>
         </Popover>
+        <Button
+          size="sm"
+          prominence="tertiary"
+          icon={SvgZoomIn}
+          aria-label={t("zoomIn")}
+          tooltip={t("zoomIn")}
+          onClick={() => onZoom(1.2)}
+        />
       </Section>
     </div>
   );

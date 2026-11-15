@@ -63,7 +63,11 @@ _REVIEW_PROMPT = (
     "pages show. Flag uncertain or unreadable details. If the pages show different sheets, "
     "state that correspondence is uncertain. Ignore scan and alignment artifacts. "
     "Quote a dimension only if its label is legible. Never infer measurements or claim "
-    "engineering approval. State when there are no clear findings."
+    "engineering approval. State when there are no clear findings. "
+    "Write for a mechanical designer. Identify the sheet, view, or feature for each "
+    "finding. Explain practical effects and recommended checks only when supported "
+    "by the evidence. Keep confirmed findings separate from uncertain items. "
+    "Do not mention models, providers, tools, or processing stages."
 )
 
 
@@ -149,7 +153,7 @@ class VisionReviewTool(Tool):
         )
         if llm is None:
             return ToolResult(
-                content="Vision Review requires a Captioning LLM in Index Settings.",
+                content="The drawing review is unavailable because setup is incomplete. Ask your administrator to enable drawing review.",
                 is_error=True,
             )
 
@@ -188,7 +192,7 @@ class VisionReviewTool(Tool):
             return ToolResult(
                 content=review.content,
                 details=viewer_review,
-                is_error=review.compared == 0,
+                is_error=review.compared == 0 and not review.findings,
             )
 
         data, filename = sources[0]
@@ -202,7 +206,9 @@ class VisionReviewTool(Tool):
             invocation.cancellation.check()
             remaining = deadline - monotonic()
             if remaining <= 0:
-                reports.append("Vision Review reached its time limit.")
+                reports.append(
+                    "The review reached its time limit. Remaining pages were not reviewed."
+                )
                 break
             parts: list[ContentPart] = [
                 TextContentPart(
@@ -231,17 +237,18 @@ class VisionReviewTool(Tool):
                     ),
                 )
             except LLMTimeoutError:
-                reports.append("Vision Review reached its time limit.")
+                reports.append(
+                    "The review reached its time limit. Remaining pages were not reviewed."
+                )
                 break
             finding = response.text.strip()
             if not finding:
-                reports.append(f"Page {index} returned no vision result.")
+                reports.append(f"Page {index} could not be reviewed.")
                 break
             reports.append(f"## Page {index}\n{finding}")
             pages_reviewed += 1
 
         reports.append(
-            f"Vision model: {llm.config.model_name}\n"
             f"Coverage: reviewed {pages_reviewed} of {total} pages in {filename}."
         )
         return ToolResult(content="\n\n".join(reports), is_error=pages_reviewed == 0)

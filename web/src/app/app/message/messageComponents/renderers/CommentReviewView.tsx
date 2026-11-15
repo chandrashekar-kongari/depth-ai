@@ -34,6 +34,9 @@ interface CommentReviewViewProps {
 interface ReviewExtraIssue extends DrawingExtraIssue {
   revised_page?: number;
   location_verified?: boolean;
+  needs_review?: boolean;
+  original_diagram_level?: boolean;
+  revised_diagram_level?: boolean;
 }
 
 function verdictLabel(
@@ -121,21 +124,34 @@ export function CommentReviewView({
               if (review.commented_sheet_file_id)
                 anchors[review.commented_sheet_file_id] = {
                   page: comment.page,
-                  box: comment.box,
-                  pageLevel: comment.page_level,
+                  box: comment.box ?? comment.original_diagram_box ?? null,
+                  pageLevel:
+                    comment.original_diagram_box && !comment.box
+                      ? false
+                      : comment.page_level,
+                  diagramLevel: !comment.box && !!comment.original_diagram_box,
                   quality:
-                    isVisionComment && comment.box
+                    (isVisionComment && comment.box) ||
+                    comment.original_diagram_box
                       ? "located_comment"
                       : undefined,
                 };
               if (review.revised_sheet_file_id)
                 anchors[review.revised_sheet_file_id] = {
                   page: comment.revised_page ?? comment.page,
-                  box: comment.revised_box,
-                  pageLevel: comment.revised_page_level,
-                  quality: comment.revised_location_verified
-                    ? "located_text"
-                    : undefined,
+                  box:
+                    comment.revised_box ?? comment.revised_diagram_box ?? null,
+                  pageLevel:
+                    comment.revised_diagram_box && !comment.revised_box
+                      ? false
+                      : comment.revised_page_level,
+                  diagramLevel:
+                    !comment.revised_box && !!comment.revised_diagram_box,
+                  quality:
+                    comment.revised_location_verified ||
+                    comment.revised_diagram_box
+                      ? "located_text"
+                      : undefined,
                 };
               return {
                 id: comment.id,
@@ -247,6 +263,9 @@ function CommentQueue({
         title: issue.title,
         detail: issue.evidence,
         kind: "change",
+        needs_review: issue.verdict === "unclear",
+        original_diagram_level: original?.diagramLevel,
+        revised_diagram_level: revised?.diagramLevel,
         page: original?.page ?? 1,
         revised_page: revised?.page ?? original?.page ?? 1,
         box: original?.box ?? null,
@@ -262,7 +281,9 @@ function CommentQueue({
     comments.filter(
       (item) => item.verdict === "open" || item.verdict === "solved_incorrect"
     ).length + extra.filter((item) => item.kind !== "change").length;
-  const unclear = comments.filter((item) => item.verdict === "unclear").length;
+  const unclear =
+    comments.filter((item) => item.verdict === "unclear").length +
+    extra.filter((item) => item.needs_review).length;
   const addressed = comments.filter(
     (item) => item.verdict === "solved_correct"
   ).length;
@@ -277,14 +298,13 @@ function CommentQueue({
         [item.text, item.request, item.evidence, item.remaining].join(" ")
       )
   );
-  const filteredExtra =
-    filter === "all" || filter === "attention"
-      ? extra.filter(
-          (item) =>
-            (filter === "all" || item.kind !== "change") &&
-            matches(item.title + " " + item.detail)
-        )
-      : [];
+  const filteredExtra = extra.filter(
+    (item) =>
+      (filter === "all" ||
+        (filter === "attention" && item.kind !== "change") ||
+        (filter === "unclear" && item.needs_review)) &&
+      matches(item.title + " " + item.detail)
+  );
 
   return (
     <Section
@@ -484,7 +504,11 @@ function CommentQueue({
                       );
                   }}
                 >
-                  {pdfT("showOriginal")}
+                  {pdfT(
+                    !comment.box && comment.original_diagram_box
+                      ? "showOriginalDiagram"
+                      : "showOriginal"
+                  )}
                 </Button>
                 <Button
                   size="sm"
@@ -499,7 +523,11 @@ function CommentQueue({
                       );
                   }}
                 >
-                  {pdfT("showRevised")}
+                  {pdfT(
+                    !comment.revised_box && comment.revised_diagram_box
+                      ? "showRevisedDiagram"
+                      : "showRevised"
+                  )}
                 </Button>
               </Section>
               {open ? (
@@ -648,7 +676,9 @@ function ExtraIssueRow({
         </Text>
         {issue.kind === "change" ? (
           <Text font="secondary-body" color="text-03">
-            {t("unrequestedChange")}
+            {issue.needs_review
+              ? t("unclearStatus.label")
+              : t("unrequestedChange")}
           </Text>
         ) : null}
         <Text font="secondary-body" color="text-03">
@@ -676,7 +706,11 @@ function ExtraIssueRow({
               if (originalId) onShow(issue, originalId, issue.page);
             }}
           >
-            {pdfT("showOriginal")}
+            {pdfT(
+              issue.original_diagram_level
+                ? "showOriginalDiagram"
+                : "showOriginal"
+            )}
           </Button>
           <Button
             size="sm"
@@ -687,7 +721,9 @@ function ExtraIssueRow({
                 onShow(issue, revisedId, issue.revised_page ?? issue.page);
             }}
           >
-            {pdfT("showRevised")}
+            {pdfT(
+              issue.revised_diagram_level ? "showRevisedDiagram" : "showRevised"
+            )}
           </Button>
         </Section>
       </Section>

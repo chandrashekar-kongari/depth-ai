@@ -135,6 +135,14 @@ it("keeps the floating dock outside camera gestures and opens compact controls",
   const before = surface?.getAttribute("style");
   fireEvent.wheel(toolbar, { deltaY: 120, ctrlKey: true });
   expect(surface?.getAttribute("style")).toBe(before);
+  await user.click(screen.getByRole("button", { name: "Zoom in" }));
+  const zoomedIn = surface?.getAttribute("style");
+  expect(zoomedIn).not.toBe(before);
+  await user.click(screen.getByRole("button", { name: "Zoom out" }));
+  expect(surface?.getAttribute("style")).not.toBe(zoomedIn);
+  await user.click(screen.getByRole("button", { name: "Zoom controls" }));
+  expect(screen.getByRole("button", { name: "Fit page" })).toBeVisible();
+  await user.keyboard("{Escape}");
   await user.click(screen.getByRole("button", { name: "Documents and pages" }));
   await user.click(screen.getByRole("button", { name: "Revised" }));
   expect(mockActivate).toHaveBeenCalledWith("revised");
@@ -154,7 +162,6 @@ it("renders at Retina density through the full canvas zoom range", async () => {
     )
   );
   const user = setupUser();
-  await user.click(screen.getByRole("button", { name: "Zoom controls" }));
   for (let step = 0; step < 18; step++) {
     await user.click(screen.getByRole("button", { name: "Zoom in" }));
   }
@@ -179,7 +186,6 @@ it("keeps both revisions on one camera and repeated card requests preserve zoom"
     container.querySelectorAll('[data-pdf-document="revised"]')
   ).toHaveLength(2);
   const user = setupUser();
-  await user.click(screen.getByRole("button", { name: "Zoom controls" }));
   await user.click(screen.getByRole("button", { name: "Zoom in" }));
   await user.keyboard("{Escape}");
   const surface =

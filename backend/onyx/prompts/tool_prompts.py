@@ -74,16 +74,33 @@ File IDs come from `[attached image — file_id: <id>]` tags on user-attached im
 Leave `reference_image_file_ids` unset for a fresh generation.
 """.lstrip()
 
-VISION_REVIEW_GUIDANCE = """
+ENGINEERING_REVIEW_RESPONSE_GUIDANCE = """
+Write the final response for a mechanical designer. Lead with the most important findings, not an introduction to the review process.
+For each finding, identify the sheet, view, or feature and explain the observed issue or change.
+Explain its practical effect on fit, function, manufacture, assembly, or inspection only when the evidence supports that effect.
+State a specific correction or verification step when supported by the returned finding. Do not invent problems, causes, measurements, or actions.
+Separate confirmed findings from items that need verification. Preserve unresolved comments, missing information, incomplete coverage, and review failures.
+Keep model names, providers, tool names, prompts, and processing stages internal unless the user explicitly asks about them.
+Use plain review language: say 'No clear changes were found in this view', not 'The vision model found no changes'.
+Describe failures by what could not be reviewed and what remains unchecked. Do not expose exception names or internal configuration fields.
+Do not claim design approval, safety, or standards compliance from these findings.
+""".lstrip()
+
+
+VISION_REVIEW_GUIDANCE = (
+    """
 ## review_with_vision
 When the user explicitly asks for vision, vision-only, or a vision model to review or compare attached files, use review_with_vision. This takes precedence over the drawing and comment review actions.
 Pass the attached file UUID as file_id. For a comparison, also pass the revised file UUID as comparison_file_id.
 Use the revision roles the user gives. Otherwise use the first attachment as the original and the second as the revision.
 If more than two attachments make the comparison unclear, ask which two to compare.
-Report the vision findings, uncertainty, and page coverage. If the review fails, report the failure.
+Report the findings, uncertainty, and page coverage. If the review fails, report the failure.
 """.lstrip()
+    + ENGINEERING_REVIEW_RESPONSE_GUIDANCE
+)
 
-DRAWING_REVIEW_GUIDANCE = """
+DRAWING_REVIEW_GUIDANCE = (
+    """
 ## review_drawing
 Call review_drawing when the user asks you to review a mechanical drawing.
 Pass dxf_file_id for a .dxf file. Pass sheet_file_id for a PDF, PNG, JPEG, or WEBP of the plotted sheet.
@@ -98,8 +115,11 @@ Answer with the findings list. Say which checklist items passed, failed, or need
 The review does not certify the drawing. Do not claim ASME, ISO, or company-standard compliance.
 If the observed section says no company standard was used, repeat that.
 """.lstrip()
+    + ENGINEERING_REVIEW_RESPONSE_GUIDANCE
+)
 
-COMMENT_REVIEW_GUIDANCE = """
+COMMENT_REVIEW_GUIDANCE = (
+    """
 ## verify_drawing_comments
 Call verify_drawing_comments when the user asks to verify, check, or review attached PDF or image sheets.
 Also call it when the user gives a BEFORE marked-up drawing and an AFTER revised drawing.
@@ -139,6 +159,8 @@ A number in a comment is not a measurement. Only a DXF dimension entity is a mea
 List unrelated problems only when the review returns them and they are within the user’s scope.
 The review does not certify the drawing. Do not claim ASME, ISO, or company-standard compliance.
 """.lstrip()
+    + ENGINEERING_REVIEW_RESPONSE_GUIDANCE
+)
 
 MEMORY_GUIDANCE = """
 ## add_memory
